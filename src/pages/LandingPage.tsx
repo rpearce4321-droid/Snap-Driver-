@@ -18,8 +18,6 @@ const BODY_FONT = {
 
 const BACKDOOR_USERNAME = "Snapadmin01";
 const BACKDOOR_PASSWORD = "Rachel0407!";
-const BACKDOOR_KEY = "snapdriver_backdoor_unlocked";
-
 
 type AccessCardProps = {
   role: AccountRole;
@@ -139,18 +137,12 @@ export default function LandingPage() {
   const [backdoorUser, setBackdoorUser] = useState("");
   const [backdoorPass, setBackdoorPass] = useState("");
   const [backdoorError, setBackdoorError] = useState<string | null>(null);
-  const [backdoorUnlocked, setBackdoorUnlocked] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(BACKDOOR_KEY) === "1";
-  });
+  const [backdoorUnlocked, setBackdoorUnlocked] = useState(false);
 
   const handleUnlockBackdoor = () => {
     setBackdoorError(null);
     if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
       setBackdoorUnlocked(true);
-      if (typeof window !== "undefined") {
-        window.localStorage.setItem(BACKDOOR_KEY, "1");
-      }
       setBackdoorUser("");
       setBackdoorPass("");
       return;
@@ -160,9 +152,6 @@ export default function LandingPage() {
 
   const handleLockBackdoor = () => {
     setBackdoorUnlocked(false);
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(BACKDOOR_KEY);
-    }
   };
 
   return (
@@ -224,7 +213,7 @@ export default function LandingPage() {
                 Backdoor Access (Testing)
               </div>
               <div className="text-sm text-slate-400 mt-2">
-                These shortcuts remain for QA. Use the backdoor login to unlock Seeker/Retainer testing.
+                These shortcuts remain for QA. Unlocking is per tab and resets on refresh.
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 {backdoorUnlocked ? (
