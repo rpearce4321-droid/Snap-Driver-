@@ -227,14 +227,14 @@ export default function LandingPage() {
                 These shortcuts remain for QA. Use the backdoor login to unlock Seeker/Retainer testing.
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
-                <a
-                  className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-                  href="/admin"
-                >
-                  Admin (open)
-                </a>
                 {backdoorUnlocked ? (
                   <>
+                    <a
+                      className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
+                      href="/admin"
+                    >
+                      Admin backdoor
+                    </a>
                     <a
                       className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
                       href="/seekers"
