@@ -16,6 +16,11 @@ const BODY_FONT = {
   fontFamily: '"Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif',
 };
 
+const BACKDOOR_USERNAME = "Snapadmin01";
+const BACKDOOR_PASSWORD = "Rachel0407!";
+const BACKDOOR_KEY = "snapdriver_backdoor_unlocked";
+
+
 type AccessCardProps = {
   role: AccountRole;
   title: string;
@@ -131,6 +136,35 @@ const AccessCard: React.FC<AccessCardProps> = ({
 };
 
 export default function LandingPage() {
+  const [backdoorUser, setBackdoorUser] = useState("");
+  const [backdoorPass, setBackdoorPass] = useState("");
+  const [backdoorError, setBackdoorError] = useState<string | null>(null);
+  const [backdoorUnlocked, setBackdoorUnlocked] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(BACKDOOR_KEY) === "1";
+  });
+
+  const handleUnlockBackdoor = () => {
+    setBackdoorError(null);
+    if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
+      setBackdoorUnlocked(true);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(BACKDOOR_KEY, "1");
+      }
+      setBackdoorUser("");
+      setBackdoorPass("");
+      return;
+    }
+    setBackdoorError("Invalid backdoor credentials.");
+  };
+
+  const handleLockBackdoor = () => {
+    setBackdoorUnlocked(false);
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(BACKDOOR_KEY);
+    }
+  };
+
   return (
     <main
       className="min-h-screen bg-[#0b0f15] text-slate-100 relative overflow-hidden"
@@ -190,7 +224,7 @@ export default function LandingPage() {
                 Backdoor Access (Testing)
               </div>
               <div className="text-sm text-slate-400 mt-2">
-                These shortcuts remain untouched for admin checks and rapid QA.
+                These shortcuts remain for QA. Use the backdoor login to unlock Seeker/Retainer testing.
               </div>
               <div className="mt-4 flex flex-wrap gap-3">
                 <a
@@ -199,19 +233,56 @@ export default function LandingPage() {
                 >
                   Admin (open)
                 </a>
-                <a
-                  className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-                  href="/seekers"
-                >
-                  Seeker backdoor
-                </a>
-                <a
-                  className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-                  href="/retainers"
-                >
-                  Retainer backdoor
-                </a>
+                {backdoorUnlocked ? (
+                  <>
+                    <a
+                      className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
+                      href="/seekers"
+                    >
+                      Seeker backdoor
+                    </a>
+                    <a
+                      className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
+                      href="/retainers"
+                    >
+                      Retainer backdoor
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleLockBackdoor}
+                      className="rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/20 transition"
+                    >
+                      Lock backdoor
+                    </button>
+                  </>
+                ) : (
+                  <div className="flex flex-wrap gap-3 items-center">
+                    <input
+                      value={backdoorUser}
+                      onChange={(e) => setBackdoorUser(e.target.value)}
+                      placeholder="Username"
+                      className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <input
+                      value={backdoorPass}
+                      onChange={(e) => setBackdoorPass(e.target.value)}
+                      type="password"
+                      placeholder="Password"
+                      className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUnlockBackdoor}
+                      className="rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition"
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                )}
               </div>
+              {backdoorError && (
+                <div className="mt-3 text-xs text-rose-300">{backdoorError}</div>
+              )}
             </div>
           </div>
 
