@@ -27,7 +27,7 @@ export default function ProfileForm({
           fd.delete(g.name)
           if (vals.length) fd.set(g.name, JSON.stringify(vals))
         })
-        const raw = Object.fromEntries(fd.entries())
+        const raw: Record<string, any> = Object.fromEntries(fd.entries())
         // unpack the JSON-encoded arrays
         checks?.forEach(g => {
           if (raw[g.name]) try { raw[g.name] = JSON.parse(String(raw[g.name])) } catch { raw[g.name] = [] }

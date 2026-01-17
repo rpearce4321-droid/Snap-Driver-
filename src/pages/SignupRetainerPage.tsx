@@ -1,5 +1,5 @@
 // src/pages/SignupRetainerPage.tsx
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { RetainerProfileForm } from "./RetainerPage";
 import { createAccount, getAccountByEmail } from "../lib/accounts";

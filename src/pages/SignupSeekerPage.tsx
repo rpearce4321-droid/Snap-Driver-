@@ -1,5 +1,5 @@
 // src/pages/SignupSeekerPage.tsx
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SeekerProfileForm } from "./SeekerPage";
 import { createAccount, getAccountByEmail } from "../lib/accounts";
