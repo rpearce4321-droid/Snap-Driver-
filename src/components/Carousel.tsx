@@ -1,5 +1,4 @@
-﻿import React from "react";
-
+﻿
 type Card = { id: string; title: string; subtitle?: string };
 
 export default function Carousel({ items, title }: { items: Card[]; title: string }) {

@@ -22,7 +22,6 @@ import {
   getCurrentMonthKey,
   getCurrentPeriodKey,
   getCurrentWeekKey,
-  getBadgeCheckins,
   getBadgeScoreSnapshot,
   getBadgeKindWeight,
   getBadgeLevelMultipliers,
@@ -413,21 +412,6 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
 
   const snapBadges = useMemo(() => getSnapBadges(role), [role]);
   const checkerBadges = useMemo(() => getCheckerBadges(role), [role]);
-  const allCheckins = useMemo(() => getBadgeCheckins(), [tick]);
-  const historyByBadge = useMemo(() => {
-    const map = new Map<string, Array<{ value: string; at: number }>>();
-    const filtered = allCheckins.filter((c) => c.targetRole === role && c.targetId === ownerId);
-    for (const c of filtered) {
-      const arr = map.get(c.badgeId) ?? [];
-      arr.push({ value: c.overrideValue ?? c.value, at: Date.parse(c.createdAt) || 0 });
-      map.set(c.badgeId, arr);
-    }
-    for (const [key, arr] of map.entries()) {
-      arr.sort((a, b) => a.at - b.at);
-      map.set(key, arr.slice(-12));
-    }
-    return map;
-  }, [allCheckins, ownerId, role]);
 
   const renderCatalogList = (items: BadgeDefinition[], label: string) => {
     return (

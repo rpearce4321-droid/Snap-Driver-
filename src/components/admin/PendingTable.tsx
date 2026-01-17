@@ -1,5 +1,4 @@
-﻿import React from "react";
-import { useQuery } from "@tanstack/react-query";
+﻿import { useQuery } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { useApproveProfile, useRejectProfile } from "../../lib/mutations";
 

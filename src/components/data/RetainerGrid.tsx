@@ -1,5 +1,4 @@
 ﻿// src/components/data/RetainerGrid.tsx
-import React from "react";
 import { Link } from "react-router-dom";
 import { useRetainers } from "../../lib/queries";
 

@@ -1199,11 +1199,10 @@ const AdminBadgeAuditPanel: React.FC = () => {
   const displayName = (role: BadgeOwnerRole, id: string) => {
     if (role === "SEEKER") {
       const s = seekerById.get(id);
-      if (!s) return `Seeker (${id})`;
-      return `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim() || s.companyName || s.name || id;
+      return s ? formatSeekerName(s) : `Seeker (${id})`;
     }
     const r = retainerById.get(id);
-    return r?.companyName || r?.name || `Retainer (${id})`;
+    return r ? formatRetainerName(r) : `Retainer (${id})`;
   };
 
   const filtered = useMemo(() => {
@@ -1337,8 +1336,8 @@ const AdminBadgeAuditPanel: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide border ${statusBadgeClass(checkin.status)}`}>
-                    {checkin.status}
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide border ${statusBadgeClass(checkin.status ?? "ACTIVE")}`}>
+                    {checkin.status ?? "ACTIVE"}
                   </span>
                   {checkin.overrideNote && (
                     <span className="text-[11px] text-white/50">{checkin.overrideNote}</span>

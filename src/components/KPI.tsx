@@ -1,5 +1,4 @@
-﻿import React from "react";
-
+﻿
 export function KPI({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-2xl bg-white/5 border border-white/10 p-4">

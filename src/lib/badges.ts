@@ -220,7 +220,7 @@ function normalizeRulesArray(
   return rules;
 }
 
-function defaultRulesForRole(role: BadgeOwnerRole): BadgeLevelRule[] {
+function defaultRulesForRole(_role: BadgeOwnerRole): BadgeLevelRule[] {
   // Default rules are intentionally conservative; Admin can adjust.
   // NOTE: same defaults for now, but we keep per-role for future tuning.
   const base: BadgeLevelRule[] = [
@@ -1050,8 +1050,10 @@ export function getTrustRatingForProfile(args: {
           ownerId,
           badgeId,
         });
-        if (trust.percent == null) continue;
+        if (!trust || trust.percent == null) continue;
       }
+
+      if (!trust || trust.percent == null) continue;
 
       const progress = getBadgeProgress(args.ownerRole, ownerId, badgeId);
       const multiplier = getLevelMultiplier(Math.max(1, progress.maxLevel || 1), levelMultipliers);

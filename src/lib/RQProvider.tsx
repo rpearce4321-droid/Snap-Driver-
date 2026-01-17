@@ -1,5 +1,5 @@
 ﻿import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactNode, useState } from "react";
+import { useState, type ReactNode } from "react";
 
 export function RQProvider({ children }: { children: ReactNode }) {
   // Lazy-create so dev HMR doesn't leak clients

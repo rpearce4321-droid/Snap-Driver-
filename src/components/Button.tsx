@@ -1,4 +1,4 @@
-﻿import React, { type ButtonHTMLAttributes } from "react"
+﻿import type { ButtonHTMLAttributes } from "react"
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "default"|"primary"|"danger"|"warn" }
 

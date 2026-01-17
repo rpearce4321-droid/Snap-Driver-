@@ -1,5 +1,4 @@
-﻿import React from "react";
-import { useAdminKpis, useSeekers, useRetainers } from "../lib/queries";
+﻿import { useAdminKpis, useSeekers, useRetainers } from "../lib/queries";
 
 export default function DebugPanel() {
   if (!import.meta.env.DEV) return null;

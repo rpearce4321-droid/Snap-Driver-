@@ -38,8 +38,6 @@ export type PermissionContext = {
 type Rule = (action: Action, ctx: PermissionContext) => boolean;
 
 const isAdmin: Rule = (_a, ctx) => ctx.role === "ADMIN";
-const isSeeker: Rule = (_a, ctx) => ctx.role === "SEEKER";
-const isRetainer: Rule = (_a, ctx) => ctx.role === "RETAINER";
 
 const ownsSeeker: Rule = (_a, ctx) =>
   ctx.role === "SEEKER" &&
@@ -58,7 +56,7 @@ const ownsRetainer: Rule = (_a, ctx) =>
  * Keep it conservative — allow only what we explicitly want.
  */
 const ACL: Record<Resource, Rule> = {
-  portal: (action, ctx) => {
+  portal: (action, _ctx) => {
     // Everyone can "view" their portal area in UI. (Real auth comes later.)
     if (action === "view") return true;
     return false;

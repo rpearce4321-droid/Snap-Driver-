@@ -694,11 +694,6 @@ const SeekerPage: React.FC = () => {
     setComposeDraft({ retainer });
   };
 
-  const handleOpenRetainerProfile = (retainer: Retainer) => {
-    if (!retainer?.id) return;
-    navigate(`/retainers/${retainer.id}`);
-  };
-
   const handleOpenRetainerProfileFromAction = (retainer: Retainer) => {
     if (!retainer?.id) return;
     navigate(`/retainers/${retainer.id}`, {
@@ -776,7 +771,7 @@ const SeekerPage: React.FC = () => {
     ? renderSubcontractorHeaderSubtitle(activeTab)
     : renderHeaderSubtitle(activeTab);
 
-  const approvalGate =
+  const approvalGate: { title: string; body: string; status?: string } | null =
     isSessionSeeker
       ? !sessionSeekerId
         ? {
@@ -1073,7 +1068,6 @@ const SeekerPage: React.FC = () => {
                 retainers={retainers}
                 currentSeeker={currentSeeker}
                 onToast={(msg) => setToastMessage(msg)}
-                onOpenProfile={handleOpenRetainerProfile}
                 onGoToMessages={() => setActiveTab("messages")}
                 onGoToRoutes={() => openActionTab("routes")}
                 onGoToLinking={() => setActiveTab("linking")}
@@ -1284,7 +1278,6 @@ const DashboardView: React.FC<{
   retainers: Retainer[];
   currentSeeker?: Seeker;
   onToast: (message: string) => void;
-  onOpenProfile: (r: Retainer) => void | undefined;
   onGoToMessages: () => void;
   onGoToRoutes: () => void;
   onGoToLinking: () => void;
@@ -1295,7 +1288,6 @@ const DashboardView: React.FC<{
   retainers,
   currentSeeker,
   onToast,
-  onOpenProfile,
   onGoToMessages,
   onGoToRoutes,
   onGoToLinking,
@@ -3612,6 +3604,86 @@ const ComposeMessagePopover: React.FC<{
 };
 
 /* ------------------------------------------------------------------ */
+
+
+const BulkComposeMessagePopover: React.FC<{
+  count: number;
+  onClose: () => void;
+  onSend: (subject: string, body: string) => void;
+}> = ({ count, onClose, onSend }) => {
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSend = () => {
+    setError(null);
+    if (!subject.trim()) {
+      setError("Please add a subject for this conversation.");
+      return;
+    }
+    if (!body.trim()) {
+      setError("Please write a short message.");
+      return;
+    }
+    onSend(subject.trim(), body.trim());
+    setSubject("");
+    setBody("");
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-end pointer-events-none">
+      <div className="pointer-events-auto mb-4 mr-4 w-full max-w-md rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-800">
+          <div className="text-xs uppercase tracking-wide text-slate-400">Bulk message</div>
+          <div className="text-sm font-semibold text-slate-50">{count} retainers</div>
+        </div>
+        <div className="px-4 py-3 space-y-3">
+          {error && (
+            <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
+              {error}
+            </div>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-200">Subject / Name for this conversation</label>
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Example: Route A - night shift coverage"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-200">Message</label>
+            <textarea
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-h-[80px]"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Introduce yourself and what you-re looking for-"
+            />
+          </div>
+        </div>
+        <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={handleSend}
+            className="px-4 py-1.5 rounded-full text-xs font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition"
+          >
+            Send
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-full text-xs font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 /* Subcontractors tab                                                 */
 /* ------------------------------------------------------------------ */
 

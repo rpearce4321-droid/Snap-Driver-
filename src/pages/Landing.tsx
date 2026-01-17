@@ -1,5 +1,4 @@
-﻿import React from "react";
-export default function Landing() {
+﻿export default function Landing() {
   return (
     <main className="min-h-screen bg-gray-950 text-gray-100 flex items-center justify-center">
       <div className="max-w-xl w-full p-8 text-center space-y-4">

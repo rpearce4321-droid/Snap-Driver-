@@ -1,5 +1,4 @@
-﻿import React from "react";
-
+﻿
 type SidebarProps = { open: boolean; onToggle: () => void; items: { label: string; href: string }[] };
 
 export default function Sidebar({ open, onToggle, items }: SidebarProps) {

@@ -1,5 +1,5 @@
 ﻿import React, { useState } from "react";
-import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 
 /** LeftNav with collapsible categories, real NavLinks, Edit deep-links,
  *  and softened edges to blend with the bluish-orange background.
@@ -21,7 +21,6 @@ export default function LeftNav() {
   });
 
   const navigate = useNavigate();
-  const _loc = useLocation();
 
   const cats: Cat[] = [
     { id: "admin", label: "Admin", defaultOpen: true, links: [{ to: "/admin", label: "Dashboard" }], editTo: "/admin#edit" },

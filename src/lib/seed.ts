@@ -188,7 +188,7 @@ const CITY_NAMES = [
   "St. Petersburg",
 ];
 
-const JOB_TITLES = [
+export const JOB_TITLES = [
   "Owner",
   "General Manager",
   "Operations Manager",
@@ -205,7 +205,7 @@ const JOB_TITLES = [
   "Supervisor",
 ];
 
-const SEEKER_AVAILABILITY = [
+export const SEEKER_AVAILABILITY = [
   "Weekdays (AM)",
   "Weekdays (PM)",
   "Weekdays (flex)",
@@ -1106,7 +1106,7 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
     const lastNameFinal = lastNameBase || pick(LAST_NAMES);
 
     const subcontractors = shouldHaveSubs
-      ? Array.from({ length: randomInt(subcontractorMin, subcontractorMax) }).map((_, subIdx) => {
+      ? Array.from({ length: randomInt(subcontractorMin, subcontractorMax) }).map(() => {
           const subFull = makeUniquePersonName();
           const [sf, sl] = subFull.split(" ");
           const sid = makeTempId("sub");

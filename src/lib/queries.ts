@@ -21,26 +21,26 @@ type ListArgs = { status?: string; take?: number; cursor?: string; query?: strin
 
 export function useSeekers(args: ListArgs = {}) {
   const { status = "APPROVED", take = 9, cursor, query } = args;
-  return useQuery({
+  return useQuery<CursorPage<any>>({
     queryKey: ["seekers", status, take, cursor, query],
     queryFn: async () => {
       const r = await api.get<CursorPage<any>>("/seekers", { params: { status, take, cursor, query } });
       return r.data;
     },
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
     retry: 0,
   });
 }
 
 export function useRetainers(args: ListArgs = {}) {
   const { status = "APPROVED", take = 9, cursor, query } = args;
-  return useQuery({
+  return useQuery<CursorPage<any>>({
     queryKey: ["retainers", status, take, cursor, query],
     queryFn: async () => {
       const r = await api.get<CursorPage<any>>("/retainers", { params: { status, take, cursor, query } });
       return r.data;
     },
-    keepPreviousData: true,
+    placeholderData: (previous) => previous,
     retry: 0,
   });
 }

@@ -36,19 +36,14 @@ import {
 
 import {
 
-  type Conversation,
 
-  type ChatMessage,
 
   createConversationWithFirstMessage,
 
   getConversationsForRetainer,
 
-  getMessagesForConversation,
 
-  addMessageToConversation,
 
-  markConversationRead,
 
 } from "../lib/messages";
 
@@ -120,7 +115,6 @@ import {
 
 import {
 
-  createRetainerPost,
 
   getRetainerPosts,
 
@@ -128,7 +122,6 @@ import {
 
   type RetainerPost,
 
-  type RetainerPostAudience,
 
   type RetainerPostStatus,
 
@@ -158,7 +151,6 @@ import { getFeedForRetainer, type FeedItem } from "../lib/feed";
 import {
   getRouteResponseCounts,
   getRouteResponsesGrouped,
-  getRouteResponsesForRoute,
   getUnreadRouteResponseCount,
   markRouteResponsesSeen,
   NOT_INTERESTED_REASONS,
@@ -174,7 +166,6 @@ import {
   FEED_REACTIONS_EVENT,
   getFeedReactionCounts,
   getFeedReactionsGrouped,
-  type FeedReactionType,
   type FeedReactionItemKind,
 } from "../lib/feedReactions";
 
@@ -1305,7 +1296,7 @@ const RetainerPage: React.FC = () => {
 
   }, [approvedSeekers]);
 
-  const approvalGate =
+  const approvalGate: { title: string; body: string; status?: string } | null =
     isSessionRetainer
       ? !sessionRetainerId
         ? {
@@ -1684,35 +1675,22 @@ const RetainerPage: React.FC = () => {
 
                 seekers={seekers}
 
-                approvedSeekersCount={approvedSeekers.length}
 
-                excellentSeekers={seekerBuckets.excellent}
 
-                possibleSeekers={seekerBuckets.possible}
 
-                notNowSeekers={seekerBuckets.notNow}
 
-                selectedSeekerIds={selectedSeekerIds}
 
-                onToggleSelectedSeeker={toggleSelectedSeeker}
 
-                onSelectAllSeekers={selectAllSeekersInLists}
 
-                onClearSelectedSeekers={clearSelectedSeekers}
 
-                onBulkMessageSelected={bulkMessageSelectedSeekers}
 
-                onBulkRequestLinkSelected={bulkRequestLinksForSelectedSeekers}
 
-                onBulkReturnToWheelSelected={bulkReturnSelectedSeekersToWheel}
 
                 onToast={(msg) => setToastMessage(msg)}
 
                 onOpenProfile={(s) => navigate(`/seekers/${(s as any).id}`)}
 
-                onReturnToWheel={handleReturnSeekerToWheel}
 
-                onRebucketById={handleRebucketById}
 
                 onMessage={handleMessageSeeker}
 
@@ -1739,6 +1717,8 @@ const RetainerPage: React.FC = () => {
               <ActionView
 
                 actionTab={actionTab}
+
+                noticeTick={noticeTick}
 
                 onChangeTab={setActionTab}
 
@@ -2122,35 +2102,22 @@ const DashboardView: React.FC<{
 
   seekers: Seeker[];
 
-  approvedSeekersCount: number;
 
-  excellentSeekers: Seeker[];
 
-  possibleSeekers: Seeker[];
 
-  notNowSeekers: Seeker[];
 
-  selectedSeekerIds: Set<string>;
 
-  onToggleSelectedSeeker: (seekerId: string) => void;
 
-  onSelectAllSeekers: () => void;
 
-  onClearSelectedSeekers: () => void;
 
-  onBulkMessageSelected: () => void;
 
-  onBulkRequestLinkSelected: () => void;
 
-  onBulkReturnToWheelSelected: () => void;
 
   onToast: (message: string) => void;
 
   onOpenProfile: (s: Seeker) => void;
 
-  onReturnToWheel: (s: Seeker) => void;
 
-  onRebucketById: (seekerId: string, targetBucket: SeekerBucketKey) => void;
 
   onMessage: (s: Seeker) => void;
 
@@ -2174,35 +2141,22 @@ const DashboardView: React.FC<{
 
   seekers,
 
-  approvedSeekersCount,
 
-  excellentSeekers,
 
-  possibleSeekers,
 
-  notNowSeekers,
 
-  selectedSeekerIds,
 
-  onToggleSelectedSeeker,
 
-  onSelectAllSeekers,
 
-  onClearSelectedSeekers,
 
-  onBulkMessageSelected,
 
-  onBulkRequestLinkSelected,
 
-  onBulkReturnToWheelSelected,
 
   onToast,
 
   onOpenProfile,
 
-  onReturnToWheel,
 
-  onRebucketById,
 
   onMessage,
 
@@ -3943,7 +3897,7 @@ const DashboardView: React.FC<{
 
                         <span className="badge-token h-12 w-12 rounded-2xl border border-slate-700 bg-slate-950/50 flex items-center justify-center text-slate-100">
 
-                          {badgeIconFor(badge.iconKey || badge.icon, "h-full w-full")}
+                          {badgeIconFor(badge.iconKey, "h-full w-full")}
 
                         </span>
 
@@ -4469,6 +4423,8 @@ const ActionView: React.FC<{
 
   actionTab: ActionTabKey;
 
+  noticeTick: number;
+
   onChangeTab: (tab: ActionTabKey) => void;
 
   retainerId: string | null;
@@ -4536,6 +4492,8 @@ const ActionView: React.FC<{
 }> = ({
 
   actionTab,
+
+  noticeTick,
 
   onChangeTab,
 
@@ -7597,6 +7555,86 @@ const ComposeMessagePopover: React.FC<{
 
 /* ------------------------------------------------------------------ */
 
+
+
+const BulkComposeMessagePopover: React.FC<{
+  count: number;
+  onClose: () => void;
+  onSend: (subject: string, body: string) => void;
+}> = ({ count, onClose, onSend }) => {
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSend = () => {
+    setError(null);
+    if (!subject.trim()) {
+      setError("Please add a subject for this conversation.");
+      return;
+    }
+    if (!body.trim()) {
+      setError("Please write a short message.");
+      return;
+    }
+    onSend(subject.trim(), body.trim());
+    setSubject("");
+    setBody("");
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end justify-end pointer-events-none">
+      <div className="pointer-events-auto mb-4 mr-4 w-full max-w-md rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-800">
+          <div className="text-xs uppercase tracking-wide text-slate-400">Bulk message</div>
+          <div className="text-sm font-semibold text-slate-50">{count} seekers</div>
+        </div>
+        <div className="px-4 py-3 space-y-3">
+          {error && (
+            <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
+              {error}
+            </div>
+          )}
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-200">Subject / Name for this conversation</label>
+            <input
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Example: Route A - night shift coverage"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-200">Message</label>
+            <textarea
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-h-[80px]"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Introduce your company and what you-re looking for-"
+            />
+          </div>
+        </div>
+        <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={handleSend}
+            className="px-4 py-1.5 rounded-full text-xs font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition"
+          >
+            Send
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-full text-xs font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 /* Messaging Center - Rails + Search + Persist selection              */
 
 /* ------------------------------------------------------------------ */
@@ -10478,20 +10516,6 @@ const RetainerPostsView: React.FC<{
 
   }, [retainer?.id, refresh]);
 
-
-
-  const [postType, setPostType] = useState<RetainerPostType>("UPDATE");
-
-  const [postAudience, setPostAudience] =
-
-    useState<RetainerPostAudience>("LINKED_ONLY");
-
-  const [postTitle, setPostTitle] = useState("");
-
-  const [postBody, setPostBody] = useState("");
-
-
-
   const [broadcastAudience, setBroadcastAudience] =
 
     useState<RetainerBroadcastAudience>("LINKED_ONLY");
@@ -10500,7 +10524,7 @@ const RetainerPostsView: React.FC<{
 
   const [broadcastBody, setBroadcastBody] = useState("");
 
-  const [broadcastSendToInbox, setBroadcastSendToInbox] = useState(true);
+  const [broadcastSendToInbox] = useState(true);
 
 
 
@@ -10547,46 +10571,6 @@ const RetainerPostsView: React.FC<{
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 
   };
-
-
-
-  const handleCreatePost = () => {
-
-    try {
-
-      createRetainerPost({
-
-        retainerId: retainer.id,
-
-        type: postType,
-
-        audience: postAudience,
-
-        title: postTitle,
-
-        body: postBody,
-
-      });
-
-      onToast("Post created");
-
-      setPostTitle("");
-
-      setPostBody("");
-
-      setRefresh((n) => n + 1);
-
-    } catch (err) {
-
-      const msg = err instanceof Error ? err.message : "Failed to create post.";
-
-      onToast(msg);
-
-    }
-
-  };
-
-
 
   const handleCreateBroadcast = () => {
 

@@ -1,5 +1,4 @@
 ﻿// src/components/data/SeekerGrid.tsx
-import React from "react";
 import { Link } from "react-router-dom";
 import { useSeekers } from "../../lib/queries";
 
