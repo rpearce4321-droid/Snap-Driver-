@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String           @id @default(cuid())
+  email           String           @unique
+  password        String
+  role            Role
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  retainerProfile RetainerProfile?
+  seekerProfile   SeekerProfile?
+}
+
+model SeekerProfile {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  name              String
+  companyDba        String?
+  birthday          DateTime?
+  city              String?
+  state             String?
+  zip               String?
+  yearsInBusiness   Int?
+  deliveryVerticals String[]
+  vehicle           String?
+  insuranceType     String?
+  ref1_name         String?
+  ref1_phone        String?
+  ref1_email        String?
+  ref1_company      String?
+  ref2_name         String?
+  ref2_phone        String?
+  ref2_email        String?
+  ref2_company      String?
+  status            Status    @default(PENDING)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  user              User      @relation(fields: [userId], references: [id])
+}
+
+model RetainerProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  companyName       String
+  ceoName           String?
+  city              String?
+  state             String?
+  zip               String?
+  mission           String?
+  deliveryVerticals String[]
+  employees         Int?
+  yearsInBusiness   Int?
+  desiredTraits     String[]
+  status            Status   @default(PENDING)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  fromId    String
+  toId      String
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model ViewEvent {
+  id        String   @id @default(cuid())
+  viewerId  String?
+  target    String
+  targetId  String
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  SEEKER
+  RETAINER
+}
+
+enum Status {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+

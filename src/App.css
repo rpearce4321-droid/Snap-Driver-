@@ -1,0 +1,15 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Full-bleed canvas */
+html, body, #root { height: 100%; }
+html, body { margin: 0; background: transparent; }
+
+/* Ensure the React mount fills the viewport with no padding "frame" */
+#root {
+  padding: 0;
+  max-width: none;
+  text-align: left;
+}
+

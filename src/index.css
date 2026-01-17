@@ -1,0 +1,135 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === Custom Theme Overrides === */
+:root {
+  --color-bg: #0e1117;
+  --color-surface: rgba(255, 255, 255, 0.04);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-accent: #3b82f6;   /* Blue-500 */
+  --color-accent-light: #60a5fa;
+  --color-success: #22c55e;  /* Green-500 */
+  --color-warning: #facc15;
+  --color-danger: #ef4444;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: #f5f5f5;
+}
+
+/* === Accent Elements === */
+.btn {
+  @apply rounded-xl border border-white/10 px-3 py-1.5 text-sm font-medium transition;
+  background: linear-gradient(to right, rgba(59,130,246,0.1), rgba(37,99,235,0.1));
+}
+.btn:hover {
+  background: linear-gradient(to right, rgba(59,130,246,0.2), rgba(37,99,235,0.2));
+  border-color: var(--color-accent-light);
+}
+.btn:active {
+  background: linear-gradient(to right, rgba(37,99,235,0.3), rgba(29,78,216,0.3));
+}
+
+/* === Surface panels === */
+.surface {
+  @apply rounded-2xl border border-white/10 shadow-inner;
+  background: linear-gradient(to bottom right, rgba(255,255,255,0.03), rgba(59,130,246,0.05));
+}
+.surface:hover {
+  background: linear-gradient(to bottom right, rgba(255,255,255,0.05), rgba(59,130,246,0.07));
+}
+
+/* === Scrollbar styling for modern look === */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(59,130,246,0.3);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(59,130,246,0.6);
+}
+
+/* Hide scrollbars while keeping scroll/pan behavior */
+.sd-scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.sd-scrollbar-hide::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* === Table/grid enhancements === */
+input, select, textarea {
+  background-color: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #f3f4f6;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  background-color: rgba(59,130,246,0.1);
+}
+select option,
+select optgroup {
+  color: #e2e8f0;
+  background-color: #0f172a;
+}
+
+/* === KPI cards accent === */
+.kpi-box {
+  @apply p-3 rounded-xl border transition cursor-pointer;
+  border-color: rgba(255,255,255,0.08);
+  background: linear-gradient(to bottom right, rgba(255,255,255,0.05), rgba(34,197,94,0.08));
+}
+.kpi-box:hover {
+  border-color: var(--color-accent);
+  background: linear-gradient(to bottom right, rgba(59,130,246,0.15), rgba(37,99,235,0.2));
+}
+
+/* === Typography tweaks === */
+h1,h2,h3 {
+  @apply font-semibold text-white;
+}
+.text-white\/70 { color: rgba(255,255,255,0.7); }
+.text-white\/60 { color: rgba(255,255,255,0.6); }
+.text-white\/50 { color: rgba(255,255,255,0.5); }
+/* === Badge tokens (glass style) === */
+.badge-token {
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.28), rgba(255,255,255,0.05) 42%, rgba(15,23,42,0.55) 75%);
+  box-shadow:
+    inset 0 1px 2px rgba(255,255,255,0.2),
+    inset 0 -6px 12px rgba(0,0,0,0.45),
+    0 8px 18px rgba(0,0,0,0.35);
+}
+.badge-token::before {
+  content: "";
+  position: absolute;
+  top: -35%;
+  left: -35%;
+  width: 80%;
+  height: 80%;
+  background: radial-gradient(circle, rgba(255,255,255,0.5), rgba(255,255,255,0) 65%);
+  transform: rotate(25deg);
+  opacity: 0.8;
+}
+.badge-token::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.badge-token svg {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.45));
+}
