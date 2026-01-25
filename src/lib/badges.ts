@@ -1453,8 +1453,9 @@ export function getReputationScoreHistory(args: {
   const entries = loadScoreHistory().filter(
     (entry) => entry.ownerRole === args.ownerRole && entry.ownerId === ownerId
   );
-  if (!args.days) return entries;
-  return entries.filter((entry) => isWithinDays(entry.createdAt, args.days));
+  const days = args.days;
+  if (days == null) return entries;
+  return entries.filter((entry) => isWithinDays(entry.createdAt, days));
 }
 
 export function getCheckinForPeriod(args: {

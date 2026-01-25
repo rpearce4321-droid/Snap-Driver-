@@ -1743,7 +1743,7 @@ const RetainerPage: React.FC = () => {
                   </option>
                   {retainerUsers.map((u) => (
                     <option key={u.id} value={u.id} className="bg-slate-900 text-slate-50">
-                      {u.name} ({retainerLevelLabels[`level${u.level}` as keyof RetainerUserLevelLabels]})
+                      {formatRetainerUserName(u)} ({retainerLevelLabels[`level${u.level}` as keyof RetainerUserLevelLabels]})
                     </option>
                   ))}
                 </select>
@@ -9138,6 +9138,14 @@ function persistCurrentRetainerId(id: string | null) {
 }
 
 
+
+
+function formatRetainerUserName(user: RetainerUser): string {
+  const first = String(user.firstName ?? "").trim();
+  const last = String(user.lastName ?? "").trim();
+  const full = `${first} ${last}`.trim();
+  return full || "Retainer user";
+}
 
 function formatRetainerName(r: Retainer): string {
 

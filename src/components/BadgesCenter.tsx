@@ -414,7 +414,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
 
   const [editingBackground, setEditingBackground] = useState(false);
   const [draftBackgroundIds, setDraftBackgroundIds] = useState<BadgeId[]>([]);
-  const [queueFilter, setQueueFilter] = useState<
+  const [queueFilter] = useState<
     "ALL" | "BACKGROUND" | "SELECTABLE" | "CHECKER"
   >("ALL");
   const [plannerYesRate, setPlannerYesRate] = useState(85);
@@ -606,7 +606,6 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
   const scoreHistoryLayout = useMemo(() => {
     if (scoreHistorySorted.length === 0) return null;
     if (chartSize.width <= 0 || chartSize.height <= 0) return null;
-    const count = scoreHistorySorted.length;
     const firstDate = new Date(scoreHistorySorted[0].createdAt);
     if (Number.isNaN(firstDate.getTime())) return null;
     const startMonth = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1);
@@ -638,8 +637,8 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
   const scoreHistoryLine = useMemo(() => {
     if (!scoreHistoryLayout) return { points: [], polyline: "" };
     const span = REPUTATION_SCORE_MAX - REPUTATION_SCORE_MIN;
-    const count = scoreHistorySorted.length;
     const { startTs, spanTs, xLeft, xSpan, yBottom, ySpan } = scoreHistoryLayout;
+    const count = scoreHistorySorted.length;
     const points = scoreHistorySorted.map((entry, idx) => {
       const entryTs = Date.parse(entry.createdAt);
       const ratioX = Number.isFinite(entryTs)
