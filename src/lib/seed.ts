@@ -13,6 +13,7 @@ import {
   VERTICALS,
   INSURANCE_TYPES,
   TRAITS,
+  PAY_CYCLE_FREQUENCIES,
 } from "./data";
 import {
   addMessageToConversation,
@@ -34,6 +35,13 @@ import { createRoute, toggleInterest } from "./routes";
 import {
   getActiveBadges,
   getBackgroundBadges,
+  getBadgeCheckins,
+  getBadgeDefinition,
+  getBadgeKindWeight,
+  getBadgeLevelMultipliers,
+  getBadgeProgress,
+  getBadgeScoreSplit,
+  getBadgeWeight,
   getCheckerBadges,
   getSelectableBadges,
   getSelectedBackgroundBadges,
@@ -42,8 +50,14 @@ import {
   setActiveBadges,
   setBackgroundBadges,
   submitWeeklyCheckinsBatch,
+  addReputationScoreHistoryEntry,
+  REPUTATION_PENALTY_K,
+  REPUTATION_SCORE_MAX,
+  REPUTATION_SCORE_MIN,
+  REPUTATION_SCORE_WINDOW_DAYS,
   type SubmitWeeklyCheckinArgs,
 } from "./badges";
+import { DAYS } from "./schedule";
 import type { DayOfWeek, WeeklyAvailability } from "./schedule";
 
 type SeedOptions = {
@@ -57,8 +71,8 @@ type SeedOptions = {
 };
 
 type ComprehensiveSeedOptions = {
-  retainers?: number; // default 30
-  seekers?: number; // default 200
+  retainers?: number; // default 5
+  seekers?: number; // default 5
   /**
    * Of the 30 retainers:
    * - 10 will have 2–5 users
@@ -391,6 +405,183 @@ function hashToInt(input: string): number {
   return Math.abs(h);
 }
 
+function isoWeekKeyForDate(date: Date): string {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+function buildHistoryDates(daysBack: number, stepOptions: number[]): Date[] {
+  const now = new Date();
+  const start = new Date(now.getTime());
+  start.setDate(start.getDate() - daysBack);
+  const dates: Date[] = [];
+  let cursor = new Date(now.getTime());
+  while (cursor >= start) {
+    dates.push(new Date(cursor.getTime()));
+    const step = pick(stepOptions);
+    cursor.setDate(cursor.getDate() - step);
+  }
+  return dates.reverse();
+}
+
+function clampReputationScoreValue(score: number): number {
+  return Math.max(
+    REPUTATION_SCORE_MIN,
+    Math.min(REPUTATION_SCORE_MAX, Math.round(score))
+  );
+}
+
+function getSeedCheckinValue(checkin: any): "YES" | "NO" | null {
+  if (!checkin) return null;
+  if (checkin.status === "DISPUTED") return null;
+  return checkin.overrideValue ?? checkin.value ?? null;
+}
+
+function isWithinDaysOf(iso: string, days: number, asOf: Date): boolean {
+  const ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return false;
+  const asOfTs = asOf.getTime();
+  const cutoff = asOfTs - days * 86_400_000;
+  return ts >= cutoff && ts <= asOfTs;
+}
+
+function getLevelMultiplierFor(level: number, multipliers: number[]): number {
+  const idx = Math.max(1, Math.min(5, Math.floor(level))) - 1;
+  return multipliers[idx] ?? 1;
+}
+
+function computeSeedReputationScoreFromCounts(
+  yesCount: number,
+  noCount: number,
+  levelMultiplier: number
+): number | null {
+  const total = yesCount + noCount;
+  if (total <= 0) return null;
+  const yesRate = yesCount / total;
+  const noRate = noCount / total;
+  const baseScore =
+    REPUTATION_SCORE_MIN +
+    (REPUTATION_SCORE_MAX - REPUTATION_SCORE_MIN) * yesRate;
+  const penalty = baseScore * REPUTATION_PENALTY_K * noRate * levelMultiplier;
+  return clampReputationScoreValue(baseScore - penalty);
+}
+
+function computeSeedScoreForProfileAtDate(args: {
+  ownerRole: "SEEKER" | "RETAINER";
+  ownerId: string;
+  asOf: Date;
+  days?: number;
+}): number | null {
+  const ownerId = String(args.ownerId ?? "").trim();
+  if (!ownerId) return null;
+  const days = typeof args.days === "number" ? args.days : REPUTATION_SCORE_WINDOW_DAYS;
+  const checkins = getBadgeCheckins();
+  const levelMultipliers = getBadgeLevelMultipliers();
+  const { expectationsWeight, growthWeight } = getBadgeScoreSplit();
+
+  const expectationIds = [
+    ...getSelectedBackgroundBadges(args.ownerRole, ownerId),
+    ...getSnapBadges(args.ownerRole).map((b) => b.id),
+    ...getCheckerBadges(args.ownerRole).map((b) => b.id),
+  ];
+  const growthIds = getActiveBadges(args.ownerRole, ownerId);
+
+  const countsForBadge = (badgeId: string) => {
+    let yes = 0;
+    let no = 0;
+    for (const c of checkins) {
+      if (c.targetRole !== args.ownerRole) continue;
+      if (c.targetId !== ownerId) continue;
+      if (c.badgeId !== badgeId) continue;
+      if (!isWithinDaysOf(c.createdAt, days, args.asOf)) continue;
+      const value = getSeedCheckinValue(c);
+      if (!value) continue;
+      if (value === "YES") yes += 1;
+      else no += 1;
+    }
+    return { yes, no, total: yes + no };
+  };
+
+  const scoreGroup = (ids: string[]) => {
+    let weightedSum = 0;
+    let weightTotal = 0;
+    const seen = new Set<string>();
+    for (const badgeId of ids) {
+      if (seen.has(badgeId)) continue;
+      seen.add(badgeId);
+      const def = getBadgeDefinition(badgeId);
+      if (!def) continue;
+
+      const progress = getBadgeProgress(args.ownerRole, ownerId, badgeId);
+      const levelMultiplier = getLevelMultiplierFor(
+        Math.max(1, progress.maxLevel || 1),
+        levelMultipliers
+      );
+
+      const counts =
+        def.kind === "SNAP"
+          ? {
+              yes: progress.yesCount,
+              no: progress.noCount,
+              total: progress.yesCount + progress.noCount,
+            }
+          : countsForBadge(badgeId);
+
+      if (counts.total <= 0) continue;
+
+      const score = computeSeedReputationScoreFromCounts(
+        counts.yes,
+        counts.no,
+        levelMultiplier
+      );
+      if (score == null) continue;
+
+      const weight = getBadgeWeight(badgeId) * getBadgeKindWeight(def.kind);
+      weightedSum += score * weight;
+      weightTotal += weight;
+    }
+
+    const score = weightTotal > 0 ? weightedSum / weightTotal : null;
+    return { score };
+  };
+
+  const expectations = scoreGroup(expectationIds);
+  const growth = scoreGroup(growthIds);
+
+  const parts: Array<{ score: number; weight: number }> = [];
+  if (expectations.score != null) {
+    parts.push({ score: expectations.score, weight: expectationsWeight });
+  }
+  if (growth.score != null) {
+    parts.push({ score: growth.score, weight: growthWeight });
+  }
+
+  if (parts.length === 0) return null;
+  const weightSum = parts.reduce((sum, p) => sum + p.weight, 0) || 1;
+  const weightedScore = parts.reduce((sum, p) => sum + p.score * p.weight, 0);
+  return clampReputationScoreValue(weightedScore / weightSum);
+}
+
+function buildYesThresholdSeries(count: number): number[] {
+  if (count <= 0) return [];
+  const base = randomInt(4, 7);
+  const amp = randomInt(1, 3);
+  const period = randomInt(4, 7);
+  const phase = randomInt(0, Math.max(1, period - 1));
+  const out: number[] = [];
+  for (let idx = 0; idx < count; idx++) {
+    const wave = Math.sin(((idx + phase) / period) * Math.PI * 2);
+    const threshold = Math.round(base + wave * amp);
+    out.push(Math.max(3, Math.min(9, threshold)));
+  }
+  return out;
+}
+
+
 function avatarDataUri(label: string, seed: string): string {
   const text = initials(label);
   const hue = hashToInt(seed) % 360;
@@ -443,6 +634,8 @@ function uniqueValue(make: () => string, used: Set<string>): string {
 }
 
 /* ===== LocalStorage wipe for demo data ===== */
+const SCORE_HISTORY_KEY = "snapdriver_reputation_history_v1";
+
 
 function wipeDemoLocalStorage() {
   if (typeof window === "undefined" || !window.localStorage) return;
@@ -462,6 +655,11 @@ function wipeDemoLocalStorage() {
     "snapdriver_links_v1",
     "snapdriver_routes_v1",
     "snapdriver_route_interests_v1",
+    "snapdriver_badges_v1",
+    "snapdriver_badges_v2",
+    "snapdriver_badge_rules_v1",
+    "snapdriver_badge_scoring_v1",
+    "snapdriver_reputation_history_v1",
   ];
 
   for (const key of KEYS) {
@@ -470,6 +668,16 @@ function wipeDemoLocalStorage() {
     } catch {
       // ignore
     }
+  }
+}
+
+
+function clearSeedScoreHistory() {
+  if (typeof window === "undefined" || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(SCORE_HISTORY_KEY, "[]");
+  } catch {
+    // ignore
   }
 }
 
@@ -521,9 +729,9 @@ function wipeDemoLocalStorageComprehensive() {
  *   can be bulk-identified and deleted later.
  */
 export function autoSeed(opts: SeedOptions = {}): void {
-  // Defaults: 75 / 15 as requested
-  const seekerCount = opts.seekers ?? 75;
-  const retainerCount = opts.retainers ?? 15;
+  // Defaults: 5 / 5 for small demo seeds
+  const seekerCount = opts.seekers ?? 5;
+  const retainerCount = opts.retainers ?? 5;
 
   if (opts.force) {
     wipeDemoLocalStorage();
@@ -531,6 +739,7 @@ export function autoSeed(opts: SeedOptions = {}): void {
 
   const statePool = US_STATES.length ? US_STATES : ["FL"];
   const nowIso = new Date().toISOString();
+  const historyDates = buildHistoryDates(180, [14]);
 
   /* ---- Seed Retainers (PENDING) ---- */
 
@@ -609,6 +818,9 @@ export function autoSeed(opts: SeedOptions = {}): void {
       { id: users[2].id, x: 360, y: 160 },
     ];
 
+    const payCycleCloseDay = pick(DAYS).key;
+    const payCycleFrequency = pick(PAY_CYCLE_FREQUENCIES).value;
+
     addRetainerForcePending({
       companyName,
       ceoName,
@@ -621,6 +833,9 @@ export function autoSeed(opts: SeedOptions = {}): void {
       employees: randomInt(5, 150),
       deliveryVerticals,
       desiredTraits,
+      payCycleCloseDay,
+      payCycleFrequency,
+      payCycleTimezone: "EST",
       createdAt: nowIso,
       role: "RETAINER",
       status: "PENDING",
@@ -720,6 +935,169 @@ export function autoSeed(opts: SeedOptions = {}): void {
       hierarchyNodes,
     } as any);
   }
+  try {
+    const seekerSelectableIds = getSelectableBadges("SEEKER").map((b) => b.id);
+    const retainerSelectableIds = getSelectableBadges("RETAINER").map((b) => b.id);
+    const seekerBackgroundIds = getBackgroundBadges("SEEKER").map((b) => b.id);
+    const retainerBackgroundIds = getBackgroundBadges("RETAINER").map((b) => b.id);
+    const seekerSnapIds = getSnapBadges("SEEKER").map((b) => b.id);
+    const retainerSnapIds = getSnapBadges("RETAINER").map((b) => b.id);
+
+    const allSeekers = getSeekers().filter((s: any) => s.status !== "DELETED");
+    const allRetainers = getRetainers().filter((r: any) => r.status !== "DELETED");
+
+
+
+    for (const s of allSeekers) {
+      const seekerId = String((s as any).id);
+      if (seekerSelectableIds.length > 0) {
+        setActiveBadges("SEEKER", seekerId, pickSome(seekerSelectableIds, 1, 2));
+      }
+      if (seekerBackgroundIds.length > 0) {
+        setBackgroundBadges("SEEKER", seekerId, pickSome(seekerBackgroundIds, 4, 4), { allowOverride: true });
+      }
+      if (seekerSnapIds.length > 0) {
+        grantSnapBadge("SEEKER", seekerId, seekerSnapIds[0]);
+      }
+    }
+
+    for (const r of allRetainers) {
+      const retainerId = String((r as any).id);
+      if (retainerSelectableIds.length > 0) {
+        setActiveBadges("RETAINER", retainerId, pickSome(retainerSelectableIds, 1, 2));
+      }
+      if (retainerBackgroundIds.length > 0) {
+        setBackgroundBadges("RETAINER", retainerId, pickSome(retainerBackgroundIds, 4, 4), { allowOverride: true });
+      }
+      if (retainerSnapIds.length > 0) {
+        grantSnapBadge("RETAINER", retainerId, retainerSnapIds[0]);
+      }
+    }
+
+    const seededLinks: Array<{ seekerId: string; retainerId: string }> = [];
+    const linkPairs = new Set<string>();
+    const retainerLinkCounts = new Map<string, number>();
+
+    const addActiveLink = (seekerId: string, retainerId: string) => {
+      const key = `${seekerId}:${retainerId}`;
+      if (linkPairs.has(key)) return false;
+      linkPairs.add(key);
+
+      requestLink({ seekerId, retainerId, by: "SEEKER" });
+      requestLink({ seekerId, retainerId, by: "RETAINER" });
+      setLinkVideoConfirmed({ seekerId, retainerId, by: "SEEKER", value: true });
+      setLinkVideoConfirmed({ seekerId, retainerId, by: "RETAINER", value: true });
+      setLinkApproved({ seekerId, retainerId, by: "SEEKER", value: true });
+      setLinkApproved({ seekerId, retainerId, by: "RETAINER", value: true });
+      setWorkingTogether({ seekerId, retainerId, by: "SEEKER", value: true });
+      setWorkingTogether({ seekerId, retainerId, by: "RETAINER", value: true });
+
+      retainerLinkCounts.set(retainerId, (retainerLinkCounts.get(retainerId) ?? 0) + 1);
+      seededLinks.push({ seekerId, retainerId });
+      return true;
+    };
+
+    const seekerIds = allSeekers.map((s: any) => String((s as any).id));
+    const retainerIds = allRetainers.map((r: any) => String((r as any).id));
+
+    let retainerIdx = 0;
+    for (const seekerId of seekerIds) {
+      const retainerId = retainerIds[retainerIdx % retainerIds.length];
+      addActiveLink(seekerId, retainerId);
+      retainerIdx += 1;
+    }
+
+    for (const retainerId of retainerIds) {
+      if ((retainerLinkCounts.get(retainerId) ?? 0) > 0) continue;
+      const seekerId = pick(seekerIds);
+      addActiveLink(seekerId, retainerId);
+    }
+
+    const badgeCheckins: SubmitWeeklyCheckinArgs[] = [];
+
+    for (const link of seededLinks) {
+      const seekerId = link.seekerId;
+      const retainerId = link.retainerId;
+
+      const seekerActive = getActiveBadges("SEEKER", seekerId);
+      const retainerActive = getActiveBadges("RETAINER", retainerId);
+      const seekerBackground = getSelectedBackgroundBadges("SEEKER", seekerId);
+      const retainerBackground = getSelectedBackgroundBadges("RETAINER", retainerId);
+      const seekerPool = Array.from(new Set([...seekerBackground, ...seekerActive]));
+      const retainerPool = Array.from(new Set([...retainerBackground, ...retainerActive]));
+      const seekerSample = seekerPool.slice(0, Math.min(2, seekerPool.length));
+      const retainerSample = retainerPool.slice(0, Math.min(2, retainerPool.length));
+      const yesThresholds = buildYesThresholdSeries(historyDates.length);
+
+      historyDates.forEach((dt, idx) => {
+        const weekKey = isoWeekKeyForDate(dt);
+        const dtIso = dt.toISOString();
+        const yesThreshold = yesThresholds[idx] ?? 6;
+
+        for (const badgeId of seekerSample) {
+          badgeCheckins.push({
+            badgeId,
+            weekKey,
+            cadence: "WEEKLY",
+            value: randomInt(0, 9) < yesThreshold ? "YES" : "NO",
+            seekerId,
+            retainerId,
+            targetRole: "SEEKER",
+            targetId: seekerId,
+            verifierRole: "RETAINER",
+            verifierId: retainerId,
+            createdAt: dtIso,
+            updatedAt: dtIso,
+          });
+        }
+
+        for (const badgeId of retainerSample) {
+          badgeCheckins.push({
+            badgeId,
+            weekKey,
+            cadence: "WEEKLY",
+            value: randomInt(0, 9) < yesThreshold ? "YES" : "NO",
+            seekerId,
+            retainerId,
+            targetRole: "RETAINER",
+            targetId: retainerId,
+            verifierRole: "SEEKER",
+            verifierId: seekerId,
+            createdAt: dtIso,
+            updatedAt: dtIso,
+          });
+        }
+      });
+    }
+
+    if (badgeCheckins.length > 0) {
+      submitWeeklyCheckinsBatch(badgeCheckins);
+    }
+    clearSeedScoreHistory();
+
+    const seedHistory = (ownerRole: "SEEKER" | "RETAINER", ownerId: string) => {
+      historyDates.forEach((dt) => {
+        const score = computeSeedScoreForProfileAtDate({
+          ownerRole,
+          ownerId,
+          asOf: dt,
+        });
+        addReputationScoreHistoryEntry({
+          ownerRole,
+          ownerId,
+          score: score ?? clampReputationScoreValue(REPUTATION_SCORE_MIN + 200),
+          createdAt: dt.toISOString(),
+          note: "Seeded 14-day score history",
+        });
+      });
+    };
+
+    for (const s of allSeekers) seedHistory("SEEKER", String((s as any).id));
+    for (const r of allRetainers) seedHistory("RETAINER", String((r as any).id));
+  } catch {
+    // best-effort
+  }
+
 }
 
 const SEED_TAG_PATTERN = /\s*\[[A-Z]{2}\]/g;
@@ -800,15 +1178,15 @@ function updateProfileInStorage(
 
 /**
  * Comprehensive seed for the localStorage-driven portal:
- * - 30 retainers (10 small teams, 10 large teams, 10 solo)
- * - 200 seekers (40 with subcontractors)
+ * - 5 retainers
+ * - 5 seekers
  * - All commonly used profile fields filled
  * - Unique emails, phones, names, and company names within the seed run
  * - Deterministic in the sense that values are generated in-process and stored in localStorage
  */
 export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void {
-  const retainerCount = opts.retainers ?? 30;
-  const seekerCount = opts.seekers ?? 200;
+  const retainerCount = opts.retainers ?? 5;
+  const seekerCount = opts.seekers ?? 5;
 
   const retainersSmallTeams = Math.min(opts.retainersSmallTeams ?? 10, retainerCount);
   const retainersLargeTeams = Math.min(opts.retainersLargeTeams ?? 10, Math.max(0, retainerCount - retainersSmallTeams));
@@ -900,8 +1278,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
     return "DELETED";
   };
 
-  const MESSAGE_SEED_RETAINERS = 5;
-  const MESSAGE_SEED_SEEKERS = 5;
+  const MESSAGE_SEED_RETAINERS = 2;
+  const MESSAGE_SEED_SEEKERS = 2;
   const msRetainers: { retainerId: string; staffUserIds: string[] }[] = [];
   const msSeekers: { seekerId: string; subcontractorIds: string[] }[] = [];
   const seededLinks: Array<{ seekerId: string; retainerId: string }> = [];
@@ -998,6 +1376,9 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
 
     const ceoName = `${ceoFirst || pick(FIRST_NAMES)} ${ownerLastName}`.trim();
 
+    const payCycleCloseDay = pick(DAYS).key;
+    const payCycleFrequency = pick(PAY_CYCLE_FREQUENCIES).value;
+
     const retainer = addRetainer({
       companyName,
       ceoName,
@@ -1009,6 +1390,9 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
       employees,
       deliveryVerticals,
       desiredTraits,
+      payCycleCloseDay,
+      payCycleFrequency,
+      payCycleTimezone: "EST",
       role: "RETAINER",
       status: isMessageSeedRetainer ? "APPROVED" : statusForRetainer(i),
       email,
@@ -1175,8 +1559,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
 
   // --- Seed message traffic ONLY for (MS) profiles ---
   try {
-    const approvedSeekers = getSeekers().filter((s: any) => s.status === "APPROVED");
-    const approvedRetainers = getRetainers().filter((r: any) => r.status === "APPROVED");
+    const approvedSeekers = getSeekers().filter((s: any) => s.status !== "DELETED");
+    const approvedRetainers = getRetainers().filter((r: any) => r.status !== "DELETED");
 
     const msSeekerIds = new Set(msSeekers.map((s) => s.seekerId));
     const msRetainerIds = new Set(msRetainers.map((r) => r.retainerId));
@@ -1229,7 +1613,7 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
           });
 
           const convId = created.conversation.id;
-          const perSide = randomInt(5, 10);
+          const perSide = randomInt(2, 4);
           const totalAdditional = perSide * 2 - 1;
           for (let m = 0; m < totalAdditional; m++) {
             const isSeekerTurn = m % 2 === 1;
@@ -1268,7 +1652,7 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
 
     for (const r of msRetainers) {
       for (const staffUserId of r.staffUserIds) {
-        const perSide = randomInt(5, 10);
+        const perSide = randomInt(2, 4);
         const msgCount = perSide * 2;
         for (let i = 0; i < msgCount; i++) {
           const fromOwner = i % 2 === 0;
@@ -1302,7 +1686,7 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
 
     for (const s of msSeekers) {
       for (const subId of s.subcontractorIds) {
-        const perSide = randomInt(5, 10);
+        const perSide = randomInt(2, 4);
         const msgCount = perSide * 2;
         for (let i = 0; i < msgCount; i++) {
           const fromMaster = i % 2 === 0;
@@ -1689,14 +2073,14 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
     const seekerCheckerIds = getCheckerBadges("SEEKER").map((b) => b.id);
     const retainerCheckerIds = getCheckerBadges("RETAINER").map((b) => b.id);
 
-    const approvedSeekers = getSeekers().filter((s: any) => s.status === "APPROVED");
-    const approvedRetainers = getRetainers().filter((r: any) => r.status === "APPROVED");
+    const approvedSeekers = getSeekers().filter((s: any) => s.status !== "DELETED");
+    const approvedRetainers = getRetainers().filter((r: any) => r.status !== "DELETED");
 
     for (const s of approvedSeekers) {
       const seekerId = String((s as any).id);
       setActiveBadges("SEEKER", seekerId, pickSome(seekerSelectableIds, 1, 2));
       setBackgroundBadges("SEEKER", seekerId, pickSome(seekerBackgroundIds, 4, 4), { allowOverride: true });
-      if (seekerSnapIds.length > 0 && randomInt(0, 9) < 7) {
+      if (seekerSnapIds.length > 0) {
         grantSnapBadge("SEEKER", seekerId, seekerSnapIds[0]);
       }
     }
@@ -1704,7 +2088,7 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
       const retainerId = String((r as any).id);
       setActiveBadges("RETAINER", retainerId, pickSome(retainerSelectableIds, 1, 2));
       setBackgroundBadges("RETAINER", retainerId, pickSome(retainerBackgroundIds, 4, 4), { allowOverride: true });
-      if (retainerSnapIds.length > 0 && randomInt(0, 9) < 7) {
+      if (retainerSnapIds.length > 0) {
         grantSnapBadge("RETAINER", retainerId, retainerSnapIds[0]);
       }
     }
@@ -1776,6 +2160,7 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
           const dt = new Date();
           dt.setDate(dt.getDate() - w * 7);
           const weekKey = isoWeekKeyForDate(dt);
+          const dtIso = dt.toISOString();
 
           for (const badgeId of seekerBadgeSample) {
             badgeCheckins.push({
@@ -1789,6 +2174,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
               targetId: seekerId,
               verifierRole: "RETAINER",
               verifierId: retainerId,
+              createdAt: dtIso,
+              updatedAt: dtIso,
             });
           }
 
@@ -1804,6 +2191,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
               targetId: retainerId,
               verifierRole: "SEEKER",
               verifierId: seekerId,
+              createdAt: dtIso,
+              updatedAt: dtIso,
             });
           }
         }
@@ -1813,6 +2202,7 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
           const dt = new Date();
           dt.setMonth(dt.getMonth() - m);
           const periodKey = monthKeyForDate(dt);
+          const dtIso = dt.toISOString();
 
           for (const badgeId of seekerCheckerIds) {
             badgeCheckins.push({
@@ -1826,6 +2216,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
               targetId: seekerId,
               verifierRole: "RETAINER",
               verifierId: retainerId,
+              createdAt: dtIso,
+              updatedAt: dtIso,
             });
           }
 
@@ -1841,6 +2233,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
               targetId: retainerId,
               verifierRole: "SEEKER",
               verifierId: seekerId,
+              createdAt: dtIso,
+              updatedAt: dtIso,
             });
           }
         }
@@ -1874,6 +2268,7 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
           const dt = new Date();
           dt.setDate(dt.getDate() - w * 7);
           const weekKey = isoWeekKeyForDate(dt);
+          const dtIso = dt.toISOString();
 
           const seekerBadgeSample = seekerPool.slice(0, Math.min(2, seekerPool.length));
           const retainerBadgeSample = retainerPool.slice(0, Math.min(2, retainerPool.length));
@@ -1890,6 +2285,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
               targetId: seekerId,
               verifierRole: "RETAINER",
               verifierId: retainerId,
+              createdAt: dtIso,
+              updatedAt: dtIso,
             });
           }
 
@@ -1905,6 +2302,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
               targetId: retainerId,
               verifierRole: "SEEKER",
               verifierId: seekerId,
+              createdAt: dtIso,
+              updatedAt: dtIso,
             });
           }
         }
@@ -1914,6 +2313,7 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
           const dt = new Date();
           dt.setMonth(dt.getMonth() - m);
           const periodKey = monthKeyForDate(dt);
+          const dtIso = dt.toISOString();
 
           for (const badgeId of seekerCheckerIds) {
             badgeCheckins.push({
@@ -1927,6 +2327,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
               targetId: seekerId,
               verifierRole: "RETAINER",
               verifierId: retainerId,
+              createdAt: dtIso,
+              updatedAt: dtIso,
             });
           }
 
@@ -1942,6 +2344,8 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
               targetId: retainerId,
               verifierRole: "SEEKER",
               verifierId: seekerId,
+              createdAt: dtIso,
+              updatedAt: dtIso,
             });
           }
         }
@@ -1949,6 +2353,32 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
     }
     if (badgeCheckins.length > 0) {
       submitWeeklyCheckinsBatch(badgeCheckins);
+    }
+    clearSeedScoreHistory();
+
+    const historyDates = buildHistoryDates(180, [14]);
+    const seedHistory = (ownerRole: "SEEKER" | "RETAINER", ownerId: string) => {
+      historyDates.forEach((dt) => {
+        const score = computeSeedScoreForProfileAtDate({
+          ownerRole,
+          ownerId,
+          asOf: dt,
+        });
+        addReputationScoreHistoryEntry({
+          ownerRole,
+          ownerId,
+          score: score ?? clampReputationScoreValue(REPUTATION_SCORE_MIN + 200),
+          createdAt: dt.toISOString(),
+          note: "Seeded 14-day score history",
+        });
+      });
+    };
+
+    for (const s of approvedSeekers) {
+      seedHistory("SEEKER", String((s as any).id));
+    }
+    for (const r of approvedRetainers) {
+      seedHistory("RETAINER", String((r as any).id));
     }
 
   } catch {

@@ -6,6 +6,7 @@ import {
   US_STATES,
   DELIVERY_VERTICALS,
   INSURANCE_TYPES,
+  PAY_CYCLE_FREQUENCIES,
   getSeekers,
   getRetainers,
   addSeekerForcePending,
@@ -13,6 +14,7 @@ import {
   removeSubcontractor,
   setSeekerHierarchyNodes,
   subscribe,
+  type PayCycleFrequency,
 } from "../lib/data";
 import {
   createConversationWithFirstMessage,
@@ -88,7 +90,7 @@ import {
   getBadgeCheckins,
   getBadgeSummaryForProfile,
   getPendingBadgeApprovalsForProfile,
-  getTrustRatingForProfile,
+  getReputationScoreForProfile,
 } from "../lib/badges";
 import { badgeIconFor } from "../components/badgeIcons";
 import { getSession, setPortalContext } from "../lib/session";
@@ -1732,8 +1734,8 @@ const DashboardView: React.FC<{
       .slice(0, 3);
   }, [seekerId]);
 
-  const seekerTrust = seekerId
-    ? getTrustRatingForProfile({ ownerRole: "SEEKER", ownerId: seekerId })
+  const seekerReputation = seekerId
+    ? getReputationScoreForProfile({ ownerRole: "SEEKER", ownerId: seekerId })
     : null;
 
   const [linkTick, setLinkTick] = useState(0);
@@ -2074,14 +2076,14 @@ const DashboardView: React.FC<{
                 {seekerId ? seekerCompany : "Select a Seeker profile"}
               </div>
               <div className="text-sm text-emerald-200">
-                {seekerTrust?.percent == null
-                  ? "Trust -"
-                  : `Trust ${seekerTrust.percent}%`}
+                {seekerReputation?.score == null
+                  ? "Reputation -"
+                  : `Reputation ${seekerReputation.score}`}
               </div>
               <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
                 <div
                   className="h-full bg-emerald-400/80"
-                  style={{ width: `${seekerTrust?.percent ?? 0}%` }}
+                  style={{ width: `${seekerReputation?.scorePercent ?? 0}%` }}
                 />
               </div>
               <div className="text-xs text-slate-500">
@@ -2903,9 +2905,11 @@ const ViewRetainersView: React.FC<{
   const [centerIndex, setCenterIndex] = useState(0);
   const [wheelAccumulator, setWheelAccumulator] = useState(0);
   const [expandedRetainer, setExpandedRetainer] = useState<Retainer | null>(null);
-  const [trustMin, setTrustMin] = useState(0);
+  const [reputationMin, setReputationMin] = useState(0);
   const [distanceZip, setDistanceZip] = useState("");
   const [distanceMiles, setDistanceMiles] = useState(50);
+  const [payCycleFrequency, setPayCycleFrequency] = useState<PayCycleFrequency | "">("");
+  const [payCycleCloseDay, setPayCycleCloseDay] = useState<DayOfWeek | "">("");
 
   const [viewportHeight, setViewportHeight] = useState(() => {
     if (typeof window !== "undefined") return window.innerHeight;
@@ -2927,16 +2931,17 @@ const ViewRetainersView: React.FC<{
   };
 
   const hasDistanceFilter = distanceZip.trim().length === 5;
-  const hasFilters = trustMin > 0 || hasDistanceFilter;
+  const hasPayCycleFilter = Boolean(payCycleFrequency || payCycleCloseDay);
+  const hasFilters = reputationMin > 0 || hasDistanceFilter || hasPayCycleFilter;
 
   const filteredRetainers = useMemo(() => {
     return wheelRetainers.filter((retainer) => {
-      if (trustMin > 0) {
-        const trust = getTrustRatingForProfile({
+      if (reputationMin > 0) {
+        const reputation = getReputationScoreForProfile({
           ownerRole: "RETAINER",
           ownerId: String(retainer.id),
         });
-        if (trust.percent == null || trust.percent < trustMin) return false;
+        if (reputation.score == null || reputation.score < reputationMin) return false;
       }
 
       if (hasDistanceFilter) {
@@ -2944,9 +2949,17 @@ const ViewRetainersView: React.FC<{
         if (miles == null || miles > distanceMiles) return false;
       }
 
+      if (payCycleFrequency) {
+        if ((retainer as any).payCycleFrequency !== payCycleFrequency) return false;
+      }
+
+      if (payCycleCloseDay) {
+        if ((retainer as any).payCycleCloseDay !== payCycleCloseDay) return false;
+      }
+
       return true;
     });
-  }, [wheelRetainers, trustMin, hasDistanceFilter, distanceZip, distanceMiles]);
+  }, [wheelRetainers, reputationMin, hasDistanceFilter, distanceZip, distanceMiles, payCycleFrequency, payCycleCloseDay]);
 
   useEffect(() => {
     if (filteredRetainers.length === 0) {
@@ -3058,18 +3071,44 @@ const ViewRetainersView: React.FC<{
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex flex-wrap items-center gap-2">
-          <label className="text-[11px] text-slate-400">Trust</label>
+          <label className="text-[11px] text-slate-400">Reputation</label>
           <select
-            value={trustMin}
-            onChange={(e) => setTrustMin(Number(e.target.value) || 0)}
+            value={reputationMin}
+            onChange={(e) => setReputationMin(Number(e.target.value) || 0)}
             className="rounded-full bg-slate-900 border border-slate-700 text-slate-200 text-[11px] px-2.5 py-1"
           >
             <option value={0}>Any</option>
-            <option value={60}>60%+</option>
-            <option value={75}>75%+</option>
-            <option value={90}>90%+</option>
+            <option value={620}>620+</option>
+            <option value={725}>725+</option>
+            <option value={830}>830+</option>
           </select>
 
+          <label className="text-[11px] text-slate-400 ml-2">Pay cycle</label>
+          <select
+            value={payCycleFrequency}
+            onChange={(e) => setPayCycleFrequency(e.target.value as PayCycleFrequency | "")}
+            className="rounded-full bg-slate-900 border border-slate-700 text-slate-200 text-[11px] px-2.5 py-1"
+          >
+            <option value="">Any</option>
+            {PAY_CYCLE_FREQUENCIES.map((freq) => (
+              <option key={freq.value} value={freq.value}>
+                {freq.label}
+              </option>
+            ))}
+          </select>
+          <label className="text-[11px] text-slate-400 ml-2">Close day</label>
+          <select
+            value={payCycleCloseDay}
+            onChange={(e) => setPayCycleCloseDay(e.target.value as DayOfWeek | "")}
+            className="rounded-full bg-slate-900 border border-slate-700 text-slate-200 text-[11px] px-2.5 py-1"
+          >
+            <option value="">Any</option>
+            {DAYS.map((day) => (
+              <option key={day.key} value={day.key}>
+                {day.short}
+              </option>
+            ))}
+          </select>
           <label className="text-[11px] text-slate-400 ml-2">
             Distance (approx)
           </label>
@@ -3097,9 +3136,11 @@ const ViewRetainersView: React.FC<{
             <button
               type="button"
               onClick={() => {
-                setTrustMin(0);
+                setReputationMin(0);
                 setDistanceZip("");
                 setDistanceMiles(50);
+                setPayCycleFrequency("");
+                setPayCycleCloseDay("");
               }}
               className="rounded-full bg-slate-900 border border-slate-700 text-slate-200 text-[11px] px-2.5 py-1 hover:bg-slate-800 transition"
             >
@@ -3119,9 +3160,11 @@ const ViewRetainersView: React.FC<{
             <button
               type="button"
               onClick={() => {
-                setTrustMin(0);
+                setReputationMin(0);
                 setDistanceZip("");
                 setDistanceMiles(50);
+                setPayCycleFrequency("");
+                setPayCycleCloseDay("");
               }}
               className="mt-2 rounded-full bg-slate-900 border border-slate-700 text-slate-200 text-[11px] px-3 py-1.5 hover:bg-slate-800 transition"
             >
@@ -3267,7 +3310,7 @@ const RetainerWheelCard: React.FC<{
     ? (retainer as any).deliveryVerticals
     : [];
 
-  const trust = getTrustRatingForProfile({ ownerRole: "RETAINER", ownerId: retainer.id });
+  const reputation = getReputationScoreForProfile({ ownerRole: "RETAINER", ownerId: retainer.id });
   const topBadges = getBadgeSummaryForProfile({
     ownerRole: "RETAINER",
     ownerId: retainer.id,
@@ -3350,9 +3393,9 @@ const RetainerWheelCard: React.FC<{
         <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/40 px-2 py-0.5 text-[10px] text-slate-200">
           {badgeIconFor("shield", "h-3.5 w-3.5")}
           <span className="font-semibold">
-              {trust.percent == null ? "Trust —" : `Trust ${trust.percent}%`}
+              {reputation.score == null ? "Reputation ?" : `Reputation ${reputation.score}`}
           </span>
-          {trust.total > 0 && <span className="text-slate-400">({trust.total})</span>}
+          {reputation.total > 0 && <span className="text-slate-400">({reputation.total})</span>}
         </span>
 
         {scheduleMatch && scheduleMatch.percent > 0 ? (
@@ -5158,7 +5201,7 @@ const RetainerWheelExpandedCard: React.FC<{
   const mission = (retainer as any).mission ?? (retainer as any).missionStatement ?? "";
   const photoUrl = getRetainerPhotoUrl(retainer);
 
-  const trust = getTrustRatingForProfile({ ownerRole: "RETAINER", ownerId: retainer.id });
+  const reputation = getReputationScoreForProfile({ ownerRole: "RETAINER", ownerId: retainer.id });
   const pctFromCounts = (yesCount: number, noCount: number) => {
     const total = yesCount + noCount;
     if (total <= 0) return null;
@@ -5267,9 +5310,9 @@ const RetainerWheelExpandedCard: React.FC<{
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs text-slate-100">
             {badgeIconFor("shield", "h-4 w-4")}
             <span className="font-semibold">
-              {trust.percent == null ? "Trust —" : `Trust ${trust.percent}%`}
+              {reputation.score == null ? "Reputation ?" : `Reputation ${reputation.score}`}
             </span>
-            {trust.total > 0 && <span className="text-slate-400">({trust.total})</span>}
+            {reputation.total > 0 && <span className="text-slate-400">({reputation.total})</span>}
           </span>
 
           {scheduleMatch && scheduleMatch.percent > 0 ? (

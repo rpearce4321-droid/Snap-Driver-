@@ -171,7 +171,7 @@ export default function LandingPage() {
             </div>
             <h1 className="text-4xl md:text-5xl font-semibold mt-3" style={HERO_FONT}>
               A private logistics network,
-              <span className="block text-emerald-200">built for trust-first routing.</span>
+              <span className="block text-emerald-200">built for reputation-first routing.</span>
             </h1>
           </div>
           <div className="text-sm text-slate-400 max-w-md">
@@ -188,7 +188,7 @@ export default function LandingPage() {
               </div>
               <div className="mt-3 text-sm text-slate-300">
                 Make every route a clear commitment, keep check-ins simple, and
-                keep the trust system honest. These signup flows mirror the real
+                keep the reputation system honest. These signup flows mirror the real
                 account experience and create Pending profiles.
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">

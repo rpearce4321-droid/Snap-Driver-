@@ -15,7 +15,7 @@ import type { WeeklyAvailability } from "../lib/schedule";
 import { DAYS, isDayOfWeek } from "../lib/schedule";
 import { getPortalContext, getSession } from "../lib/session";
 import HierarchyCanvas from "../components/HierarchyCanvas";
-import { getBadgeSummaryForProfile, getTrustRatingForProfile } from "../lib/badges";
+import { getBadgeSummaryForProfile, getReputationScoreForProfile } from "../lib/badges";
 import {
   getActiveBadExitSummaryForSeeker,
   getActiveNoticeSummaryForSeeker,
@@ -289,8 +289,8 @@ export default function SeekerDetailPage() {
     [seeker.id]
   );
 
-  const trust = useMemo(
-    () => getTrustRatingForProfile({ ownerRole: "SEEKER", ownerId: seeker.id }),
+  const reputation = useMemo(
+    () => getReputationScoreForProfile({ ownerRole: "SEEKER", ownerId: seeker.id }),
     [seeker.id, noticeTick]
   );
 
@@ -457,24 +457,24 @@ export default function SeekerDetailPage() {
                   )}
                 </div>
 
-                {(badgeSummary.length > 0 || trust.total > 0) && (
+                {(badgeSummary.length > 0 || reputation.total > 0) && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {trust.total > 0 && (
+                    {reputation.total > 0 && (
                       <Link
                         to="/seekers"
                         state={badgeLinkState}
                         className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 transition"
-                        title="Trust rating is a lifetime average across linked-only badge confirmations."
+                        title="Professional Reputation Score is a recent weighted score across linked-only badge confirmations."
                       >
                         <span className="text-emerald-200">
                           {badgeIconFor("star", "h-5 w-5")}
                         </span>
-                        <span className="font-semibold">Trust</span>
+                        <span className="font-semibold">Reputation</span>
                         <span className="text-slate-200">
-                          {trust.percent == null ? "—" : `${trust.percent}%`}
+                          {reputation.score == null ? "--" : reputation.score}
                         </span>
                         <span className="text-slate-500">
-                          ({trust.total})
+                          ({reputation.total})
                         </span>
                       </Link>
                     )}
@@ -492,8 +492,8 @@ export default function SeekerDetailPage() {
                         </span>
                         <span className="font-semibold">{b.badge.title}</span>
                         <span className="text-slate-400">Lv {b.maxLevel}</span>
-                        {b.trustPercent != null && (
-                          <span className="text-slate-500">{b.trustPercent}%</span>
+                        {b.score != null && (
+                          <span className="text-slate-500">{b.score}</span>
                         )}
                       </Link>
                     ))}

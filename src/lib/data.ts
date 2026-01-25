@@ -5,7 +5,7 @@ import { canRetainerAddUser, canSeekerAddSubcontractor } from "./entitlements";
 import { disableLinksForRetainer, disableLinksForSeeker } from "./linking";
 import { createConversationWithFirstMessage } from "./messages";
 import type { WeeklyAvailability } from "./schedule";
-import { isDayOfWeek, parseHHMM } from "./schedule";
+import { isDayOfWeek, parseHHMM, type DayOfWeek } from "./schedule";
 
 // === Types ==================================================================
 
@@ -103,6 +103,14 @@ export const PAYMENT_TERMS: Array<{ value: PaymentTerm; label: string }> = [
   { value: "NET_30", label: "Net 30" },
 ];
 
+export type PayCycleFrequency = "WEEKLY" | "BIWEEKLY" | "MONTHLY";
+
+export const PAY_CYCLE_FREQUENCIES: Array<{ value: PayCycleFrequency; label: string }> = [
+  { value: "WEEKLY", label: "Weekly" },
+  { value: "BIWEEKLY", label: "Every two weeks" },
+  { value: "MONTHLY", label: "Monthly" },
+];
+
 export type RetainerFeeCadence = "PER_PAY" | "PER_ROUTE" | "MONTHLY" | "ONE_TIME";
 
 export const RETAINER_FEE_CADENCE_OPTIONS: Array<{
@@ -138,6 +146,9 @@ export type Retainer = {
   yearsInBusiness?: number;
   desiredTraits?: string[];
   paymentTerms?: PaymentTerm;
+  payCycleCloseDay?: DayOfWeek;
+  payCycleFrequency?: PayCycleFrequency;
+  payCycleTimezone?: string;
   feeSchedule?: RetainerFee[];
   createdAt: number;
   users?: RetainerUser[];
@@ -283,6 +294,24 @@ function normalizeSubcontractors(value: any, seekerId: string): Subcontractor[] 
     }));
 }
 
+function normalizePayCycleCloseDay(value: any): DayOfWeek | undefined {
+  if (isDayOfWeek(value)) return value;
+  return undefined;
+}
+
+function normalizePayCycleFrequency(value: any): PayCycleFrequency | undefined {
+  if (value === "WEEKLY" || value === "BIWEEKLY" || value === "MONTHLY") {
+    return value;
+  }
+  return undefined;
+}
+
+function normalizePayCycleTimezone(value: any): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : undefined;
+}
+
 // === LocalStorage helpers ===================================================
 
 function readLS<T>(key: string): T | null {
@@ -369,6 +398,9 @@ function migrateLegacyRetainers(): Retainer[] | null {
     yearsInBusiness: raw.yearsInBusiness ?? null,
     desiredTraits: asArray(raw.desiredTraits),
     paymentTerms: raw.paymentTerms ?? null,
+    payCycleCloseDay: normalizePayCycleCloseDay(raw.payCycleCloseDay),
+    payCycleFrequency: normalizePayCycleFrequency(raw.payCycleFrequency),
+    payCycleTimezone: normalizePayCycleTimezone(raw.payCycleTimezone) ?? "EST",
     feeSchedule: Array.isArray(raw.feeSchedule) ? raw.feeSchedule : null,
     createdAt: raw.createdAt ?? now(),
   }));
@@ -449,6 +481,9 @@ export function getRetainers(): Retainer[] {
     users: normalizeRetainerUsers((r as any).users, r.id),
     userLevelLabels: (r as any).userLevelLabels ?? DEFAULT_RETAINER_LEVEL_LABELS,
     hierarchyNodes: normalizeHierarchyNodes((r as any).hierarchyNodes),
+    payCycleCloseDay: normalizePayCycleCloseDay((r as any).payCycleCloseDay),
+    payCycleFrequency: normalizePayCycleFrequency((r as any).payCycleFrequency),
+    payCycleTimezone: normalizePayCycleTimezone((r as any).payCycleTimezone) ?? "EST",
   }));
 }
 
@@ -602,6 +637,9 @@ export function addRetainer(input: Partial<Retainer>): Retainer {
     yearsInBusiness: input.yearsInBusiness,
     desiredTraits: input.desiredTraits ?? [],
     paymentTerms: input.paymentTerms,
+    payCycleCloseDay: input.payCycleCloseDay,
+    payCycleFrequency: input.payCycleFrequency,
+    payCycleTimezone: input.payCycleTimezone ?? "EST",
     feeSchedule: input.feeSchedule ?? [],
     createdAt: now(),
     users: normalizeRetainerUsers((input as any).users, id),

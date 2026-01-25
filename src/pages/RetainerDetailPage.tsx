@@ -1,9 +1,10 @@
 // src/pages/RetainerDetailPage.tsx
 import React, { useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { Retainer, Status, RetainerFee, PaymentTerm } from "../lib/data";
+import type { Retainer, Status, RetainerFee, PaymentTerm, PayCycleFrequency } from "../lib/data";
 import {
   PAYMENT_TERMS,
+  PAY_CYCLE_FREQUENCIES,
   RETAINER_FEE_CADENCE_OPTIONS,
   getRetainerById,
   purgeRetainer,
@@ -15,8 +16,9 @@ import { can, assertCan } from "../lib/permissions";
 import { getLink, requestLink, type Link as LinkModel } from "../lib/linking";
 import { getRoutesForRetainer, type Route } from "../lib/routes";
 import { getPortalContext, getSession } from "../lib/session";
+import { DAYS, type DayOfWeek } from "../lib/schedule";
 import HierarchyCanvas from "../components/HierarchyCanvas";
-import { getBadgeSummaryForProfile, getTrustRatingForProfile } from "../lib/badges";
+import { getBadgeSummaryForProfile, getReputationScoreForProfile } from "../lib/badges";
 import { badgeIconFor } from "../components/badgeIcons";
 import { getStockImageUrl } from "../lib/stockImages";
 
@@ -43,6 +45,16 @@ function formatUsd(value: number): string {
 function paymentTermsLabel(term?: PaymentTerm | null): string {
   if (!term) return "—";
   return PAYMENT_TERMS.find((opt) => opt.value === term)?.label ?? term;
+}
+
+function payCycleFrequencyLabel(freq?: PayCycleFrequency | null): string {
+  if (!freq) return "-";
+  return PAY_CYCLE_FREQUENCIES.find((opt) => opt.value === freq)?.label ?? freq;
+}
+
+function payCycleCloseDayLabel(day?: DayOfWeek | null): string {
+  if (!day) return "-";
+  return DAYS.find((opt) => opt.key === day)?.label ?? day;
 }
 
 function scheduleLabel(r: Route): string {
@@ -222,9 +234,13 @@ export default function RetainerDetailPage() {
   const ceoName = retainer.ceoName ?? "—";
   const mission = retainer.mission ?? "";
   const paymentTerms = (retainer as any).paymentTerms as PaymentTerm | undefined;
+  const payCycleCloseDay = (retainer as any).payCycleCloseDay as DayOfWeek | undefined;
+  const payCycleFrequency = (retainer as any).payCycleFrequency as PayCycleFrequency | undefined;
+  const payCycleTimezone = (retainer as any).payCycleTimezone ?? "EST";
   const feeSchedule: RetainerFee[] = Array.isArray((retainer as any).feeSchedule)
     ? (retainer as any).feeSchedule
     : [];
+  const hasPayCycle = Boolean(payCycleCloseDay || payCycleFrequency);
 
   const deliveryVerticals: string[] = Array.isArray((retainer as any).deliveryVerticals)
     ? (retainer as any).deliveryVerticals
@@ -287,9 +303,9 @@ export default function RetainerDetailPage() {
     [retainer.id]
   );
 
-  const trust = useMemo(
+  const reputation = useMemo(
     () =>
-      getTrustRatingForProfile({ ownerRole: "RETAINER", ownerId: retainer.id }),
+      getReputationScoreForProfile({ ownerRole: "RETAINER", ownerId: retainer.id }),
     [retainer.id]
   );
 
@@ -448,23 +464,23 @@ export default function RetainerDetailPage() {
                   {role && role !== "ADMIN" && <Pill tone="subtle" label={`Viewing as ${role}`} />}
                 </div>
 
-                {(badgeSummary.length > 0 || trust.total > 0) && (
+                {(badgeSummary.length > 0 || reputation.total > 0) && (
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {trust.total > 0 && (
+                    {reputation.total > 0 && (
                       <Link
                         to="/retainers"
                         state={badgeLinkState}
                         className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 transition"
-                        title="Trust rating is a lifetime average across linked-only badge confirmations."
+                        title="Professional Reputation Score is a recent weighted score across linked-only badge confirmations."
                       >
                         <span className="text-emerald-200">
                           {badgeIconFor("star", "h-5 w-5")}
                         </span>
-                        <span className="font-semibold">Trust</span>
+                        <span className="font-semibold">Reputation</span>
                         <span className="text-slate-200">
-                          {trust.percent == null ? "—" : `${trust.percent}%`}
+                          {reputation.score == null ? "--" : reputation.score}
                         </span>
-                        <span className="text-slate-500">({trust.total})</span>
+                        <span className="text-slate-500">({reputation.total})</span>
                       </Link>
                     )}
 
@@ -481,8 +497,8 @@ export default function RetainerDetailPage() {
                         </span>
                         <span className="font-semibold">{b.badge.title}</span>
                         <span className="text-slate-400">Lv {b.maxLevel}</span>
-                        {b.trustPercent != null && (
-                          <span className="text-slate-500">{b.trustPercent}%</span>
+                        {b.score != null && (
+                          <span className="text-slate-500">{b.score}</span>
                         )}
                       </Link>
                     ))}
@@ -619,13 +635,22 @@ export default function RetainerDetailPage() {
               </div>
             </div>
 
-            {role === "SEEKER" && (paymentTerms || feeSchedule.length > 0) && (
+            {role === "SEEKER" && canSeeLinkedOnly && (paymentTerms || feeSchedule.length > 0 || hasPayCycle) && (
               <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
                 <div className="text-xs uppercase tracking-wide text-slate-400">
                   Payment Terms & Fees
                 </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <KeyValue label="Payment terms" value={paymentTermsLabel(paymentTerms)} />
+                  {hasPayCycle && (
+                    <KeyValue label="Pay cycle close day" value={payCycleCloseDayLabel(payCycleCloseDay)} />
+                  )}
+                  {hasPayCycle && (
+                    <KeyValue label="Pay cycle frequency" value={payCycleFrequencyLabel(payCycleFrequency)} />
+                  )}
+                  {hasPayCycle && (
+                    <KeyValue label="Pay cycle timezone" value={payCycleTimezone || "EST"} />
+                  )}
                 </div>
                 {feeSchedule.length === 0 ? (
                   <div className="text-sm text-slate-400">

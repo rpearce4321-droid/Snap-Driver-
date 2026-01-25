@@ -15,6 +15,7 @@ import {
   TRAITS,
 
   PAYMENT_TERMS,
+  PAY_CYCLE_FREQUENCIES,
 
   getRetainers,
 
@@ -31,6 +32,7 @@ import {
   setRetainerHierarchyNodes,
 
   type PaymentTerm,
+  type PayCycleFrequency,
 
 } from "../lib/data";
 
@@ -199,7 +201,7 @@ import {
 
   getPendingBadgeApprovalsForProfile,
 
-  getTrustRatingForProfile,
+  getReputationScoreForProfile,
 
 } from "../lib/badges";
 
@@ -3004,9 +3006,9 @@ const DashboardView: React.FC<{
 
 
 
-  const retainerTrust = retainerId
+  const retainerReputation = retainerId
 
-    ? getTrustRatingForProfile({ ownerRole: "RETAINER", ownerId: retainerId })
+    ? getReputationScoreForProfile({ ownerRole: "RETAINER", ownerId: retainerId })
 
     : null;
 
@@ -3753,11 +3755,11 @@ const DashboardView: React.FC<{
 
               <div className="text-sm text-emerald-200">
 
-                {retainerTrust?.percent == null
+                {retainerReputation?.score == null
 
-                  ? "Trust -"
+                  ? "Reputation -"
 
-                  : `Trust ${retainerTrust.percent}%`}
+                  : `Reputation ${retainerReputation.score}`}
 
               </div>
 
@@ -3767,7 +3769,7 @@ const DashboardView: React.FC<{
 
                   className="h-full bg-emerald-400/80"
 
-                  style={{ width: `${retainerTrust?.percent ?? 0}%` }}
+                  style={{ width: `${retainerReputation?.scorePercent ?? 0}%` }}
 
                 />
 
@@ -6955,7 +6957,7 @@ const SeekerWheelCard: React.FC<{
 
 
 
-  const trust = getTrustRatingForProfile({
+  const reputation = getReputationScoreForProfile({
 
     ownerRole: "SEEKER",
 
@@ -7111,11 +7113,11 @@ const SeekerWheelCard: React.FC<{
 
           <span className="font-semibold">
 
-            {trust.percent == null ? "Trust -" : `Trust ${trust.percent}%`}
+            {reputation.score == null ? "Reputation -" : `Reputation ${reputation.score}`}
 
           </span>
 
-          {trust.total > 0 && <span className="text-slate-400">({trust.total})</span>}
+          {reputation.total > 0 && <span className="text-slate-400">({reputation.total})</span>}
 
         </span>
 
@@ -7791,6 +7793,13 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
   );
 
+  const [payCycleCloseDay, setPayCycleCloseDay] = useState<DayOfWeek>(
+    (initial as any)?.payCycleCloseDay ?? "FRI"
+  );
+  const [payCycleFrequency, setPayCycleFrequency] = useState<PayCycleFrequency>(
+    (initial as any)?.payCycleFrequency ?? PAY_CYCLE_FREQUENCIES[0].value
+  );
+
   const [logoUrl, setLogoUrl] = useState(
 
     (initial as any)?.logoUrl ?? (initial as any)?.photoUrl ?? (initial as any)?.profileImageUrl ?? ""
@@ -7989,6 +7998,9 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
         desiredTraits: selectedTraits.length ? selectedTraits : undefined,
 
         paymentTerms: paymentTerms || undefined,
+        payCycleCloseDay: payCycleCloseDay || undefined,
+        payCycleFrequency: payCycleFrequency || undefined,
+        payCycleTimezone: "EST",
 
         logoUrl: logoUrl.trim() || undefined,
 
@@ -8594,6 +8606,39 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
               </select>
 
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-200">Pay cycle close day (EST)</label>
+                <select
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  value={payCycleCloseDay}
+                  onChange={(e) => setPayCycleCloseDay(e.target.value as DayOfWeek)}
+                  disabled={readOnly}
+                >
+                  {DAYS.map((day) => (
+                    <option key={day.key} value={day.key} className="bg-slate-900 text-slate-50">
+                      {day.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-slate-200">Pay cycle frequency</label>
+                <select
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  value={payCycleFrequency}
+                  onChange={(e) => setPayCycleFrequency(e.target.value as PayCycleFrequency)}
+                  disabled={readOnly}
+                >
+                  {PAY_CYCLE_FREQUENCIES.map((freq) => (
+                    <option key={freq.value} value={freq.value} className="bg-slate-900 text-slate-50">
+                      {freq.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
           </div>
@@ -9848,7 +9893,7 @@ const SeekerWheelExpandedCard: React.FC<{
 
 
 
-  const trust = getTrustRatingForProfile({ ownerRole: "SEEKER", ownerId: String(seeker.id) });
+  const reputation = getReputationScoreForProfile({ ownerRole: "SEEKER", ownerId: String(seeker.id) });
 
   const pctFromCounts = (yesCount: number, noCount: number) => {
 
@@ -10052,11 +10097,11 @@ const SeekerWheelExpandedCard: React.FC<{
 
             <span className="font-semibold">
 
-              {trust.percent == null ? "Trust -" : `Trust ${trust.percent}%`}
+              {reputation.score == null ? "Reputation -" : `Reputation ${reputation.score}`}
 
             </span>
 
-            {trust.total > 0 && <span className="text-slate-400">({trust.total})</span>}
+            {reputation.total > 0 && <span className="text-slate-400">({reputation.total})</span>}
 
           </span>
 

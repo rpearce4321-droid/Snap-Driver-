@@ -465,10 +465,10 @@ export default function AdminDashboardPage() {
                 className="btn"
                 onClick={() => {
                   const ok = window.confirm(
-                    "This will wipe all local demo data and generate a comprehensive seed (30 retainers, 200 seekers, users/subcontractors, photos). Continue?"
+                    "This will wipe all local demo data and generate a comprehensive seed (5 retainers, 5 seekers). Continue?"
                   );
                   if (!ok) return;
-                  autoSeedComprehensive({ force: true });
+                  autoSeedComprehensive({ retainers: 5, seekers: 5, force: true });
                   setSession({ role: "ADMIN", adminId: "admin" });
                   setPanel("dashboard");
                 }}
@@ -764,8 +764,8 @@ const AdminBadgeRulesPanel: React.FC = () => {
       <div>
         <h2 className="text-xl font-semibold">Badge Rules</h2>
         <p className="text-sm text-white/60 mt-1">
-          Controls how badge levels are earned. Levels use a lifetime trust percentage
-          and total confirmation count. Badge levels never decrease once achieved.
+          Controls how badge levels are earned. Levels use lifetime confirmation percentage
+          and total confirmation count. Badge levels can decrease when results change.
         </p>
       </div>
 
@@ -891,7 +891,7 @@ const AdminBadgeRulesPanel: React.FC = () => {
 
       <div className="text-xs text-white/60">
         Tip: For low-frequency badges (like payment), lower the minimum confirmations per level and
-        keep the minimum trust percentage high.
+        keep the minimum confirmation percentage high.
       </div>
     </section>
   );
@@ -913,7 +913,7 @@ const AdminBadgeScoringPanel: React.FC = () => {
     SNAP: 3,
     CHECKER: 3,
   });
-  const [multipliers, setMultipliers] = useState<number[]>([1, 1.7, 2.5, 3.2, 4]);
+  const [multipliers, setMultipliers] = useState<number[]>([0.85, 0.95, 1, 1.1, 1.25]);
   const [query, setQuery] = useState("");
   const [overrideDraft, setOverrideDraft] = useState<Record<string, string>>({});
 
@@ -978,7 +978,7 @@ const AdminBadgeScoringPanel: React.FC = () => {
         <div>
           <h2 className="text-xl font-semibold">Badge Scoring</h2>
           <p className="text-sm text-white/60">
-            Control the trust score split, badge kind weights, and level multipliers.
+            Control the reputation score split, badge kind weights, and penalty multipliers.
           </p>
         </div>
         <div className="text-xs text-white/50">
@@ -1086,7 +1086,7 @@ const AdminBadgeScoringPanel: React.FC = () => {
             ))}
           </div>
           <div className="text-[11px] text-white/50">
-            Higher stages carry more weight in trust scoring.
+            Higher stages increase the penalty impact in reputation scoring.
           </div>
         </div>
       </div>

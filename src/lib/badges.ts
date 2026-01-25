@@ -7,10 +7,10 @@
 // - Only linked parties can verify badge check-ins.
 // - "Working together" must be enabled on the link to submit check-ins.
 // - Each profile can pick up to 4 active (goal) badges at a time.
-// - Badges are scored as a lifetime average (YES/(YES+NO)).
-// - A profile trust rating is derived from all badge confirmations (lifetime).
+// - Badges are scored from recent confirmations (YES/(YES+NO)).
+// - A Professional Reputation Score (PRS) is derived from badge scores.
 // - Badge levels are achieved based on lifetime average + sample size.
-// - Levels never decrease once achieved; lifetime averages can change.
+// - Levels can decrease as confirmation results change.
 
 import { readStoreData, writeStore } from "./storage";
 import { getActiveBadExitPenaltyPercent } from "./routeNotices";
@@ -48,7 +48,7 @@ export type BadgeProgress = {
   ownerId: string;
   yesCount: number;
   noCount: number;
-  maxLevel: number; // 0..5 (never decreases)
+  maxLevel: number; // 0..5 (current level; may decrease)
   createdAt: string;
   updatedAt: string;
 };
@@ -109,14 +109,25 @@ export type BadgeScoreSnapshot = {
   updatedAt: string;
 };
 
+export type ReputationScoreHistoryEntry = {
+  id: string;
+  ownerRole: BadgeOwnerRole;
+  ownerId: string;
+  score: number;
+  createdAt: string;
+  note?: string;
+};
+
 const BADGES_KEY_V2 = "snapdriver_badges_v2";
 const BADGES_KEY_V1 = "snapdriver_badges_v1";
 const BADGE_RULES_KEY = "snapdriver_badge_rules_v1";
 const BADGE_SCORE_KEY = "snapdriver_badge_scoring_v1";
+const BADGE_SCORE_HISTORY_KEY = "snapdriver_reputation_history_v1";
 
 const BADGES_SCHEMA_VERSION = 3;
 const RULES_SCHEMA_VERSION = 1;
 const SCORE_SCHEMA_VERSION = 1;
+const SCORE_HISTORY_SCHEMA_VERSION = 1;
 
 const DEFAULT_EXPECTATIONS_WEIGHT = 0.65;
 const DEFAULT_GROWTH_WEIGHT = 0.35;
@@ -126,9 +137,13 @@ const DEFAULT_KIND_WEIGHTS: Record<BadgeKind, number> = {
   SNAP: 3,
   CHECKER: 3,
 };
-const DEFAULT_LEVEL_MULTIPLIERS = [1, 1.7, 2.5, 3.2, 4];
+const DEFAULT_LEVEL_MULTIPLIERS = [0.85, 0.95, 1, 1.1, 1.25];
 const BACKGROUND_LOCK_MONTHS = 12;
-const TRUST_WINDOW_MONTHS = 12;
+
+export const REPUTATION_SCORE_MIN = 200;
+export const REPUTATION_SCORE_MAX = 900;
+export const REPUTATION_SCORE_WINDOW_DAYS = 90;
+export const REPUTATION_PENALTY_K = 0.56;
 
 export const MAX_ACTIVE_BADGES = 4;
 export const MAX_BACKGROUND_BADGES = 4;
@@ -197,11 +212,19 @@ function addMonths(date: Date, months: number): Date {
   return next;
 }
 
-function isWithinMonths(iso: string, months: number): boolean {
+function isWithinDays(iso: string, days: number): boolean {
   const ts = Date.parse(iso);
   if (!Number.isFinite(ts)) return false;
-  const cutoff = addMonths(new Date(), -months);
-  return ts >= cutoff.getTime();
+  const cutoff = Date.now() - days * 86_400_000;
+  return ts >= cutoff;
+}
+
+function isWithinDaysOf(iso: string, days: number, asOf: Date): boolean {
+  const ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return false;
+  const asOfTs = asOf.getTime();
+  const cutoff = asOfTs - days * 86_400_000;
+  return ts >= cutoff && ts <= asOfTs;
 }
 
 function normalizeRulesArray(
@@ -397,6 +420,35 @@ function loadScoreSnapshot(): BadgeScoreSnapshot {
 
 function saveScoreSnapshot(snapshot: BadgeScoreSnapshot) {
   writeStore(BADGE_SCORE_KEY, SCORE_SCHEMA_VERSION, snapshot);
+}
+
+function normalizeScoreHistoryEntry(raw: any): ReputationScoreHistoryEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const score = Number(raw.score);
+  if (!Number.isFinite(score)) return null;
+  const ownerId = String(raw.ownerId ?? "").trim();
+  if (!ownerId) return null;
+  return {
+    id: String(raw.id ?? makeId("score")),
+    ownerRole: normalizeRole(raw.ownerRole),
+    ownerId,
+    score: clampReputationScore(score),
+    createdAt: typeof raw.createdAt === "string" ? raw.createdAt : nowIso(),
+    note: typeof raw.note === "string" ? raw.note : undefined,
+  };
+}
+
+function loadScoreHistory(): ReputationScoreHistoryEntry[] {
+  const raw = readStoreData<unknown>(BADGE_SCORE_HISTORY_KEY);
+  if (!Array.isArray(raw)) return [];
+  return (raw as any[])
+    .map((entry) => normalizeScoreHistoryEntry(entry))
+    .filter((entry): entry is ReputationScoreHistoryEntry => entry !== null)
+    .sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+}
+
+function saveScoreHistory(entries: ReputationScoreHistoryEntry[]) {
+  writeStore(BADGE_SCORE_HISTORY_KEY, SCORE_HISTORY_SCHEMA_VERSION, entries);
 }
 
 export function getBadgeScoreSnapshot(): BadgeScoreSnapshot {
@@ -605,6 +657,39 @@ function computeTrustPercent(yesCount: number, noCount: number): number | null {
   return Math.round((yesCount / total) * 100);
 }
 
+function clampReputationScore(score: number): number {
+  if (!Number.isFinite(score)) return REPUTATION_SCORE_MIN;
+  return Math.max(
+    REPUTATION_SCORE_MIN,
+    Math.min(REPUTATION_SCORE_MAX, Math.round(score))
+  );
+}
+
+function reputationScoreToPercent(score: number): number {
+  const span = REPUTATION_SCORE_MAX - REPUTATION_SCORE_MIN;
+  if (span <= 0) return 0;
+  return Math.max(
+    0,
+    Math.min(100, Math.round(((score - REPUTATION_SCORE_MIN) / span) * 100))
+  );
+}
+
+function computeReputationScoreFromCounts(
+  yesCount: number,
+  noCount: number,
+  levelMultiplier: number
+): number | null {
+  const total = yesCount + noCount;
+  if (total <= 0) return null;
+  const yesRate = yesCount / total;
+  const noRate = noCount / total;
+  const baseScore =
+    REPUTATION_SCORE_MIN +
+    (REPUTATION_SCORE_MAX - REPUTATION_SCORE_MIN) * yesRate;
+  const penalty = baseScore * REPUTATION_PENALTY_K * noRate * levelMultiplier;
+  return clampReputationScore(baseScore - penalty);
+}
+
 function computeLevelFromCounts(
   rules: BadgeLevelRule[],
   yesCount: number,
@@ -619,6 +704,12 @@ function computeLevelFromCounts(
     if (total >= r.minSamples && percent >= r.minPercent) level = i;
   }
   return level;
+}
+
+function computeBadgeLevel(def: BadgeDefinition, yesCount: number, noCount: number): number {
+  if (def.kind === "SNAP") return yesCount > 0 ? 1 : 0;
+  const rules = getBadgeLevelRulesForBadge(def.id);
+  return computeLevelFromCounts(rules, yesCount, noCount);
 }
 
 function migrateFromV1(rawV1: any): BadgeStore {
@@ -659,12 +750,11 @@ function migrateFromV1(rawV1: any): BadgeStore {
   }
 
   for (const [key, p] of mergedProgress.entries()) {
-    const computed = computeLevelFromCounts(
-      getBadgeLevelRulesForBadge(p.badgeId),
-      p.yesCount,
-      p.noCount
-    );
-    mergedProgress.set(key, { ...p, maxLevel: Math.max(p.maxLevel, computed) });
+    const def = getBadgeDefinition(p.badgeId);
+    const computed = def
+      ? computeBadgeLevel(def, p.yesCount, p.noCount)
+      : computeLevelFromCounts(getBadgeLevelRulesForBadge(p.badgeId), p.yesCount, p.noCount);
+    mergedProgress.set(key, { ...p, maxLevel: computed });
   }
 
   return {
@@ -787,6 +877,11 @@ export function setActiveBadges(
   else store.selections.push(next);
 
   saveStore(store);
+  recordReputationScoreSnapshot({
+    ownerRole,
+    ownerId,
+    note: "Badge selections updated",
+  });
   return next;
 }
 
@@ -898,6 +993,11 @@ export function grantSnapBadge(
   if (idx >= 0) store.progress[idx] = next;
   else store.progress.push(next);
   saveStore(store);
+  recordReputationScoreSnapshot({
+    ownerRole,
+    ownerId,
+    note: "Snap badge granted",
+  });
   return next;
 }
 
@@ -952,57 +1052,67 @@ export function computeBadgeProgressToNext(
   return { maxLevel: progress.maxLevel, trustPercent, totalConfirmations, nextLevel, nextRule };
 }
 
-type BadgeTrustWindow = {
-  percent: number | null;
+type BadgeReputationWindow = {
   yes: number;
   no: number;
   total: number;
-  linkCount: number;
 };
 
-function getBadgeTrustWindow(args: {
+function getBadgeReputationWindow(args: {
   ownerRole: BadgeOwnerRole;
   ownerId: string;
   badgeId: BadgeId;
-  months?: number;
-}): BadgeTrustWindow {
+  days?: number;
+}): BadgeReputationWindow {
   const store = loadStore();
-  const months = typeof args.months === "number" ? args.months : TRUST_WINDOW_MONTHS;
+  const days = typeof args.days === "number" ? args.days : REPUTATION_SCORE_WINDOW_DAYS;
   const relevant = store.checkins.filter(
     (c) =>
       c.targetRole === args.ownerRole &&
       c.targetId === args.ownerId &&
       c.badgeId === args.badgeId &&
-      isWithinMonths(c.createdAt, months)
+      isWithinDays(c.createdAt, days)
   );
 
   let yes = 0;
   let no = 0;
-  const perLink = new Map<string, { yes: number; no: number }>();
   for (const c of relevant) {
     const value = getEffectiveCheckinValue(c);
     if (!value) continue;
-    const linkKey = args.ownerRole === "SEEKER" ? c.retainerId : c.seekerId;
-    const curr = perLink.get(linkKey) ?? { yes: 0, no: 0 };
-    if (value === "YES") {
-      curr.yes += 1;
-      yes += 1;
-    } else {
-      curr.no += 1;
-      no += 1;
-    }
-    perLink.set(linkKey, curr);
+    if (value === "YES") yes += 1;
+    else no += 1;
   }
 
-  const percents = Array.from(perLink.values())
-    .map((counts) => computeTrustPercent(counts.yes, counts.no))
-    .filter((p): p is number => p != null);
+  return { yes, no, total: yes + no };
+}
 
-  const percent = percents.length
-    ? Math.round(percents.reduce((sum, p) => sum + p, 0) / percents.length)
-    : null;
+function getBadgeReputationWindowAtDate(args: {
+  ownerRole: BadgeOwnerRole;
+  ownerId: string;
+  badgeId: BadgeId;
+  asOf: Date;
+  days?: number;
+}): BadgeReputationWindow {
+  const store = loadStore();
+  const days = typeof args.days === "number" ? args.days : REPUTATION_SCORE_WINDOW_DAYS;
+  const relevant = store.checkins.filter(
+    (c) =>
+      c.targetRole === args.ownerRole &&
+      c.targetId === args.ownerId &&
+      c.badgeId === args.badgeId &&
+      isWithinDaysOf(c.createdAt, days, args.asOf)
+  );
 
-  return { percent, yes, no, total: yes + no, linkCount: percents.length };
+  let yes = 0;
+  let no = 0;
+  for (const c of relevant) {
+    const value = getEffectiveCheckinValue(c);
+    if (!value) continue;
+    if (value === "YES") yes += 1;
+    else no += 1;
+  }
+
+  return { yes, no, total: yes + no };
 }
 
 function getLevelMultiplier(level: number, multipliers: number[]): number {
@@ -1010,12 +1120,64 @@ function getLevelMultiplier(level: number, multipliers: number[]): number {
   return multipliers[idx] ?? 1;
 }
 
-export function getTrustRatingForProfile(args: {
+export type ReputationScoreSummary = {
+  score: number | null;
+  scorePercent: number | null;
+  yes: number;
+  no: number;
+  total: number;
+};
+
+export function getBadgeReputationScore(args: {
   ownerRole: BadgeOwnerRole;
   ownerId: string;
-}): { percent: number | null; yes: number; no: number; total: number } {
+  badgeId: BadgeId;
+  days?: number;
+}): ReputationScoreSummary {
+  if (!args.ownerId) {
+    return { score: null, scorePercent: null, yes: 0, no: 0, total: 0 };
+  }
+  const def = getBadgeDefinition(args.badgeId);
+  if (!def) return { score: null, scorePercent: null, yes: 0, no: 0, total: 0 };
+
+  const progress = getBadgeProgress(args.ownerRole, args.ownerId, args.badgeId);
+  const levelMultiplier = getLevelMultiplier(
+    Math.max(1, progress.maxLevel || 1),
+    getBadgeLevelMultipliers()
+  );
+
+  const counts =
+    def.kind === "SNAP"
+      ? {
+          yes: progress.yesCount,
+          no: progress.noCount,
+          total: progress.yesCount + progress.noCount,
+        }
+      : getBadgeReputationWindow({
+          ownerRole: args.ownerRole,
+          ownerId: args.ownerId,
+          badgeId: args.badgeId,
+          days: args.days,
+        });
+
+  const score = computeReputationScoreFromCounts(counts.yes, counts.no, levelMultiplier);
+  const scorePercent = score == null ? null : reputationScoreToPercent(score);
+
+  return {
+    score,
+    scorePercent,
+    yes: counts.yes,
+    no: counts.no,
+    total: counts.total,
+  };
+}
+
+export function getReputationScoreForProfile(args: {
+  ownerRole: BadgeOwnerRole;
+  ownerId: string;
+}): ReputationScoreSummary {
   const ownerId = args.ownerId;
-  if (!ownerId) return { percent: null, yes: 0, no: 0, total: 0 };
+  if (!ownerId) return { score: null, scorePercent: null, yes: 0, no: 0, total: 0 };
 
   const { expectationsWeight, growthWeight } = getBadgeScoreSplit();
   const levelMultipliers = getBadgeLevelMultipliers();
@@ -1038,31 +1200,38 @@ export function getTrustRatingForProfile(args: {
       seen.add(badgeId);
       const def = getBadgeDefinition(badgeId);
       if (!def) continue;
-      let trust: BadgeTrustWindow | null = null;
-      if (def.kind === "SNAP") {
-        const p = getBadgeProgress(args.ownerRole, ownerId, badgeId);
-        const percent = computeTrustPercent(p.yesCount, p.noCount);
-        if (percent == null) continue;
-        trust = { percent, yes: p.yesCount, no: p.noCount, total: p.yesCount + p.noCount, linkCount: 1 };
-      } else {
-        trust = getBadgeTrustWindow({
-          ownerRole: args.ownerRole,
-          ownerId,
-          badgeId,
-        });
-        if (!trust || trust.percent == null) continue;
-      }
-
-      if (!trust || trust.percent == null) continue;
 
       const progress = getBadgeProgress(args.ownerRole, ownerId, badgeId);
-      const multiplier = getLevelMultiplier(Math.max(1, progress.maxLevel || 1), levelMultipliers);
-      const weight = getBadgeWeight(badgeId) * getBadgeKindWeight(def.kind) * multiplier;
-      weightedSum += trust.percent * weight;
+      const levelMultiplier = getLevelMultiplier(
+        Math.max(1, progress.maxLevel || 1),
+        levelMultipliers
+      );
+
+      const counts =
+        def.kind === "SNAP"
+          ? {
+              yes: progress.yesCount,
+              no: progress.noCount,
+              total: progress.yesCount + progress.noCount,
+            }
+          : getBadgeReputationWindow({
+              ownerRole: args.ownerRole,
+              ownerId,
+              badgeId,
+            });
+
+      if (counts.total <= 0) continue;
+
+      const score = computeReputationScoreFromCounts(counts.yes, counts.no, levelMultiplier);
+      if (score == null) continue;
+
+      const weight = getBadgeWeight(badgeId) * getBadgeKindWeight(def.kind);
+      weightedSum += score * weight;
       weightTotal += weight;
-      yes += trust.yes;
-      no += trust.no;
+      yes += counts.yes;
+      no += counts.no;
     }
+
     const score = weightTotal > 0 ? weightedSum / weightTotal : null;
     return { score, yes, no, weightTotal };
   };
@@ -1070,28 +1239,222 @@ export function getTrustRatingForProfile(args: {
   const expectations = scoreGroup(expectationIds);
   const growth = scoreGroup(growthIds);
 
-  let totalYes = expectations.yes + growth.yes;
-  let totalNo = expectations.no + growth.no;
-  let percent: number | null = null;
-
   const parts: Array<{ score: number; weight: number }> = [];
-  if (expectations.score != null) parts.push({ score: expectations.score, weight: expectationsWeight });
-  if (growth.score != null) parts.push({ score: growth.score, weight: growthWeight });
+  if (expectations.score != null) {
+    parts.push({ score: expectations.score, weight: expectationsWeight });
+  }
+  if (growth.score != null) {
+    parts.push({ score: growth.score, weight: growthWeight });
+  }
 
+  let score: number | null = null;
   if (parts.length > 0) {
     const weightSum = parts.reduce((sum, p) => sum + p.weight, 0) || 1;
     const weightedScore = parts.reduce((sum, p) => sum + p.score * p.weight, 0);
-    percent = Math.round(weightedScore / weightSum);
+    score = weightedScore / weightSum;
   }
 
-  if (percent != null && args.ownerRole === "SEEKER") {
+  const totalYes = expectations.yes + growth.yes;
+  const totalNo = expectations.no + growth.no;
+
+  if (score != null && args.ownerRole === "SEEKER") {
     const penalty = getActiveBadExitPenaltyPercent(ownerId);
     if (penalty > 0) {
-      percent = Math.max(0, percent - penalty);
+      score = score * (1 - penalty / 100);
     }
   }
 
-  return { percent, yes: totalYes, no: totalNo, total: totalYes + totalNo };
+  if (score != null) {
+    score = clampReputationScore(score);
+  }
+
+  const scorePercent = score == null ? null : reputationScoreToPercent(score);
+
+  return { score, scorePercent, yes: totalYes, no: totalNo, total: totalYes + totalNo };
+}
+
+export function getReputationScoreForProfileAtDate(args: {
+  ownerRole: BadgeOwnerRole;
+  ownerId: string;
+  asOf: Date;
+  days?: number;
+}): ReputationScoreSummary {
+  const ownerId = args.ownerId;
+  if (!ownerId) return { score: null, scorePercent: null, yes: 0, no: 0, total: 0 };
+
+  const { expectationsWeight, growthWeight } = getBadgeScoreSplit();
+  const levelMultipliers = getBadgeLevelMultipliers();
+  const days = typeof args.days === "number" ? args.days : REPUTATION_SCORE_WINDOW_DAYS;
+
+  const expectationIds = [
+    ...getSelectedBackgroundBadges(args.ownerRole, ownerId),
+    ...getSnapBadges(args.ownerRole).map((b) => b.id),
+    ...getCheckerBadges(args.ownerRole).map((b) => b.id),
+  ];
+  const growthIds = getActiveBadges(args.ownerRole, ownerId);
+
+  const scoreGroup = (ids: BadgeId[]) => {
+    let weightedSum = 0;
+    let weightTotal = 0;
+    let yes = 0;
+    let no = 0;
+    const seen = new Set<BadgeId>();
+    for (const badgeId of ids) {
+      if (seen.has(badgeId)) continue;
+      seen.add(badgeId);
+      const def = getBadgeDefinition(badgeId);
+      if (!def) continue;
+
+      const progress = getBadgeProgress(args.ownerRole, ownerId, badgeId);
+      const levelMultiplier = getLevelMultiplier(
+        Math.max(1, progress.maxLevel || 1),
+        levelMultipliers
+      );
+
+      const counts =
+        def.kind === "SNAP"
+          ? {
+              yes: progress.yesCount,
+              no: progress.noCount,
+              total: progress.yesCount + progress.noCount,
+            }
+          : getBadgeReputationWindowAtDate({
+              ownerRole: args.ownerRole,
+              ownerId,
+              badgeId,
+              asOf: args.asOf,
+              days,
+            });
+
+      if (counts.total <= 0) continue;
+
+      const score = computeReputationScoreFromCounts(counts.yes, counts.no, levelMultiplier);
+      if (score == null) continue;
+
+      const weight = getBadgeWeight(badgeId) * getBadgeKindWeight(def.kind);
+      weightedSum += score * weight;
+      weightTotal += weight;
+      yes += counts.yes;
+      no += counts.no;
+    }
+
+    const score = weightTotal > 0 ? weightedSum / weightTotal : null;
+    return { score, yes, no, weightTotal };
+  };
+
+  const expectations = scoreGroup(expectationIds);
+  const growth = scoreGroup(growthIds);
+
+  const parts: Array<{ score: number; weight: number }> = [];
+  if (expectations.score != null) {
+    parts.push({ score: expectations.score, weight: expectationsWeight });
+  }
+  if (growth.score != null) {
+    parts.push({ score: growth.score, weight: growthWeight });
+  }
+
+  let score: number | null = null;
+  if (parts.length > 0) {
+    const weightSum = parts.reduce((sum, p) => sum + p.weight, 0) || 1;
+    const weightedScore = parts.reduce((sum, p) => sum + p.score * p.weight, 0);
+    score = weightedScore / weightSum;
+  }
+
+  const totalYes = expectations.yes + growth.yes;
+  const totalNo = expectations.no + growth.no;
+
+  if (score != null && args.ownerRole === "SEEKER") {
+    const penalty = getActiveBadExitPenaltyPercent(ownerId);
+    if (penalty > 0) {
+      score = score * (1 - penalty / 100);
+    }
+  }
+
+  if (score != null) {
+    score = clampReputationScore(score);
+  }
+
+  const scorePercent = score == null ? null : reputationScoreToPercent(score);
+
+  return { score, scorePercent, yes: totalYes, no: totalNo, total: totalYes + totalNo };
+}
+
+export function getTrustRatingForProfile(args: {
+  ownerRole: BadgeOwnerRole;
+  ownerId: string;
+}): ReputationScoreSummary {
+  return getReputationScoreForProfile(args);
+}
+
+export function addReputationScoreHistoryEntry(args: {
+  ownerRole: BadgeOwnerRole;
+  ownerId: string;
+  score: number;
+  createdAt?: string;
+  note?: string;
+}): ReputationScoreHistoryEntry {
+  const ownerId = String(args.ownerId ?? "").trim();
+  if (!ownerId) {
+    throw new Error("ownerId is required for score history");
+  }
+  const createdAt = typeof args.createdAt === "string" ? args.createdAt : nowIso();
+  const score = clampReputationScore(args.score);
+  const entries = loadScoreHistory();
+  const last = entries
+    .filter((entry) => entry.ownerRole === args.ownerRole && entry.ownerId === ownerId)
+    .slice(-1)[0];
+
+  if (last) {
+    const lastDay = new Date(last.createdAt).toDateString();
+    const nextDay = new Date(createdAt).toDateString();
+    if (last.score === score && lastDay === nextDay) return last;
+  }
+
+  const entry: ReputationScoreHistoryEntry = {
+    id: makeId("score"),
+    ownerRole: args.ownerRole,
+    ownerId,
+    score,
+    createdAt,
+    note: typeof args.note === "string" ? args.note : undefined,
+  };
+  entries.push(entry);
+  saveScoreHistory(entries);
+  return entry;
+}
+
+export function recordReputationScoreSnapshot(args: {
+  ownerRole: BadgeOwnerRole;
+  ownerId: string;
+  note?: string;
+  createdAt?: string;
+}): ReputationScoreHistoryEntry | null {
+  const summary = getReputationScoreForProfile({
+    ownerRole: args.ownerRole,
+    ownerId: args.ownerId,
+  });
+  if (summary.score == null) return null;
+  return addReputationScoreHistoryEntry({
+    ownerRole: args.ownerRole,
+    ownerId: args.ownerId,
+    score: summary.score,
+    createdAt: args.createdAt,
+    note: args.note,
+  });
+}
+
+export function getReputationScoreHistory(args: {
+  ownerRole: BadgeOwnerRole;
+  ownerId: string;
+  days?: number;
+}): ReputationScoreHistoryEntry[] {
+  const ownerId = String(args.ownerId ?? "").trim();
+  if (!ownerId) return [];
+  const entries = loadScoreHistory().filter(
+    (entry) => entry.ownerRole === args.ownerRole && entry.ownerId === ownerId
+  );
+  if (!args.days) return entries;
+  return entries.filter((entry) => isWithinDays(entry.createdAt, args.days));
 }
 
 export function getCheckinForPeriod(args: {
@@ -1152,6 +1515,8 @@ export type SubmitWeeklyCheckinArgs = {
   periodKey?: string;
   cadence?: BadgeCadence;
   value: BadgeCheckinValue;
+  createdAt?: string;
+  updatedAt?: string;
 
   // TODO(badges): Require a reason when value is NO (retainer/seeker explanation).
   // TODO(badges): Add admin tooling to create/edit badge descriptions.
@@ -1214,9 +1579,10 @@ function applyCheckinToStore(
     return { checkin: existing, progress, link };
   }
 
-  const ts = nowIso();
+  const ts = typeof args.createdAt === "string" ? args.createdAt : nowIso();
+  const updatedAt = typeof args.updatedAt === "string" ? args.updatedAt : ts;
   const progress = getOrCreateProgress(store, args.targetRole, args.targetId, args.badgeId);
-  const nextProgress: BadgeProgress = { ...progress, updatedAt: ts };
+  const nextProgress: BadgeProgress = { ...progress, updatedAt };
 
   const applyDelta = (value: BadgeCheckinValue, dir: 1 | -1) => {
     if (value === "YES") nextProgress.yesCount = Math.max(0, nextProgress.yesCount + dir);
@@ -1226,12 +1592,8 @@ function applyCheckinToStore(
   if (existing) applyDelta(existing.value, -1);
   applyDelta(args.value, 1);
 
-  const computed = computeLevelFromCounts(
-    getBadgeLevelRulesForBadge(def.id),
-    nextProgress.yesCount,
-    nextProgress.noCount
-  );
-  nextProgress.maxLevel = Math.max(nextProgress.maxLevel, computed);
+  const computed = computeBadgeLevel(def, nextProgress.yesCount, nextProgress.noCount);
+  nextProgress.maxLevel = computed;
 
   const nextCheckin: BadgeCheckin = existing
     ? {
@@ -1239,7 +1601,7 @@ function applyCheckinToStore(
         weekKey: periodKey,
         cadence,
         value: args.value,
-        updatedAt: ts,
+        updatedAt,
       }
     : {
         id: makeId("checkin"),
@@ -1255,7 +1617,7 @@ function applyCheckinToStore(
         value: args.value,
         status: "ACTIVE",
         createdAt: ts,
-        updatedAt: ts,
+        updatedAt,
       };
 
   if (existingIdx >= 0) store.checkins[existingIdx] = nextCheckin;
@@ -1279,6 +1641,11 @@ export function submitWeeklyCheckin(
   const store = loadStore();
   const result = applyCheckinToStore(store, args);
   saveStore(store);
+  recordReputationScoreSnapshot({
+    ownerRole: args.targetRole,
+    ownerId: args.targetId,
+    note: "Badge check-in recorded",
+  });
   return result;
 }
 
@@ -1287,17 +1654,27 @@ export function submitWeeklyCheckinsBatch(
 ): { applied: number; skipped: number } {
   if (!argsList.length) return { applied: 0, skipped: 0 };
   const store = loadStore();
+  const touched = new Map<string, { ownerRole: BadgeOwnerRole; ownerId: string }>();
   let applied = 0;
   let skipped = 0;
   for (const args of argsList) {
     try {
       applyCheckinToStore(store, args);
       applied += 1;
+      const key = `${args.targetRole}:${args.targetId}`;
+      touched.set(key, { ownerRole: args.targetRole, ownerId: args.targetId });
     } catch {
       skipped += 1;
     }
   }
   saveStore(store);
+  for (const entry of touched.values()) {
+    recordReputationScoreSnapshot({
+      ownerRole: entry.ownerRole,
+      ownerId: entry.ownerId,
+      note: "Batch badge check-ins recorded",
+    });
+  }
   return { applied, skipped };
 }
 
@@ -1407,13 +1784,16 @@ function recomputeProgressForBadge(store: BadgeStore, targetRole: BadgeOwnerRole
   }
 
   const progress = getOrCreateProgress(store, targetRole, targetId, badgeId);
-  const computed = computeLevelFromCounts(getBadgeLevelRulesForBadge(badgeId), yes, no);
+  const def = getBadgeDefinition(badgeId);
+  const computed = def
+    ? computeBadgeLevel(def, yes, no)
+    : computeLevelFromCounts(getBadgeLevelRulesForBadge(badgeId), yes, no);
   const ts = nowIso();
   const next: BadgeProgress = {
     ...progress,
     yesCount: yes,
     noCount: no,
-    maxLevel: Math.max(progress.maxLevel, computed),
+    maxLevel: computed,
     updatedAt: ts,
   };
   const idx = store.progress.findIndex(
@@ -1450,20 +1830,30 @@ export function getBadgeSummaryForProfile(args: {
   ownerRole: BadgeOwnerRole;
   ownerId: string;
   max?: number;
-}): Array<{ badge: BadgeDefinition; maxLevel: number; trustPercent: number | null; total: number }> {
+}): Array<{ badge: BadgeDefinition; maxLevel: number; score: number | null; scorePercent: number | null; total: number }> {
   const defs = getBadgeDefinitions(args.ownerRole);
   const max = typeof args.max === "number" ? Math.max(1, Math.floor(args.max)) : 6;
   const earned = defs
     .map((b) => {
       const p = getBadgeProgress(args.ownerRole, args.ownerId, b.id);
-      const trustPercent = computeTrustPercent(p.yesCount, p.noCount);
-      return { badge: b, maxLevel: p.maxLevel, trustPercent, total: p.yesCount + p.noCount };
+      const reputation = getBadgeReputationScore({
+        ownerRole: args.ownerRole,
+        ownerId: args.ownerId,
+        badgeId: b.id,
+      });
+      return {
+        badge: b,
+        maxLevel: p.maxLevel,
+        score: reputation.score,
+        scorePercent: reputation.scorePercent,
+        total: reputation.total,
+      };
     })
     .filter((x) => x.maxLevel > 0)
     .sort(
       (a, b) =>
         b.maxLevel - a.maxLevel ||
-        (b.trustPercent ?? -1) - (a.trustPercent ?? -1) ||
+        (b.score ?? -1) - (a.score ?? -1) ||
         b.total - a.total
     );
 

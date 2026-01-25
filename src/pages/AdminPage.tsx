@@ -130,7 +130,7 @@ export default function AdminPage() {
   });
 
   function handleSeedDemo() {
-    autoSeed({ seekers: 75, retainers: 15, force: true });
+    autoSeed({ seekers: 5, retainers: 5, force: true });
     setSeekers(getSeekers());
     setRetainers(getRetainers());
   }

@@ -236,7 +236,7 @@ export default function BadgesCatalogPage() {
             <h2 className="text-lg font-semibold">Selectable Badges</h2>
             <p className="text-sm text-slate-400 mt-1">
               Each profile can focus on up to 4 at a time. Linked partners verify
-              to build trust over time.
+              to build reputation over time.
             </p>
           </div>
           <div className="grid gap-3">
