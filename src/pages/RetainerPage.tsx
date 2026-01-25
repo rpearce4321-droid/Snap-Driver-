@@ -370,6 +370,19 @@ const RetainerPage: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
 
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.innerWidth >= 1024;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
 
   const [noticeTick, setNoticeTick] = useState(0);
@@ -1329,13 +1342,17 @@ const RetainerPage: React.FC = () => {
     );
   }
 
+  const containerStyle = isDesktop
+    ? { zoom: 1.1, height: "calc(100vh / 1.1)", width: "calc(100vw / 1.1)" }
+    : undefined;
+
   return (
 
-    <div className="h-screen bg-slate-950 text-slate-50 flex overflow-hidden" style={{ zoom: 1.1, height: "calc(100vh / 1.1)", width: "calc(100vw / 1.1)" }}>
+    <div className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-hidden" style={containerStyle}>
 
       {/* Left sidebar */}
 
-      <aside className="w-72 shrink-0 border-r border-slate-800 bg-slate-900/70 backdrop-blur-sm p-4 flex flex-col min-h-0">
+      <aside className="hidden lg:flex w-72 shrink-0 border-r border-slate-800 bg-slate-900/70 backdrop-blur-sm p-4 flex flex-col min-h-0">
 
         <div className="mb-6">
 
@@ -1391,7 +1408,7 @@ const RetainerPage: React.FC = () => {
 
                   <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/60 px-2 py-0.5 text-[10px] text-amber-100">
 
-                    ? {summary.avg.toFixed(1)} ({summary.count})
+                    * {summary.avg.toFixed(1)} ({summary.count})
 
                   </span>
 
@@ -1614,40 +1631,179 @@ const RetainerPage: React.FC = () => {
       {/* Main content */}
 
       <main className="flex-1 min-h-0 flex flex-col relative">
-
-        <header className="px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
-
-          <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
-
-            <div>
-
-              <h2 className="text-2xl font-semibold text-slate-50">
-
-                {renderHeaderTitle(activeTab)}
-
-              </h2>
-
-              <p className="text-sm text-slate-400 mt-1">
-
-                {renderHeaderSubtitle(activeTab)}
-
-              </p>
-
+        <div className="lg:hidden border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
+          <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                  Snap Driver
+                </div>
+                <div className="text-lg font-semibold text-slate-50">Retainer Portal</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                  Section
+                </div>
+                <div className="text-sm font-semibold text-slate-200">
+                  {renderHeaderTitle(activeTab)}
+                </div>
+              </div>
             </div>
 
+            {currentRetainer ? (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                  Your Company
+                </div>
+                <div className="font-semibold text-slate-50 truncate">
+                  {formatRetainerName(currentRetainer)}
+                </div>
+                <div className="text-xs text-slate-400 flex flex-wrap items-center gap-2">
+                  <span>
+                    Status:{" "}
+                    <span className="font-medium text-emerald-400">
+                      {(currentRetainer as any).status}
+                    </span>
+                  </span>
+                  {(() => {
+                    const summary = getRetainerRatingSummary((currentRetainer as any).id);
+                    if (!summary.count) return null;
+                    return (
+                      <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/60 px-2 py-0.5 text-[10px] text-amber-100">
+                        * {summary.avg.toFixed(1)} ({summary.count})
+                      </span>
+                    );
+                  })()}
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  {currentRetainerId ? (
+                    <Link
+                      to={`/retainers/${currentRetainerId}`}
+                      className="text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                    >
+                      View profile
+                    </Link>
+                  ) : (
+                    <span />
+                  )}
+                  <div className="flex items-center gap-3">
+                    <Link
+                      to="/seekers"
+                      className="text-emerald-400 hover:text-emerald-300 font-medium"
+                    >
+                      Seeker
+                    </Link>
+                    <Link
+                      to="/admin"
+                      className="text-emerald-400 hover:text-emerald-300 font-medium"
+                    >
+                      Admin
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-400">
+                No retainer selected yet.
+              </div>
+            )}
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
+              {selectableRetainers.length > 1 && (
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                    Acting as
+                  </label>
+                  <select
+                    className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                    value={currentRetainerId ?? ""}
+                    onChange={(e) => handleSelectRetainer(e.target.value)}
+                  >
+                    {selectableRetainers.map((r: any) => (
+                      <option key={r.id} value={r.id} className="bg-slate-900 text-slate-50">
+                        {formatRetainerName(r)}
+                        {r.status === "PENDING" ? " (Pending)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                  Acting as user
+                </label>
+                <select
+                  className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                  value={currentRetainerUserId ?? ""}
+                  onChange={(e) => handleSelectRetainerUser(e.target.value)}
+                >
+                  <option value="" className="bg-slate-900 text-slate-50">
+                    {retainerLevelLabels.level3} (default)
+                  </option>
+                  {retainerUsers.map((u) => (
+                    <option key={u.id} value={u.id} className="bg-slate-900 text-slate-50">
+                      {u.name} ({retainerLevelLabels[`level${u.level}` as keyof RetainerUserLevelLabels]})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              <MobileTabButton
+                label="Dashboard"
+                active={activeTab === "dashboard"}
+                onClick={() => setActiveTab("dashboard")}
+              />
+              <MobileTabButton
+                label="Action"
+                active={activeTab === "action"}
+                onClick={() => setActiveTab("action")}
+              />
+              <MobileTabButton
+                label="Linking"
+                active={activeTab === "linking"}
+                onClick={() => setActiveTab("linking")}
+              />
+              <MobileTabButton
+                label="Posts"
+                active={activeTab === "posts"}
+                onClick={() => setActiveTab("posts")}
+              />
+              <MobileTabButton
+                label="Messages"
+                active={activeTab === "messages"}
+                onClick={() => setActiveTab("messages")}
+              />
+              <MobileTabButton
+                label="Badges"
+                active={activeTab === "badges"}
+                onClick={() => setActiveTab("badges")}
+              />
+            </div>
           </div>
+        </div>
 
+        <header className="hidden lg:block px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
+          <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold text-slate-50">
+                {renderHeaderTitle(activeTab)}
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">
+                {renderHeaderSubtitle(activeTab)}
+              </p>
+            </div>
+          </div>
         </header>
-
-
-
         <section
 
           className={[
 
-            "flex-1 min-h-0 p-6",
+            "flex-1 min-h-0 p-4 lg:p-6",
 
-            activeTab === "messages" || activeTab === "dashboard" || activeTab === "linking" || activeTab === "action" ? "overflow-hidden flex flex-col" : "overflow-y-auto",
+            activeTab === "messages" || activeTab === "dashboard" || activeTab === "linking" || activeTab === "action" ? "flex flex-col overflow-y-auto lg:overflow-hidden" : "overflow-y-auto",
 
             activeTab === "dashboard" || activeTab === "linking" ? "pb-36" : "",
 
@@ -2033,6 +2189,30 @@ export default RetainerPage;
 
 
 /* ------------------------------------------------------------------ */
+
+/* Mobile tab button                                                  */
+/* ------------------------------------------------------------------ */
+
+const MobileTabButton: React.FC<{
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}> = ({ label, active, onClick }) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "shrink-0 px-3 py-1.5 rounded-full text-xs border transition",
+        active
+          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+          : "bg-slate-900/60 text-slate-300 border-slate-800 hover:text-slate-50",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+};
 
 /* Sidebar button                                                     */
 

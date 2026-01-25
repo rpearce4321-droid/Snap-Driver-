@@ -94,6 +94,56 @@ export default function AdminPage() {
 
   const [panel, setPanel] = useState<Panel>("dashboard");
 
+  const panelLabelMap: Record<Panel, string> = {
+    dashboard: "Dashboard",
+    createSeeker: "Create Seeker",
+    createRetainer: "Create Retainer",
+    "seekers:pending": "Seekers - Pending",
+    "seekers:approved": "Seekers - Approved",
+    "seekers:rejected": "Seekers - Rejected",
+    "seekers:deleted": "Seekers - Deleted",
+    "retainers:pending": "Retainers - Pending",
+    "retainers:approved": "Retainers - Approved",
+    "retainers:rejected": "Retainers - Rejected",
+    "retainers:deleted": "Retainers - Deleted",
+    messageTraffic: "Message Traffic",
+  };
+
+  const panelGroups: { label: string; items: { label: string; value: Panel }[] }[] = [
+    {
+      label: "Admin",
+      items: [
+        { label: "Dashboard", value: "dashboard" },
+        { label: "Create Seeker", value: "createSeeker" },
+        { label: "Create Retainer", value: "createRetainer" },
+      ],
+    },
+    {
+      label: "Seekers",
+      items: [
+        { label: "Pending", value: "seekers:pending" },
+        { label: "Approved", value: "seekers:approved" },
+        { label: "Rejected", value: "seekers:rejected" },
+        { label: "Deleted", value: "seekers:deleted" },
+      ],
+    },
+    {
+      label: "Retainers",
+      items: [
+        { label: "Pending", value: "retainers:pending" },
+        { label: "Approved", value: "retainers:approved" },
+        { label: "Rejected", value: "retainers:rejected" },
+        { label: "Deleted", value: "retainers:deleted" },
+      ],
+    },
+    {
+      label: "Messaging",
+      items: [{ label: "Message Traffic", value: "messageTraffic" }],
+    },
+  ];
+
+  const activePanelLabel = panelLabelMap[panel];
+
   const [sf, setSf] = useState({
     firstName: "",
     lastName: "",
@@ -223,9 +273,9 @@ export default function AdminPage() {
   const showSeedButton = true;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex">
+    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col lg:flex-row overflow-x-hidden">
       {/* Sidebar */}
-      <aside className="w-72 shrink-0 border-r border-white/10 bg-gradient-to-b from-gray-950 to-gray-900/70">
+      <aside className="hidden lg:block w-72 shrink-0 border-r border-white/10 bg-gradient-to-b from-gray-950 to-gray-900/70">
         <div className="px-4 py-4 border-b border-white/10">
           <div className="text-xs uppercase tracking-wider text-white/60 mb-2">
             Admin
@@ -372,7 +422,127 @@ export default function AdminPage() {
 
       {/* Main column */}
       <div className="flex-1 flex flex-col">
-        <header className="px-6 py-4 border-b border-white/10 backdrop-blur supports-[backdrop-filter]:bg-white/5">
+        <div className="lg:hidden border-b border-white/10 bg-gray-950/80 backdrop-blur">
+          <div className="px-4 py-4 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-white/60">Admin</div>
+                <div className="text-lg font-semibold">Snap Driver</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-white/60">Panel</div>
+                <div className="text-sm font-semibold text-white">{activePanelLabel}</div>
+              </div>
+            </div>
+
+            {seekers.length === 0 && retainers.length === 0 && (
+              <p className="text-xs text-white/60">
+                No data in storage. Use "Reset + Seed Demo Data" to load sample profiles.
+              </p>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              {showSeedButton && (
+                <button
+                  className="btn w-full sm:w-auto"
+                  type="button"
+                  onClick={() => {
+                    if (seekers.length > 0 || retainers.length > 0) {
+                      const ok = window.confirm(
+                        "This will wipe existing demo data and reseed 75 seekers + 15 retainers. Continue?"
+                      );
+                      if (!ok) return;
+                    }
+                    handleSeedDemo();
+                  }}
+                >
+                  Reset + Seed Demo Data
+                </button>
+              )}
+              <Link className="btn" to="/seekers">
+                Seeker Dashboard
+              </Link>
+              <Link className="btn" to="/retainers">
+                Retainer Dashboard
+              </Link>
+            </div>
+
+            <div className="space-y-3">
+              {panelGroups.map((group) => (
+                <div key={group.label}>
+                  <div className="text-[10px] uppercase tracking-wider text-white/60 mb-2">
+                    {group.label}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {group.items.map((item) => (
+                      <MobileTabButton
+                        key={`${group.label}-${item.value}`}
+                        label={item.label}
+                        active={panel === item.value}
+                        onClick={() => setPanel(item.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-4">
+              <div className="surface p-3 rounded-2xl">
+                <div className="text-sm text-white/70 mb-2">Seekers</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <KPI
+                    label="Pending"
+                    value={sk.pending()}
+                    onClick={() => setPanel("seekers:pending")}
+                  />
+                  <KPI
+                    label="Approved"
+                    value={sk.approved()}
+                    onClick={() => setPanel("seekers:approved")}
+                  />
+                  <KPI
+                    label="Rejected"
+                    value={sk.rejected()}
+                    onClick={() => setPanel("seekers:rejected")}
+                  />
+                  <KPI
+                    label="Deleted"
+                    value={sk.deleted()}
+                    onClick={() => setPanel("seekers:deleted")}
+                  />
+                </div>
+              </div>
+              <div className="surface p-3 rounded-2xl">
+                <div className="text-sm text-white/70 mb-2">Retainers</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <KPI
+                    label="Pending"
+                    value={rt.pending()}
+                    onClick={() => setPanel("retainers:pending")}
+                  />
+                  <KPI
+                    label="Approved"
+                    value={rt.approved()}
+                    onClick={() => setPanel("retainers:approved")}
+                  />
+                  <KPI
+                    label="Rejected"
+                    value={rt.rejected()}
+                    onClick={() => setPanel("retainers:rejected")}
+                  />
+                  <KPI
+                    label="Deleted"
+                    value={rt.deleted()}
+                    onClick={() => setPanel("retainers:deleted")}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <header className="hidden lg:block px-6 py-4 border-b border-white/10 backdrop-blur supports-[backdrop-filter]:bg-white/5">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold">Admin</h1>
@@ -472,7 +642,7 @@ export default function AdminPage() {
 
         {/* Dashboard pending lists */}
         {panel === "dashboard" && (
-          <main className="p-6 grid md:grid-cols-2 gap-6">
+          <main className="p-4 lg:p-6 grid md:grid-cols-2 gap-6">
             <section className="surface p-5 hover:border-blue-500/30 transition">
               <h2 className="text-xl font-semibold mb-4">Pending Seekers</h2>
               <PendingSeekersList seekers={seekersPending} />
@@ -486,7 +656,7 @@ export default function AdminPage() {
 
         {/* Create Seeker */}
         {panel === "createSeeker" && (
-          <main className="p-6">
+          <main className="p-4 lg:p-6">
             <section className="surface p-5 max-w-4xl">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">Create Seeker</h2>
@@ -725,7 +895,7 @@ export default function AdminPage() {
 
         {/* Create Retainer */}
         {panel === "createRetainer" && (
-          <main className="p-6">
+          <main className="p-4 lg:p-6">
             <section className="surface p-5 max-w-4xl">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">Create Retainer</h2>
@@ -924,7 +1094,7 @@ export default function AdminPage() {
 
         {/* Seekers status views */}
         {panel.startsWith("seekers:") && (
-          <main className="p-6">
+          <main className="p-4 lg:p-6">
             <section className="surface p-5 hover:border-blue-500/30 transition">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">
@@ -985,7 +1155,7 @@ export default function AdminPage() {
 
         {/* Retainers status views */}
         {panel.startsWith("retainers:") && (
-          <main className="p-6">
+          <main className="p-4 lg:p-6">
             <section className="surface p-5 hover:border-blue-500/30 transition">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">
@@ -1046,7 +1216,7 @@ export default function AdminPage() {
 
         {/* Admin message traffic */}
         {panel === "messageTraffic" && (
-          <main className="p-6">
+          <main className="p-4 lg:p-6">
             <AdminMessageTraffic />
           </main>
         )}
@@ -1342,6 +1512,32 @@ function SD_DeletedList({
     </ul>
   );
 }
+
+
+/* ------------------------------------------------------------------ */
+/* Mobile tab button                                                  */
+/* ------------------------------------------------------------------ */
+
+const MobileTabButton: React.FC<{
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}> = ({ label, active, onClick }) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "shrink-0 px-3 py-1.5 rounded-full text-xs border transition",
+        active
+          ? "bg-blue-400/20 text-blue-200 border-blue-400/40"
+          : "bg-white/5 text-white/80 border-white/10 hover:text-white",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+};
 
 /* ===== Admin Message Traffic ===== */
 

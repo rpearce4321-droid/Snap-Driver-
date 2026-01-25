@@ -211,7 +211,19 @@ const SeekerPage: React.FC = () => {
   const isSessionSeeker = session?.role === "SEEKER";
   const sessionSeekerId = isSessionSeeker ? session.seekerId ?? null : null;
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return window.innerWidth >= 1024;
+  });
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     setPortalContext("SEEKER");
@@ -804,10 +816,17 @@ const SeekerPage: React.FC = () => {
     );
   }
 
+  const containerStyle = isDesktop
+    ? { zoom: 1.1, height: "calc(100vh / 1.1)", width: "calc(100vw / 1.1)" }
+    : undefined;
+
   return (
-    <div className="h-screen bg-slate-950 text-slate-50 flex overflow-hidden" style={{ zoom: 1.1, height: "calc(100vh / 1.1)", width: "calc(100vw / 1.1)" }}>
+    <div
+      className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-hidden"
+      style={containerStyle}
+    >
       {/* Left sidebar */}
-      <aside className="w-72 shrink-0 border-r border-slate-800 bg-slate-900/70 backdrop-blur-sm p-4 flex flex-col min-h-0">
+      <aside className="hidden lg:flex w-72 shrink-0 border-r border-slate-800 bg-slate-900/70 backdrop-blur-sm p-4 flex flex-col min-h-0">
         <div className="mb-6">
           <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
             Snap Driver
@@ -1035,26 +1054,270 @@ const SeekerPage: React.FC = () => {
       </aside>
 
       {/* Main content */}
+
       <main className="flex-1 min-h-0 flex flex-col relative">
-        {/* Header bar */}
-        <header className="px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
+        <div className="lg:hidden border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
+          <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                  Snap Driver
+                </div>
+                <div className="text-lg font-semibold text-slate-50">Seeker Portal</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                  Section
+                </div>
+                <div className="text-sm font-semibold text-slate-200">{headerTitle}</div>
+                <div className="text-[11px] text-slate-500">{headerSubtitle}</div>
+              </div>
+            </div>
+
+            {currentSeeker ? (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                  Your Profile
+                </div>
+                <div className="font-semibold text-slate-50 truncate">
+                  {formatSeekerName(currentSeeker)}
+                </div>
+                <div className="text-xs text-slate-400">
+                  Status:{" "}
+                  <span className="font-medium text-emerald-400">{currentSeeker.status}</span>
+                </div>
+                {isSubcontractorView && activeSubcontractor ? (
+                  <div className="text-xs text-slate-400">
+                    Subcontractor:{" "}
+                    <span className="text-slate-200">
+                      {activeSubcontractor.firstName} {activeSubcontractor.lastName}
+                    </span>
+                  </div>
+                ) : null}
+                {!isSubcontractorView && currentSeekerId && (
+                  <div>
+                    <Link
+                      to={`/seekers/${currentSeekerId}`}
+                      className="text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                    >
+                      View profile
+                    </Link>
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-xs">
+                  <span />
+                  <div className="flex items-center gap-3">
+                    <Link to="/retainers" className="text-emerald-400 hover:text-emerald-300 font-medium">
+                      Retainer
+                    </Link>
+                    <Link to="/admin" className="text-emerald-400 hover:text-emerald-300 font-medium">
+                      Admin
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
+                <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                  Get started
+                </div>
+                <div className="text-sm text-slate-200">
+                  You&apos;re not currently acting as any Seeker. Use{" "}
+                  <button
+                    type="button"
+                    onClick={() => openActionTab("editProfile")}
+                    className="font-semibold text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
+                  >
+                    Edit Profile
+                  </button>{" "}
+                  to create a Seeker profile.
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span />
+                  <div className="flex items-center gap-3">
+                    <Link to="/retainers" className="text-emerald-400 hover:text-emerald-300 font-medium">
+                      Retainer
+                    </Link>
+                    <Link to="/admin" className="text-emerald-400 hover:text-emerald-300 font-medium">
+                      Admin
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(selectableSeekers.length > 1 || currentSeeker) && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
+                {selectableSeekers.length > 1 && (
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                      Acting as
+                    </label>
+                    <input
+                      value={seekerSearch}
+                      onChange={(e) => setSeekerSearch(e.target.value)}
+                      placeholder="Type to search..."
+                      className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <select
+                      className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                      value={currentSeekerId ?? ""}
+                      onChange={(e) => handleSelectSeeker(e.target.value)}
+                    >
+                      {filteredSelectableSeekers.map((s) => (
+                        <option
+                          key={s.id}
+                          value={s.id}
+                          className="bg-slate-900 text-slate-50"
+                        >
+                          {formatSeekerName(s)}
+                          {s.status === "PENDING" ? " (Pending)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {seekerSearch.trim() && (
+                      <div className="mt-1 flex items-center justify-between">
+                        <div className="text-[10px] text-slate-500">
+                          Showing {filteredSelectableSeekers.length} of {selectableSeekers.length}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSeekerSearch("")}
+                          className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {currentSeeker && (
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                      Acting as subcontractor
+                    </label>
+                    <input
+                      value={subcontractorSearch}
+                      onChange={(e) => setSubcontractorSearch(e.target.value)}
+                      placeholder="Type to search..."
+                      className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <select
+                      className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                      value={currentSubcontractorId ?? ""}
+                      onChange={(e) => handleSelectSubcontractor(e.target.value)}
+                    >
+                      <option value="" className="bg-slate-900 text-slate-50">
+                        Main Seeker
+                      </option>
+                      {filteredSubcontractors.map((sub) => (
+                        <option
+                          key={sub.id}
+                          value={sub.id}
+                          className="bg-slate-900 text-slate-50"
+                        >
+                          {sub.firstName} {sub.lastName}
+                        </option>
+                      ))}
+                    </select>
+                    {subcontractorSearch.trim() && (
+                      <div className="mt-1 flex items-center justify-between">
+                        <div className="text-[10px] text-slate-500">
+                          Showing {filteredSubcontractors.length} of {subcontractors.length}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSubcontractorSearch("")}
+                          className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                    {isSubcontractorView && (
+                      <button
+                        type="button"
+                        onClick={clearSubcontractorView}
+                        className="mt-2 text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                      >
+                        Exit subcontractor view
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {isSubcontractorView ? (
+                <>
+                  <MobileTabButton
+                    label="My Profile"
+                    active={activeTab === "editProfile"}
+                    onClick={() => setActiveTab("editProfile")}
+                  />
+                  <MobileTabButton
+                    label="Badges"
+                    active={activeTab === "badges"}
+                    onClick={() => setActiveTab("badges")}
+                  />
+                  <MobileTabButton
+                    label="Messages"
+                    active={activeTab === "messages"}
+                    onClick={() => setActiveTab("messages")}
+                  />
+                  <MobileTabButton
+                    label="Hierarchy"
+                    active={activeTab === "hierarchy"}
+                    onClick={() => setActiveTab("hierarchy")}
+                  />
+                </>
+              ) : (
+                <>
+                  <MobileTabButton
+                    label="Dashboard"
+                    active={activeTab === "dashboard"}
+                    onClick={() => setActiveTab("dashboard")}
+                  />
+                  <MobileTabButton
+                    label="Action"
+                    active={activeTab === "action"}
+                    onClick={() => setActiveTab("action")}
+                  />
+                  <MobileTabButton
+                    label="Linking"
+                    active={activeTab === "linking"}
+                    onClick={() => setActiveTab("linking")}
+                  />
+                  <MobileTabButton
+                    label="Badges"
+                    active={activeTab === "badges"}
+                    onClick={() => setActiveTab("badges")}
+                  />
+                  <MobileTabButton
+                    label="Messages"
+                    active={activeTab === "messages"}
+                    onClick={() => setActiveTab("messages")}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <header className="hidden lg:block px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-semibold text-slate-50">
-                {headerTitle}
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                {headerSubtitle}
-              </p>
+              <h2 className="text-2xl font-semibold text-slate-50">{headerTitle}</h2>
+              <p className="text-sm text-slate-400 mt-1">{headerSubtitle}</p>
             </div>
           </div>
         </header>
-
-        {/* Body */}
         <section
           className={[
-            "flex-1 min-h-0 pt-6 px-6 pb-6",
-            activeTab === "messages" || activeTab === "dashboard" || activeTab === "linking" || activeTab === "action" ? "overflow-hidden flex flex-col" : "overflow-y-auto",
+            "flex-1 min-h-0 p-4 lg:pt-6 lg:px-6 lg:pb-6",
+            activeTab === "messages" || activeTab === "dashboard" || activeTab === "linking" || activeTab === "action" ? "flex flex-col overflow-y-auto lg:overflow-hidden" : "overflow-y-auto",
             activeTab === "dashboard" || activeTab === "linking" ? "pb-36" : "",
           ].join(" ")}
         >
@@ -1242,6 +1505,32 @@ const SeekerPage: React.FC = () => {
 };
 
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Mobile tab button                                                  */
+/* ------------------------------------------------------------------ */
+
+const MobileTabButton: React.FC<{
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}> = ({ label, active, onClick }) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "shrink-0 px-3 py-1.5 rounded-full text-xs border transition",
+        active
+          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+          : "bg-slate-900/60 text-slate-300 border-slate-800 hover:text-slate-50",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
+};
+
 /* Sidebar button                                                     */
 /* ------------------------------------------------------------------ */
 
