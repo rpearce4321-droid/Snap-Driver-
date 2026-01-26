@@ -215,6 +215,7 @@ const SeekerPage: React.FC = () => {
     if (typeof window === "undefined") return true;
     return window.innerWidth >= 1024;
   });
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
 
   useEffect(() => {
@@ -224,6 +225,11 @@ const SeekerPage: React.FC = () => {
     handleResize();
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+  useEffect(() => {
+    if (isDesktop && isMobileNavOpen) {
+      setIsMobileNavOpen(false);
+    }
+  }, [isDesktop, isMobileNavOpen]);
 
   useEffect(() => {
     setPortalContext("SEEKER");
@@ -1065,12 +1071,25 @@ const SeekerPage: React.FC = () => {
                 </div>
                 <div className="text-lg font-semibold text-slate-50">Seeker Portal</div>
               </div>
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wide text-slate-500">
-                  Section
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                    Section
+                  </div>
+                  <div className="text-sm font-semibold text-slate-200">{headerTitle}</div>
+                  <div className="text-[11px] text-slate-500">{headerSubtitle}</div>
                 </div>
-                <div className="text-sm font-semibold text-slate-200">{headerTitle}</div>
-                <div className="text-[11px] text-slate-500">{headerSubtitle}</div>
+                <button
+                  type="button"
+                  aria-label="Open menu"
+                  onClick={() => setIsMobileNavOpen(true)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-800 bg-slate-900/60 text-slate-200 hover:text-slate-50"
+                >
+                  <span className="sr-only">Open menu</span>
+                  <span className="block h-0.5 w-5 rounded-full bg-current" />
+                  <span className="block h-0.5 w-5 rounded-full bg-current mt-1" />
+                  <span className="block h-0.5 w-5 rounded-full bg-current mt-1" />
+                </button>
               </div>
             </div>
 
@@ -1249,62 +1268,141 @@ const SeekerPage: React.FC = () => {
               </div>
             )}
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              {isSubcontractorView ? (
-                <>
-                  <MobileTabButton
-                    label="My Profile"
-                    active={activeTab === "editProfile"}
-                    onClick={() => setActiveTab("editProfile")}
-                  />
-                  <MobileTabButton
-                    label="Badges"
-                    active={activeTab === "badges"}
-                    onClick={() => setActiveTab("badges")}
-                  />
-                  <MobileTabButton
-                    label="Messages"
-                    active={activeTab === "messages"}
-                    onClick={() => setActiveTab("messages")}
-                  />
-                  <MobileTabButton
-                    label="Hierarchy"
-                    active={activeTab === "hierarchy"}
-                    onClick={() => setActiveTab("hierarchy")}
-                  />
-                </>
-              ) : (
-                <>
-                  <MobileTabButton
-                    label="Dashboard"
-                    active={activeTab === "dashboard"}
-                    onClick={() => setActiveTab("dashboard")}
-                  />
-                  <MobileTabButton
-                    label="Action"
-                    active={activeTab === "action"}
-                    onClick={() => setActiveTab("action")}
-                  />
-                  <MobileTabButton
-                    label="Linking"
-                    active={activeTab === "linking"}
-                    onClick={() => setActiveTab("linking")}
-                  />
-                  <MobileTabButton
-                    label="Badges"
-                    active={activeTab === "badges"}
-                    onClick={() => setActiveTab("badges")}
-                  />
-                  <MobileTabButton
-                    label="Messages"
-                    active={activeTab === "messages"}
-                    onClick={() => setActiveTab("messages")}
-                  />
-                </>
-              )}
-            </div>
           </div>
         </div>
+
+        {isMobileNavOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setIsMobileNavOpen(false)}
+              className="absolute inset-0 bg-slate-950/70"
+            />
+            <div className="absolute inset-y-0 left-0 w-72 bg-slate-950 border-r border-slate-800 p-4 overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Snap Driver</div>
+                  <div className="text-sm font-semibold text-slate-100">Seeker Menu</div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => setIsMobileNavOpen(false)}
+                  className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-slate-800 text-slate-200 hover:text-slate-50"
+                >
+                  X
+                </button>
+              </div>
+              <nav className="space-y-2">
+                {isSubcontractorView ? (
+                  <>
+                    <SidebarButton
+                      label="My Profile"
+                      active={activeTab === "editProfile"}
+                      onClick={() => {
+                        setActiveTab("editProfile");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                    <SidebarButton
+                      label="Badges"
+                      active={activeTab === "badges"}
+                      onClick={() => {
+                        setActiveTab("badges");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                    <SidebarButton
+                      label="Messages"
+                      active={activeTab === "messages"}
+                      onClick={() => {
+                        setActiveTab("messages");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                    <SidebarButton
+                      label="Hierarchy"
+                      active={activeTab === "hierarchy"}
+                      onClick={() => {
+                        setActiveTab("hierarchy");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <SidebarButton
+                      label="Dashboard"
+                      active={activeTab === "dashboard"}
+                      onClick={() => {
+                        setActiveTab("dashboard");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                    <SidebarButton
+                      label="Action"
+                      active={activeTab === "action"}
+                      onClick={() => {
+                        setActiveTab("action");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                    <SidebarButton
+                      label="Linking"
+                      active={activeTab === "linking"}
+                      onClick={() => {
+                        setActiveTab("linking");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                    <SidebarButton
+                      label="Badges"
+                      active={activeTab === "badges"}
+                      onClick={() => {
+                        setActiveTab("badges");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                    <SidebarButton
+                      label="Messages"
+                      active={activeTab === "messages"}
+                      onClick={() => {
+                        setActiveTab("messages");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                  </>
+                )}
+              </nav>
+              {isSubcontractorView && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearSubcontractorView();
+                    setIsMobileNavOpen(false);
+                  }}
+                  className="mt-4 w-full rounded-xl border border-slate-800 px-3 py-2 text-xs text-slate-200 hover:text-slate-50"
+                >
+                  Exit subcontractor view
+                </button>
+              )}
+              <div className="mt-6 pt-4 border-t border-slate-800 text-xs text-slate-500">
+                <div className="flex justify-between items-center">
+                  <span>Other portals</span>
+                  <div className="flex gap-2">
+                    <Link to="/retainers" className="text-emerald-400 hover:text-emerald-300 font-medium">
+                      Retainer
+                    </Link>
+                    <Link to="/admin" className="text-emerald-400 hover:text-emerald-300 font-medium">
+                      Admin
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <header className="hidden lg:block px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
@@ -1507,30 +1605,6 @@ const SeekerPage: React.FC = () => {
 /* ------------------------------------------------------------------ */
 
 /* ------------------------------------------------------------------ */
-/* Mobile tab button                                                  */
-/* ------------------------------------------------------------------ */
-
-const MobileTabButton: React.FC<{
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}> = ({ label, active, onClick }) => {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "shrink-0 px-3 py-1.5 rounded-full text-xs border transition",
-        active
-          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-          : "bg-slate-900/60 text-slate-300 border-slate-800 hover:text-slate-50",
-      ].join(" ")}
-    >
-      {label}
-    </button>
-  );
-};
-
 /* Sidebar button                                                     */
 /* ------------------------------------------------------------------ */
 

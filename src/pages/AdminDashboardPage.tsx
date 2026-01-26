@@ -191,31 +191,6 @@ function NavSectionHeader({
 }
 
 
-function MobileTabButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        "shrink-0 px-3 py-1.5 rounded-full text-xs border transition " +
-        (active
-          ? "bg-blue-400/20 text-blue-200 border-blue-400/40"
-          : "bg-white/5 text-white/80 border-white/10 hover:text-white")
-      }
-    >
-      {label}
-    </button>
-  );
-}
-
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
 
@@ -274,6 +249,18 @@ export default function AdminDashboardPage() {
   );
 
   const [panel, setPanel] = useState<Panel>("dashboard");
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsMobileNavOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const [openSections, setOpenSections] = useState<Record<NavSectionKey, boolean>>(() => ({
     seekers: false,
@@ -536,9 +523,22 @@ export default function AdminDashboardPage() {
                 <div className="text-[10px] uppercase tracking-wider text-white/60">Admin</div>
                 <div className="text-lg font-semibold">Snap Driver</div>
               </div>
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-white/60">Panel</div>
-                <div className="text-sm font-semibold text-white">{panelTitle}</div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wider text-white/60">Panel</div>
+                  <div className="text-sm font-semibold text-white">{panelTitle}</div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Open menu"
+                  onClick={() => setIsMobileNavOpen(true)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 hover:text-white"
+                >
+                  <span className="sr-only">Open menu</span>
+                  <span className="block h-0.5 w-5 rounded-full bg-current" />
+                  <span className="block h-0.5 w-5 rounded-full bg-current mt-1" />
+                  <span className="block h-0.5 w-5 rounded-full bg-current mt-1" />
+                </button>
               </div>
             </div>
 
@@ -575,26 +575,6 @@ export default function AdminDashboardPage() {
               </span>
             </div>
 
-            <div className="space-y-3">
-              {panelGroups.map((group) => (
-                <div key={group.label}>
-                  <div className="text-[10px] uppercase tracking-wider text-white/60 mb-2">
-                    {group.label}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {group.items.map((item) => (
-                      <MobileTabButton
-                        key={`${group.label}-${item.value}`}
-                        label={item.label}
-                        active={panel === item.value}
-                        onClick={() => setPanel(item.value)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
             <div className="grid gap-4">
               <div className="surface p-3 rounded-2xl">
                 <div className="text-sm text-white/70 mb-2">Seekers</div>
@@ -617,6 +597,86 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         </div>
+
+        {isMobileNavOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden">
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={() => setIsMobileNavOpen(false)}
+              className="absolute inset-0 bg-gray-950/70"
+            />
+            <div className="absolute inset-y-0 left-0 w-80 max-w-[85vw] bg-gray-950 border-r border-white/10 p-4 overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-white/60">Admin</div>
+                  <div className="text-sm font-semibold text-white">Navigation</div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close menu"
+                  onClick={() => setIsMobileNavOpen(false)}
+                  className="h-9 w-9 inline-flex items-center justify-center rounded-full border border-white/10 text-white/80 hover:text-white"
+                >
+                  X
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <Link className="btn" to="/">Home</Link>
+                  <Link className="btn" to="/seekers">Seekers</Link>
+                  <Link className="btn" to="/retainers">Retainers</Link>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn w-full sm:w-auto"
+                    onClick={() => {
+                      const ok = window.confirm(
+                        "This will wipe all local demo data and generate a comprehensive seed (5 retainers, 5 seekers). Continue?"
+                      );
+                      if (!ok) return;
+                      autoSeedComprehensive({ retainers: 5, seekers: 5, force: true });
+                      setSession({ role: "ADMIN", adminId: "admin" });
+                      setPanel("dashboard");
+                      setIsMobileNavOpen(false);
+                    }}
+                  >
+                    Reset + Seed Comprehensive
+                  </button>
+                  <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">
+                    Session: ADMIN
+                  </span>
+                </div>
+
+                {panelGroups.map((group) => (
+                  <div key={group.label}>
+                    <div className="text-[10px] uppercase tracking-wider text-white/60 mb-2">
+                      {group.label}
+                    </div>
+                    <div className="space-y-2">
+                      {group.items.map((item) => (
+                        <NavButton
+                          key={`${group.label}-${item.value}`}
+                          active={panel === item.value}
+                          onClick={() => {
+                            setPanel(item.value);
+                            setIsMobileNavOpen(false);
+                          }}
+                        >
+                          {item.label}
+                        </NavButton>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <header className="hidden lg:block shrink-0 px-6 py-4 border-b border-white/10 backdrop-blur supports-[backdrop-filter]:bg-white/5">
           <div className="flex items-center justify-between gap-4">
             <div>
