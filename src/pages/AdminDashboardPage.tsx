@@ -190,6 +190,32 @@ function NavSectionHeader({
   );
 }
 
+
+function MobileTabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "shrink-0 px-3 py-1.5 rounded-full text-xs border transition " +
+        (active
+          ? "bg-blue-400/20 text-blue-200 border-blue-400/40"
+          : "bg-white/5 text-white/80 border-white/10 hover:text-white")
+      }
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
 
@@ -289,12 +315,64 @@ export default function AdminDashboardPage() {
     return "Admin";
   })();
 
+  const panelGroups: { label: string; items: { label: string; value: Panel }[] }[] = [
+    {
+      label: "Overview",
+      items: [
+        { label: "Dashboard", value: "dashboard" },
+        { label: "Create Seeker", value: "createSeeker" },
+        { label: "Create Retainer", value: "createRetainer" },
+      ],
+    },
+    {
+      label: "Seekers",
+      items: [
+        { label: "Pending", value: "seekers:pending" },
+        { label: "Approved", value: "seekers:approved" },
+        { label: "Rejected", value: "seekers:rejected" },
+        { label: "Deleted", value: "seekers:deleted" },
+      ],
+    },
+    {
+      label: "Retainers",
+      items: [
+        { label: "Pending", value: "retainers:pending" },
+        { label: "Approved", value: "retainers:approved" },
+        { label: "Rejected", value: "retainers:rejected" },
+        { label: "Deleted", value: "retainers:deleted" },
+      ],
+    },
+    {
+      label: "Messaging",
+      items: [
+        { label: "Traffic", value: "messages:external" },
+        { label: "Retainer Staff", value: "messages:retainerStaff" },
+        { label: "Subcontractors", value: "messages:subcontractors" },
+      ],
+    },
+    {
+      label: "Content",
+      items: [
+        { label: "Routes", value: "routes" },
+        { label: "Posts", value: "content:posts" },
+      ],
+    },
+    {
+      label: "Badges",
+      items: [
+        { label: "Rules", value: "system:badges" },
+        { label: "Scoring", value: "system:badgeScoring" },
+        { label: "Audit", value: "system:badgeAudit" },
+      ],
+    },
+  ];
+
   const isMessagingPanel = panel.startsWith("messages:");
   const isDashboardPanel = panel === "dashboard";
 
   return (
-    <div className="h-screen bg-gray-950 text-gray-100 flex">
-      <aside className="w-72 shrink-0 border-r border-white/10 bg-gradient-to-b from-gray-950 to-gray-900/70 flex flex-col min-h-0">
+    <div className="min-h-screen lg:h-screen bg-gray-950 text-gray-100 flex flex-col lg:flex-row overflow-x-hidden">
+      <aside className="hidden lg:flex w-72 shrink-0 border-r border-white/10 bg-gradient-to-b from-gray-950 to-gray-900/70 flex flex-col min-h-0">
         <div className="px-4 py-4 border-b border-white/10">
           <div className="text-xs uppercase tracking-wider text-white/60 mb-2">
             Admin
@@ -451,7 +529,95 @@ export default function AdminDashboardPage() {
       </aside>
 
       <div className="flex-1 flex flex-col">
-        <header className="shrink-0 px-6 py-4 border-b border-white/10 backdrop-blur supports-[backdrop-filter]:bg-white/5">
+        <div className="lg:hidden border-b border-white/10 bg-gray-950/90 backdrop-blur">
+          <div className="px-4 py-4 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-white/60">Admin</div>
+                <div className="text-lg font-semibold">Snap Driver</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-white/60">Panel</div>
+                <div className="text-sm font-semibold text-white">{panelTitle}</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Link className="btn" to="/">
+                Home
+              </Link>
+              <Link className="btn" to="/seekers">
+                Seekers
+              </Link>
+              <Link className="btn" to="/retainers">
+                Retainers
+              </Link>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="btn w-full sm:w-auto"
+                onClick={() => {
+                  const ok = window.confirm(
+                    "This will wipe all local demo data and generate a comprehensive seed (5 retainers, 5 seekers). Continue?"
+                  );
+                  if (!ok) return;
+                  autoSeedComprehensive({ retainers: 5, seekers: 5, force: true });
+                  setSession({ role: "ADMIN", adminId: "admin" });
+                  setPanel("dashboard");
+                }}
+              >
+                Reset + Seed Comprehensive
+              </button>
+              <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">
+                Session: ADMIN
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {panelGroups.map((group) => (
+                <div key={group.label}>
+                  <div className="text-[10px] uppercase tracking-wider text-white/60 mb-2">
+                    {group.label}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {group.items.map((item) => (
+                      <MobileTabButton
+                        key={`${group.label}-${item.value}`}
+                        label={item.label}
+                        active={panel === item.value}
+                        onClick={() => setPanel(item.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-4">
+              <div className="surface p-3 rounded-2xl">
+                <div className="text-sm text-white/70 mb-2">Seekers</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <KPI label="Pending" value={seekersPending.length} onClick={() => setPanel("seekers:pending")} />
+                  <KPI label="Approved" value={seekersApproved.length} onClick={() => setPanel("seekers:approved")} />
+                  <KPI label="Rejected" value={seekersRejected.length} onClick={() => setPanel("seekers:rejected")} />
+                  <KPI label="Deleted" value={seekersDeleted.length} onClick={() => setPanel("seekers:deleted")} />
+                </div>
+              </div>
+              <div className="surface p-3 rounded-2xl">
+                <div className="text-sm text-white/70 mb-2">Retainers</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <KPI label="Pending" value={retainersPending.length} onClick={() => setPanel("retainers:pending")} />
+                  <KPI label="Approved" value={retainersApproved.length} onClick={() => setPanel("retainers:approved")} />
+                  <KPI label="Rejected" value={retainersRejected.length} onClick={() => setPanel("retainers:rejected")} />
+                  <KPI label="Deleted" value={retainersDeleted.length} onClick={() => setPanel("retainers:deleted")} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <header className="hidden lg:block shrink-0 px-6 py-4 border-b border-white/10 backdrop-blur supports-[backdrop-filter]:bg-white/5">
           <div className="flex items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold">{panelTitle}</h1>
@@ -505,9 +671,9 @@ export default function AdminDashboardPage() {
 
         <main
           className={[
-            "flex-1 min-h-0 p-6",
+            "flex-1 min-h-0 p-4 lg:p-6",
             isMessagingPanel || isDashboardPanel
-              ? "overflow-hidden"
+              ? "flex flex-col overflow-y-auto lg:overflow-hidden"
               : "overflow-y-auto space-y-6",
           ].join(" ")}
         >
