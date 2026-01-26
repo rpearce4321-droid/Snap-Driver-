@@ -1083,12 +1083,12 @@ const SeekerPage: React.FC = () => {
                   type="button"
                   aria-label="Open menu"
                   onClick={() => setIsMobileNavOpen(true)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-800 bg-slate-900/60 text-slate-200 hover:text-slate-50"
+                  className="inline-flex h-10 w-10 items-center justify-center flex-col gap-1 rounded-full border border-slate-800 bg-slate-900/60 text-slate-200 hover:text-slate-50"
                 >
                   <span className="sr-only">Open menu</span>
                   <span className="block h-0.5 w-5 rounded-full bg-current" />
-                  <span className="block h-0.5 w-5 rounded-full bg-current mt-1" />
-                  <span className="block h-0.5 w-5 rounded-full bg-current mt-1" />
+                  <span className="block h-0.5 w-5 rounded-full bg-current" />
+                  <span className="block h-0.5 w-5 rounded-full bg-current" />
                 </button>
               </div>
             </div>

@@ -532,12 +532,12 @@ export default function AdminDashboardPage() {
                   type="button"
                   aria-label="Open menu"
                   onClick={() => setIsMobileNavOpen(true)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 hover:text-white"
+                  className="inline-flex h-10 w-10 items-center justify-center flex-col gap-1 rounded-full border border-white/10 bg-white/5 text-white/80 hover:text-white"
                 >
                   <span className="sr-only">Open menu</span>
                   <span className="block h-0.5 w-5 rounded-full bg-current" />
-                  <span className="block h-0.5 w-5 rounded-full bg-current mt-1" />
-                  <span className="block h-0.5 w-5 rounded-full bg-current mt-1" />
+                  <span className="block h-0.5 w-5 rounded-full bg-current" />
+                  <span className="block h-0.5 w-5 rounded-full bg-current" />
                 </button>
               </div>
             </div>
