@@ -1,6 +1,6 @@
 // src/pages/RetainerPage.tsx
 
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from "react";
 
 import type { CSSProperties } from "react";
 
@@ -171,7 +171,8 @@ import {
   type FeedReactionItemKind,
 } from "../lib/feedReactions";
 
-import HierarchyCanvas, {
+const LazyHierarchyCanvas = lazy(() => import("../components/HierarchyCanvas"));
+import {
 
   type HierarchyItem,
 
@@ -179,9 +180,9 @@ import HierarchyCanvas, {
 
 } from "../components/HierarchyCanvas";
 
-import BadgesCenter from "../components/BadgesCenter";
+const LazyBadgesCenter = lazy(() => import("../components/BadgesCenter"));
 
-import RetainerMessagingCenter from "../components/RetainerMessagingCenter";
+const LazyRetainerMessagingCenter = lazy(() => import("../components/RetainerMessagingCenter"));
 
 import ProfileAvatar from "../components/ProfileAvatar";
 
@@ -2210,16 +2211,13 @@ const RetainerPage: React.FC = () => {
 
                 )}
 
-                <BadgesCenter
-
-                  role="RETAINER"
-
-                  ownerId={currentRetainerId}
-
-                  readOnly={retainerUserLevel === 1}
-
-                />
-
+                <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading badges?</div>}>
+                  <LazyBadgesCenter
+                    role="RETAINER"
+                    ownerId={currentRetainerId}
+                    readOnly={retainerUserLevel === 1}
+                  />
+                </Suspense>
               </>
 
             )}
@@ -6713,25 +6711,17 @@ const ActionView: React.FC<{
 
 
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 min-h-[520px]">
-
-            <HierarchyCanvas
-
-              owner={hierarchyOwner}
-
-              items={hierarchyItems}
-
-              nodes={hierarchyNodes}
-
-              onNodesChange={onUpdateHierarchyNodes}
-
-              readOnly={!canManageUsers}
-
-              showList
-
-              emptyHint="Add users to start building your org chart."
-
-            />
-
+            <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading hierarchy?</div>}>
+              <LazyHierarchyCanvas
+                owner={hierarchyOwner}
+                items={hierarchyItems}
+                nodes={hierarchyNodes}
+                onNodesChange={onUpdateHierarchyNodes}
+                readOnly={!canManageUsers}
+                showList
+                emptyHint="Add users to start building your org chart."
+              />
+            </Suspense>
           </div>
 
         </div>
@@ -8646,7 +8636,9 @@ const MessagingCenterView: React.FC<{
 
   return (
 
-    <RetainerMessagingCenter currentRetainer={currentRetainer} seekers={seekers} />
+    <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading messages?</div>}>
+      <LazyRetainerMessagingCenter currentRetainer={currentRetainer} seekers={seekers} />
+    </Suspense>
 
   );
 

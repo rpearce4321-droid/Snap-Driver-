@@ -1,5 +1,5 @@
 ﻿// src/pages/SeekerPage.tsx
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect, useRef, lazy, Suspense, useDeferredValue } from "react";
 import type { CSSProperties } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -79,9 +79,9 @@ import {
   bestMatchForRoutes,
   type ScheduleMatch,
 } from "../lib/schedule";
-import SeekerMessagingCenter from "../components/SeekerMessagingCenter";
-import HierarchyCanvas from "../components/HierarchyCanvas";
-import BadgesCenter from "../components/BadgesCenter";
+const LazySeekerMessagingCenter = lazy(() => import("../components/SeekerMessagingCenter"));
+const LazyHierarchyCanvas = lazy(() => import("../components/HierarchyCanvas"));
+const LazyBadgesCenter = lazy(() => import("../components/BadgesCenter"));
 import ProfileAvatar from "../components/ProfileAvatar";
 import {
   getActiveBadges,
@@ -1544,11 +1544,13 @@ const SeekerPage: React.FC = () => {
                     ← Back to Profile
                   </button>
                 )}
-                <BadgesCenter
-                  role="SEEKER"
-                  ownerId={currentSeekerId}
-                  readOnly={isSubcontractorView}
-                />
+                <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading badges?</div>}>
+                  <LazyBadgesCenter
+                    role="SEEKER"
+                    ownerId={currentSeekerId}
+                    readOnly={isSubcontractorView}
+                  />
+                </Suspense>
               </>
             )}
 
@@ -1567,11 +1569,13 @@ const SeekerPage: React.FC = () => {
               ) : (
                 <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-4">
                   <div className="flex-1 min-h-0">
-                    <SeekerMessagingCenter
-                      currentSeeker={currentSeeker}
-                      retainers={retainers}
-                      subcontractors={subcontractors}
-                    />
+                    <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading messages?</div>}>
+                      <LazySeekerMessagingCenter
+                        currentSeeker={currentSeeker}
+                        retainers={retainers}
+                        subcontractors={subcontractors}
+                      />
+                    </Suspense>
                   </div>
                   {!isDesktop && (
                     <SeekerFeedPanel
@@ -3934,6 +3938,11 @@ const ViewRetainersView: React.FC<{
   const [payCycleFrequency, setPayCycleFrequency] = useState<PayCycleFrequency | "">("");
   const [payCycleCloseDay, setPayCycleCloseDay] = useState<DayOfWeek | "">("");
 
+  const deferredDistanceZip = useDeferredValue(distanceZip);
+  const deferredReputationMin = useDeferredValue(reputationMin);
+  const deferredPayCycleFrequency = useDeferredValue(payCycleFrequency);
+  const deferredPayCycleCloseDay = useDeferredValue(payCycleCloseDay);
+
   const [viewportHeight, setViewportHeight] = useState(() => {
     if (typeof window !== "undefined") return window.innerHeight;
     return 800;
@@ -3962,32 +3971,41 @@ const ViewRetainersView: React.FC<{
   const hasPayCycleFilter = Boolean(payCycleFrequency || payCycleCloseDay);
   const hasFilters = reputationMin > 0 || hasDistanceFilter || hasPayCycleFilter;
 
+  const reputationById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const retainer of wheelRetainers) {
+      const rep = getReputationScoreForProfile({
+        ownerRole: "RETAINER",
+        ownerId: String(retainer.id),
+      });
+      if (rep.score != null) map.set(String(retainer.id), rep.score);
+    }
+    return map;
+  }, [wheelRetainers]);
+
   const filteredRetainers = useMemo(() => {
     return wheelRetainers.filter((retainer) => {
-      if (reputationMin > 0) {
-        const reputation = getReputationScoreForProfile({
-          ownerRole: "RETAINER",
-          ownerId: String(retainer.id),
-        });
-        if (reputation.score == null || reputation.score < reputationMin) return false;
+      if (deferredReputationMin > 0) {
+        const reputation = reputationById.get(String(retainer.id));
+        if (reputation == null || reputation < deferredReputationMin) return false;
       }
 
       if (hasDistanceFilter) {
-        const miles = approxMilesBetweenZips(distanceZip, (retainer as any).zip);
+        const miles = approxMilesBetweenZips(deferredDistanceZip, (retainer as any).zip);
         if (miles == null || miles > distanceMiles) return false;
       }
 
-      if (payCycleFrequency) {
-        if ((retainer as any).payCycleFrequency !== payCycleFrequency) return false;
+      if (deferredPayCycleFrequency) {
+        if ((retainer as any).payCycleFrequency !== deferredPayCycleFrequency) return false;
       }
 
-      if (payCycleCloseDay) {
-        if ((retainer as any).payCycleCloseDay !== payCycleCloseDay) return false;
+      if (deferredPayCycleCloseDay) {
+        if ((retainer as any).payCycleCloseDay !== deferredPayCycleCloseDay) return false;
       }
 
       return true;
     });
-  }, [wheelRetainers, reputationMin, hasDistanceFilter, distanceZip, distanceMiles, payCycleFrequency, payCycleCloseDay]);
+  }, [wheelRetainers, deferredReputationMin, hasDistanceFilter, deferredDistanceZip, distanceMiles, deferredPayCycleFrequency, deferredPayCycleCloseDay, reputationById]);
 
   useEffect(() => {
     if (filteredRetainers.length === 0) {
@@ -5224,15 +5242,23 @@ const SeekerHierarchyView: React.FC<{
           Drag subcontractors from the left panel to build your tree.
         </p>
       </div>
-      <HierarchyCanvas
-        owner={owner}
-        items={items}
-        nodes={(seeker as any).hierarchyNodes ?? []}
-        onNodesChange={onUpdateNodes}
-        readOnly={readOnly}
-        showList={!readOnly}
-        emptyHint="No subcontractors created yet."
-      />
+      <Suspense
+        fallback={
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">
+            Loading hierarchy?
+          </div>
+        }
+      >
+        <LazyHierarchyCanvas
+          owner={owner}
+          items={items}
+          nodes={(seeker as any).hierarchyNodes ?? []}
+          onNodesChange={onUpdateNodes}
+          readOnly={readOnly}
+          showList={!readOnly}
+          emptyHint="No subcontractors created yet."
+        />
+      </Suspense>
     </div>
   );
 };
