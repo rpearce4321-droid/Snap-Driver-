@@ -186,6 +186,7 @@ import RetainerMessagingCenter from "../components/RetainerMessagingCenter";
 import ProfileAvatar from "../components/ProfileAvatar";
 
 import { getStockImageUrl } from "../lib/stockImages";
+import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
 
 import {
 
@@ -8816,38 +8817,18 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     );
 
   };
-
-
-
-  const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
-
-  const handlePhotoFile = (
-
+  const handlePhotoFile = async (
     file: File | null,
-
     setter: (value: string) => void
-
   ) => {
-
     if (!file || readOnly) return;
-
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("Image is too large for local demo storage. Use a smaller file (<= 6MB) or paste a URL.");
-      return;
+    try {
+      setError(null);
+      const url = await uploadImageWithFallback(file, MAX_IMAGE_BYTES);
+      setter(url);
+    } catch (err: any) {
+      setError(err?.message || "Upload failed.");
     }
-    setError(null);
-    const reader = new FileReader();
-
-    reader.onload = () => {
-
-      const result = typeof reader.result === "string" ? reader.result : "";
-
-      setter(result);
-
-    };
-
-    reader.readAsDataURL(file);
-
   };
 
 

@@ -96,6 +96,7 @@ import { badgeIconFor } from "../components/badgeIcons";
 import { getSession, setPortalContext } from "../lib/session";
 import { getRetainerPosts, type RetainerPost } from "../lib/posts";
 import { getStockImageUrl } from "../lib/stockImages";
+import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
 
 // Derive types from data helpers so we don't rely on exported types
 type Seeker = ReturnType<typeof getSeekers>[number];
@@ -4699,14 +4700,15 @@ const SubcontractorAdminView: React.FC<{
 
   const canManage = (seeker as any).status === "APPROVED";
 
-  const handlePhotoFile = (file: File | null) => {
+  const handlePhotoFile = async (file: File | null) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      setPhotoUrl(result);
-    };
-    reader.readAsDataURL(file);
+    try {
+      setError(null);
+      const url = await uploadImageWithFallback(file, MAX_IMAGE_BYTES);
+      setPhotoUrl(url);
+    } catch (err: any) {
+      setError(err?.message || "Upload failed.");
+    }
   };
 
   const handleCreate = (e: React.FormEvent) => {
@@ -5238,24 +5240,18 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     else if (e.deltaY < 0) goPrev();
   };
 
-  const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
-
-  const handlePhotoFile = (
+  const handlePhotoFile = async (
     file: File | null,
     setter: (value: string) => void
   ) => {
     if (!file) return;
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("Image is too large for local demo storage. Use a smaller file (<= 6MB) or paste a URL.");
-      return;
+    try {
+      setError(null);
+      const url = await uploadImageWithFallback(file, MAX_IMAGE_BYTES);
+      setter(url);
+    } catch (err: any) {
+      setError(err?.message || "Upload failed.");
     }
-    setError(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = typeof reader.result === "string" ? reader.result : "";
-      setter(result);
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
