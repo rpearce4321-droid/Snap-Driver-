@@ -68,6 +68,10 @@ export type Seeker = {
   firstName: string;
   lastName: string;
   companyName?: string;
+  email?: string;
+  phone?: string;
+  photoUrl?: string;
+  profileImageUrl?: string;
   birthday?: string;
   city?: string;
   state?: string;
@@ -137,6 +141,12 @@ export type Retainer = {
   status: Status;
   companyName: string;
   ceoName?: string;
+  email?: string;
+  phone?: string;
+  logoUrl?: string;
+  companyPhotoUrl?: string;
+  photoUrl?: string;
+  profileImageUrl?: string;
   city?: string;
   state?: string;
   zip?: string;
@@ -604,6 +614,10 @@ export function addSeeker(input: Partial<Seeker>): Seeker {
     firstName: input.firstName ?? "New",
     lastName: input.lastName ?? "Seeker",
     companyName: input.companyName,
+    email: input.email,
+    phone: input.phone,
+    photoUrl: input.photoUrl,
+    profileImageUrl: input.profileImageUrl,
     birthday: input.birthday,
     city: input.city,
     state: input.state,
@@ -633,6 +647,12 @@ export function addRetainer(input: Partial<Retainer>): Retainer {
     status: input.status ?? "PENDING",
     companyName: input.companyName ?? "New Retainer",
     ceoName: input.ceoName,
+    email: input.email,
+    phone: input.phone,
+    logoUrl: input.logoUrl,
+    companyPhotoUrl: input.companyPhotoUrl,
+    photoUrl: input.photoUrl,
+    profileImageUrl: input.profileImageUrl,
     city: input.city,
     state: input.state,
     zip: input.zip,
