@@ -8,31 +8,33 @@ import {
 } from "../lib/accounts";
 import { setSession } from "../lib/session";
 
-const HERO_FONT = {
-  fontFamily: '"Bodoni MT", "Didot", "Garamond", "Times New Roman", serif',
+const DISPLAY_FONT = {
+  fontFamily: '"Bebas Neue", "Oswald", "Arial Black", sans-serif',
 };
 
 const BODY_FONT = {
-  fontFamily: '"Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif',
+  fontFamily: '"Spline Sans", "Avenir Next", "Segoe UI", sans-serif',
 };
 
 const BACKDOOR_USERNAME = "Snapadmin01";
 const BACKDOOR_PASSWORD = "Rachel0407!";
 
-type AccessCardProps = {
+type RoleCardProps = {
   role: AccountRole;
   title: string;
+  subtitle: string;
   description: string;
-  signupHref: string;
   accent: string;
+  signupHref: string;
 };
 
-const AccessCard: React.FC<AccessCardProps> = ({
+const RoleCard: React.FC<RoleCardProps> = ({
   role,
   title,
+  subtitle,
   description,
-  signupHref,
   accent,
+  signupHref,
 }) => {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -60,76 +62,76 @@ const AccessCard: React.FC<AccessCardProps> = ({
   };
 
   return (
-    <div className="rounded-3xl border border-slate-800/80 bg-slate-950/70 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
-            {role}
-          </div>
-          <h2 className="text-2xl font-semibold text-slate-100" style={HERO_FONT}>
-            {title}
-          </h2>
-          <p className="text-sm text-slate-400 mt-2" style={BODY_FONT}>
-            {description}
-          </p>
+    <article className="group relative overflow-hidden rounded-[32px] border border-slate-800/70 bg-slate-950/80 p-6 shadow-[0_24px_80px_rgba(5,10,20,0.45)]">
+      <div
+        className="absolute -right-10 -top-12 h-40 w-40 rounded-full blur-[70px] opacity-70"
+        style={{ background: accent }}
+      />
+      <div className="relative">
+        <div className="text-xs uppercase tracking-[0.3em] text-slate-500">
+          {role}
         </div>
-        <span
-          className="h-10 w-10 rounded-2xl border border-slate-700 flex items-center justify-center text-lg"
-          style={{ color: accent }}
-        >
-          ?
-        </span>
-      </div>
+        <h2 className="mt-2 text-3xl font-semibold text-slate-100" style={DISPLAY_FONT}>
+          {title}
+        </h2>
+        <div className="mt-2 text-sm text-slate-400">{subtitle}</div>
+        <p className="mt-4 text-sm text-slate-300 leading-relaxed">{description}</p>
 
-      <div className="mt-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-4 space-y-3">
-        <div className="text-xs uppercase tracking-wide text-slate-500">
-          Sign in
-        </div>
-        <input
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
-          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-        />
-        <div className="relative">
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type={showPassword ? "text" : "password"}
-            placeholder="Password"
-            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((prev) => !prev)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-400 hover:text-slate-200"
-            aria-label={showPassword ? "Hide password" : "Show password"}
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <Link
+            to={signupHref}
+            className="rounded-full bg-slate-100 px-5 py-2 text-xs font-semibold text-slate-900 transition hover:translate-y-[-1px]"
           >
-            {showPassword ? "Hide" : "Show"}
-          </button>
+            Yep, this is me
+          </Link>
+          <span className="text-xs text-slate-500">Creates a Pending profile</span>
         </div>
-        {error && <div className="text-xs text-rose-300">{error}</div>}
-        <button
-          type="button"
-          onClick={handleLogin}
-          className="w-full rounded-full border border-emerald-500/40 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/30 transition"
-        >
-          Sign in
-        </button>
-      </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs text-slate-500">
-          New here? Complete the full signup.
+        <div className="mt-6 rounded-2xl border border-slate-800 bg-slate-950/70 p-4">
+          <div className="text-xs uppercase tracking-wide text-slate-500">
+            Sign in
+          </div>
+          <div className="mt-3 space-y-3">
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
+              name={`${role}-email`}
+              type="email"
+              autoComplete="username"
+              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400"
+            />
+            <div className="relative">
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                name={`${role}-password`}
+                autoComplete="current-password"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-400 hover:text-slate-200"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+            {error && <div className="text-xs text-rose-300">{error}</div>}
+            <button
+              type="button"
+              onClick={handleLogin}
+              className="w-full rounded-full border border-slate-600/60 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:bg-slate-800"
+            >
+              Sign in
+            </button>
+          </div>
         </div>
-        <Link
-          to={signupHref}
-          className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-        >
-          Create account
-        </Link>
       </div>
-    </div>
+    </article>
   );
 };
 
@@ -156,140 +158,131 @@ export default function LandingPage() {
 
   return (
     <main
-      className="min-h-screen bg-[#0b0f15] text-slate-100 relative overflow-hidden"
+      className="min-h-screen bg-[#0a0f18] text-slate-100 relative overflow-hidden"
       style={BODY_FONT as React.CSSProperties}
     >
-      <div className="absolute -top-32 right-[-10%] h-[360px] w-[360px] rounded-full bg-emerald-500/20 blur-[140px]" />
-      <div className="absolute bottom-[-20%] left-[-10%] h-[420px] w-[420px] rounded-full bg-amber-500/10 blur-[160px]" />
-      <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-slate-950/90 to-transparent" />
+      <style>
+        {`@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Spline+Sans:wght@300;400;500;600&display=swap');`}
+      </style>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),transparent_55%),radial-gradient(circle_at_20%_80%,_rgba(16,185,129,0.18),transparent_45%),radial-gradient(circle_at_80%_85%,_rgba(244,63,94,0.15),transparent_40%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(15,23,42,0.6),rgba(2,6,23,0.9))]" />
 
-      <div className="max-w-6xl mx-auto px-6 py-16">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="relative max-w-6xl mx-auto px-6 py-16">
+        <div className="flex flex-wrap items-center justify-between gap-6">
           <div>
-            <div className="text-xs uppercase tracking-[0.35em] text-slate-500">
+            <div className="text-xs uppercase tracking-[0.45em] text-slate-400">SnapDriver</div>
+            <h1 className="mt-4 text-6xl md:text-7xl leading-[0.9] text-slate-50" style={DISPLAY_FONT}>
               SnapDriver
-            </div>
-            <h1 className="text-4xl md:text-5xl font-semibold mt-3" style={HERO_FONT}>
-              A private logistics network,
-              <span className="block text-emerald-200">built for reputation-first routing.</span>
             </h1>
+            <p className="mt-4 text-xl text-emerald-200" style={DISPLAY_FONT}>
+              Recruite on Reputation.
+            </p>
           </div>
-          <div className="text-sm text-slate-400 max-w-md">
-            Launch a new Seeker or Retainer account with full onboarding. Admin
-            access stays open for testing and audits.
+          <div className="max-w-md text-sm text-slate-300">
+            The private logistics marketplace where dependable route history drives decisions. Seekers earn visible
+            momentum, retainers hire with confidence, and every connection is rooted in proof.
           </div>
         </div>
 
-        <div className="mt-12 grid gap-10 lg:grid-cols-[1.1fr_1fr]">
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-slate-800 bg-slate-950/70 p-6">
-              <div className="text-xs uppercase tracking-wide text-slate-500">
-                Why this matters
-              </div>
-              <div className="mt-3 text-sm text-slate-300">
-                Make every route a clear commitment, keep check-ins simple, and
-                keep the reputation system honest. These signup flows mirror the real
-                account experience and create Pending profiles.
-              </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {[
-                  "Full profile capture (not a stub)",
-                  "Pending status for admin review",
-                  "Email-based login ready for automation",
-                  "Backdoor access preserved for QA",
-                ].map((item) => (
-                  <div
-                    key={item}
-                    className="rounded-2xl border border-slate-800/70 bg-slate-900/50 px-4 py-3 text-xs text-slate-300"
-                  >
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="mt-10 grid gap-6 lg:grid-cols-2">
+          <RoleCard
+            role="SEEKER"
+            title="Seeker Path"
+            subtitle="Turn your consistency into a public advantage."
+            description="Show verified route performance, build a reputation trail, and get discovered for recurring work that matches your pace and priorities."
+            accent="rgba(16,185,129,0.55)"
+            signupHref="/signup/seeker"
+          />
+          <RoleCard
+            role="RETAINER"
+            title="Retainer Path"
+            subtitle="Build a workforce around verified follow-through."
+            description="See reliability signals at a glance, lock in dedicated routes, and reduce churn with a hiring lane that rewards commitment."
+            accent="rgba(248,113,113,0.55)"
+            signupHref="/signup/retainer"
+          />
+        </div>
 
-            <div className="rounded-3xl border border-slate-800 bg-slate-950/70 p-6">
-              <div className="text-xs uppercase tracking-wide text-amber-300">
-                Backdoor Access (Testing)
-              </div>
-              <div className="text-sm text-slate-400 mt-2">
-                These shortcuts remain for QA. Unlocking is per tab and resets on refresh.
-              </div>
-              <div className="mt-4 flex flex-wrap gap-3">
-                {backdoorUnlocked ? (
-                  <>
-                    <a
-                      className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-                      href="/admin"
-                    >
-                      Admin backdoor
-                    </a>
-                    <a
-                      className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-                      href="/seekers"
-                    >
-                      Seeker backdoor
-                    </a>
-                    <a
-                      className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-                      href="/retainers"
-                    >
-                      Retainer backdoor
-                    </a>
-                    <button
-                      type="button"
-                      onClick={handleLockBackdoor}
-                      className="rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/20 transition"
-                    >
-                      Lock backdoor
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex flex-wrap gap-3 items-center">
-                    <input
-                      value={backdoorUser}
-                      onChange={(e) => setBackdoorUser(e.target.value)}
-                      placeholder="Username"
-                      className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <input
-                      value={backdoorPass}
-                      onChange={(e) => setBackdoorPass(e.target.value)}
-                      type="password"
-                      placeholder="Password"
-                      className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleUnlockBackdoor}
-                      className="rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition"
-                    >
-                      Unlock
-                    </button>
-                  </div>
-                )}
-              </div>
-              {backdoorError && (
-                <div className="mt-3 text-xs text-rose-300">{backdoorError}</div>
-              )}
+        <div className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[28px] border border-slate-800/70 bg-slate-950/70 p-6">
+            <div className="text-xs uppercase tracking-[0.35em] text-slate-500">How it works</div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm text-slate-300">
+              {[
+                "Reputation-led route matching",
+                "Dual approval for check-ins",
+                "Dedicated routes with notice logic",
+                "Pending approvals to protect quality",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl border border-slate-800/70 bg-slate-900/40 px-4 py-3"
+                >
+                  {item}
+                </div>
+              ))}
             </div>
           </div>
 
-          <div className="space-y-6">
-            <AccessCard
-              role="SEEKER"
-              title="Seeker access"
-              description="Create a full Seeker profile and sign in with your email. Pending profiles require admin approval."
-              signupHref="/signup/seeker"
-              accent="#5eead4"
-            />
-            <AccessCard
-              role="RETAINER"
-              title="Retainer access"
-              description="Create a full Retainer profile with company details. Pending profiles require admin approval."
-              signupHref="/signup/retainer"
-              accent="#fbbf24"
-            />
+          <div className="rounded-[28px] border border-slate-800/70 bg-slate-950/70 p-6">
+            <div className="text-xs uppercase tracking-[0.35em] text-amber-300">Testing Access</div>
+            <p className="mt-3 text-sm text-slate-400">
+              Internal shortcut for QA. Unlocking is per tab and resets on refresh.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3 items-center">
+              {backdoorUnlocked ? (
+                <>
+                  <a
+                    className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
+                    href="/admin"
+                  >
+                    Admin backdoor
+                  </a>
+                  <a
+                    className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
+                    href="/seekers"
+                  >
+                    Seeker backdoor
+                  </a>
+                  <a
+                    className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
+                    href="/retainers"
+                  >
+                    Retainer backdoor
+                  </a>
+                  <button
+                    type="button"
+                    onClick={handleLockBackdoor}
+                    className="rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/20 transition"
+                  >
+                    Lock backdoor
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    value={backdoorUser}
+                    onChange={(e) => setBackdoorUser(e.target.value)}
+                    placeholder="Username"
+                    className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                  <input
+                    value={backdoorPass}
+                    onChange={(e) => setBackdoorPass(e.target.value)}
+                    type="password"
+                    placeholder="Password"
+                    className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUnlockBackdoor}
+                    className="rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition"
+                  >
+                    Unlock
+                  </button>
+                </>
+              )}
+            </div>
+            {backdoorError && <div className="mt-3 text-xs text-rose-300">{backdoorError}</div>}
           </div>
         </div>
       </div>
