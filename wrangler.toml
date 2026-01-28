@@ -1,0 +1,15 @@
+name = "snapdriver"
+compatibility_date = "2026-01-27"
+
+# Cloudflare Pages will read this for local dev + production bindings.
+# Replace the database_id values after creating the D1 database.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "snapdriver"
+database_id = "bff1ef23-4459-4b6a-bf31-0279ccf8e909"
+preview_database_id = "8fed0614-200e-4a8f-afb0-01fbfb184ca7"
+
+[[r2_buckets]]
+binding = "UPLOADS"
+bucket_name = "snapdriver-uploads"

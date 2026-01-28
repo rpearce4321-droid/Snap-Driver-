@@ -1,7 +1,13 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getRetainers, getSeekers } from "../lib/data";
-import * as Messages from "../lib/messages";
+import {
+  addMessageToConversation,
+  createConversationWithFirstMessage,
+  getConversationsForRetainer,
+  getMessagesForConversation,
+  markConversationRead,
+} from "../lib/messages";
 
 // Minimal local types (keeps us resilient even if messages.ts doesn't export types)
 type Conversation = {
@@ -56,35 +62,23 @@ const parseFeedFlag = (flag?: string): FeedLinkTarget | null => {
 
 function safeGetConversationsForRetainer(retainerId: string): Conversation[] {
   try {
-    const fn =
-      (Messages as any).getConversationsForRetainer ||
-      (Messages as any).getConversationsForUser ||
-      (Messages as any).getConversations;
-    if (typeof fn === "function") {
-      const res = fn.length >= 2 ? fn(retainerId, "RETAINER") : fn(retainerId);
-      return Array.isArray(res) ? (res as Conversation[]) : [];
-    }
+    return getConversationsForRetainer(retainerId) as Conversation[];
   } catch (err) {
     console.error(err);
   }
   return [];
 }
 
+
 function safeGetMessagesForConversation(conversationId: string): ChatMessage[] {
   try {
-    const fn =
-      (Messages as any).getMessagesForConversation ||
-      (Messages as any).getMessages ||
-      (Messages as any).listMessages;
-    if (typeof fn === "function") {
-      const res = fn(conversationId);
-      return Array.isArray(res) ? (res as ChatMessage[]) : [];
-    }
+    return getMessagesForConversation(conversationId) as ChatMessage[];
   } catch (err) {
     console.error(err);
   }
   return [];
 }
+
 
 function safeAddMessageToConversation(args: {
   conversationId: string;
@@ -92,19 +86,13 @@ function safeAddMessageToConversation(args: {
   senderRole: "SEEKER" | "RETAINER" | "ADMIN";
 }): ChatMessage | null {
   try {
-    const fn =
-      (Messages as any).addMessageToConversation ||
-      (Messages as any).addMessage ||
-      (Messages as any).createMessage;
-    if (typeof fn === "function") {
-      const res = fn(args);
-      return (res as ChatMessage) ?? null;
-    }
+    return addMessageToConversation(args) as ChatMessage;
   } catch (err) {
     console.error(err);
   }
   return null;
 }
+
 
 function safeCreateConversationWithFirstMessage(args: {
   seekerId: string;
@@ -114,27 +102,18 @@ function safeCreateConversationWithFirstMessage(args: {
   senderRole: "SEEKER" | "RETAINER" | "ADMIN";
 }): Conversation | null {
   try {
-    const fn =
-      (Messages as any).createConversationWithFirstMessage ||
-      (Messages as any).createConversation ||
-      (Messages as any).startConversation;
-    if (typeof fn === "function") {
-      const res = fn(args);
-      return (res as Conversation) ?? null;
-    }
+    const res = createConversationWithFirstMessage(args);
+    return res.conversation as Conversation;
   } catch (err) {
     console.error(err);
   }
   return null;
 }
 
+
 function safeMarkConversationRead(conversationId: string, role: "SEEKER" | "RETAINER" | "ADMIN") {
   try {
-    const fn =
-      (Messages as any).markConversationRead ||
-      (Messages as any).markRead ||
-      (Messages as any).setConversationRead;
-    if (typeof fn === "function") fn(conversationId, role);
+    markConversationRead(conversationId, role);
   } catch {
     // non-fatal
   }
@@ -381,7 +360,7 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
         </p>
       </div>
 
-      <div className="grid grid-cols-12 min-h-[560px]">
+      <div className="grid grid-cols-12 min-h-0 h-full lg:min-h-[560px]">
         {/* Seekers rail */}
         <div className="col-span-12 md:col-span-4 lg:col-span-3 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/30">
           <div className="px-4 py-3 border-b border-slate-800 space-y-2">
@@ -515,7 +494,7 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
         </div>
 
         {/* Thread */}
-        <div className="col-span-12 md:col-span-4 lg:col-span-5 bg-slate-950/10">
+        <div className="col-span-12 md:col-span-4 lg:col-span-5 bg-slate-950/10 flex flex-col min-h-0">
           <div className="px-4 py-3 border-b border-slate-800">
             <div className="text-xs uppercase tracking-wide text-slate-400">Thread</div>
             <div className="text-sm font-semibold text-slate-50 truncate">{activeConv?.subject || "Select a subject"}</div>
@@ -525,7 +504,7 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
             <div className="p-5 text-sm text-slate-400">Select a subject in the middle rail.</div>
           ) : (
             <div className="flex flex-col h-full">
-              <div className="p-3 md:p-4 flex-1 overflow-y-auto space-y-2 min-h-[340px]">
+              <div className="p-3 md:p-4 flex-1 min-h-0 overflow-y-auto space-y-2">
                 {messages.length === 0 ? (
                   <div className="text-[12px] text-slate-500">No messages yet in this subject.</div>
                 ) : (

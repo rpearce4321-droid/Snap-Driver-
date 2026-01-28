@@ -406,6 +406,15 @@ function YesNoButtons(props: {
 export default function BadgesCenter({ role, ownerId, readOnly = false }: Props) {
   const [tick, setTick] = useState(0);
   const [tab, setTab] = useState<"home" | "actions" | "catalog" | "history" | "record">("home");
+
+  const openCatalog = (event?: React.SyntheticEvent) => {
+    if (event) event.stopPropagation();
+    setTab("catalog");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   const chartRef = useRef<HTMLDivElement | null>(null);
   const chartPadding = 12;
 
@@ -498,9 +507,14 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                   key={b.id}
                   className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 flex gap-3"
                 >
-                  <div className="h-10 w-10 rounded-xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100">
+                  <button
+                    type="button"
+                    onClick={openCatalog}
+                    aria-label="Open badge catalog"
+                    className="h-10 w-10 rounded-xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100 cursor-pointer"
+                  >
                     {iconFor(b.iconKey)}
-                  </div>
+                  </button>
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="text-sm font-semibold text-slate-100 truncate">
@@ -792,8 +806,12 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
   const toggleMyActive = (badgeId: BadgeId) => {
     if (!ownerId || readOnly) return;
     const has = myActiveBadgeIds.includes(badgeId);
-    if (has) setMyActive(myActiveBadgeIds.filter((x) => x !== badgeId));
-    else setMyActive([...myActiveBadgeIds, badgeId]);
+    if (has) {
+      setMyActive(myActiveBadgeIds.filter((x) => x !== badgeId));
+      return;
+    }
+    if (myActiveBadgeIds.length >= MAX_ACTIVE_BADGES) return;
+    setMyActive([...myActiveBadgeIds, badgeId]);
   };
 
   const canEditBackground = !readOnly && !backgroundLock.isLocked;
@@ -998,10 +1016,15 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                         className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-3">
-                            <div className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100">
+                          <div className="flex items-start gap-3 min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={openCatalog}
+                              aria-label="Open badge catalog"
+                              className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100 cursor-pointer"
+                            >
                               {iconFor(b.iconKey)}
-                            </div>
+                            </button>
                             <div>
                               <div className="text-sm font-semibold text-slate-100">
                                 {b.title}
@@ -1052,9 +1075,14 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3">
-                            <div className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100">
+                            <button
+                              type="button"
+                              onClick={openCatalog}
+                              aria-label="Open badge catalog"
+                              className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100 cursor-pointer"
+                            >
                               {iconFor(b.iconKey)}
-                            </div>
+                            </button>
                             <div>
                               <div className="text-sm font-semibold text-slate-100">
                                 {b.title}
@@ -1102,8 +1130,8 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
               </div>
             )}
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+            <div className="grid md:grid-cols-2 gap-4 min-w-0">
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4 min-w-0">
                 {backgroundOptions.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
@@ -1121,131 +1149,145 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                       </div>
                     )}
 
-                    {editingBackground ? (
-                      <div className="space-y-2">
-                        {backgroundOptions.map((b) => {
-                          const selected = draftBackgroundIds.includes(b.id);
-                          const full =
-                            !selected && draftBackgroundIds.length >= MAX_BACKGROUND_BADGES;
+                    
+                    <div className="space-y-2">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500">
+                        Selected Background
+                      </div>
+                      {selectedBackgroundBadges.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-4 text-sm text-slate-400">
+                          Pick {MAX_BACKGROUND_BADGES} background badges to set expectations.
+                        </div>
+                      ) : (
+                        <div className="grid gap-2">
+                          {selectedBackgroundBadges.map((b) => {
+                            const p = getBadgeProgress(role, ownerId, b.id);
+                            const prog = computeBadgeProgressToNext(b, p);
+                            const reputation = getBadgeReputationScore({
+                              ownerRole: role,
+                              ownerId,
+                              badgeId: b.id,
+                            });
+                            const bar = prog.trustPercent ?? 0;
                             return (
-                            <button
-                              key={b.id}
-                              type="button"
-                              disabled={!canEditBackground || full}
-                              onClick={() => toggleDraftBackground(b.id)}
-                              className={[
-                                "w-full text-left rounded-2xl border p-3 transition",
-                                selected
-                                  ? "border-emerald-500/60 bg-emerald-500/10"
-                                  : "border-slate-800 bg-slate-950/40 hover:bg-slate-900/60",
-                                !canEditBackground || full
-                                  ? "opacity-60 cursor-not-allowed"
-                                  : "",
-                              ].join(" ")}
-                            >
-                              <div className="flex items-start gap-3">
-                                <div className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100">
-                                  {iconFor(b.iconKey)}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-sm font-semibold text-slate-100 truncate">
-                                    {b.title}
+                              <div
+                                key={b.id}
+                                className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex items-start gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={openCatalog}
+                                      aria-label="Open badge catalog"
+                                      className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100 cursor-pointer"
+                                    >
+                                      {iconFor(b.iconKey)}
+                                    </button>
+                                    <div>
+                                      <div className="text-sm font-semibold text-slate-100">
+                                        {b.title}
+                                      </div>
+                                      <div className="text-xs text-slate-400 mt-0.5">
+                                        Level {p.maxLevel} -{" "}
+                                        {prog.trustPercent == null
+                                          ? "No data yet"
+                                          : `Confirmations ${prog.trustPercent}%`}
+                                        {" "}- {prog.totalConfirmations} confirmation
+                                        {prog.totalConfirmations === 1 ? "" : "s"}
+                                      </div>
+                                      <div className="text-[11px] text-slate-500 mt-1">
+                                        Recent score: {formatScore(reputation.score)} ({REPUTATION_SCORE_WINDOW_DAYS}d)
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="text-xs text-slate-400 mt-0.5">
-                                    {b.description}
-                                  </div>
+                                  <span className="text-[10px] uppercase tracking-wide text-slate-400">Background</span>
                                 </div>
+                                <div className="mt-3 space-y-2">
+                                  <ProgressBar percent={bar} />
+                                  {prog.nextRule ? (
+                                    <div className="text-[11px] text-slate-500">
+                                      Next level: {prog.nextRule.minPercent}% with{" "}
+                                      {prog.nextRule.minSamples}+ confirmations
+                                    </div>
+                                  ) : (
+                                    <div className="text-[11px] text-slate-500">Max level achieved.</div>
+                                  )}
+                                </div>
+                                <div className="mt-3 text-xs text-slate-300">{b.description}</div>
                               </div>
-                            </button>
                             );
                           })}
-                        <div className="flex justify-end gap-2 pt-1">
-                          <button
-                            type="button"
-                            className="px-3 py-1.5 rounded-full text-[11px] border border-slate-700 text-slate-200 hover:bg-slate-800"
-                            onClick={cancelBackgroundSelection}
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            disabled={!canEditBackground || draftBackgroundIds.length !== MAX_BACKGROUND_BADGES}
-                            className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                            onClick={saveBackgroundSelection}
-                          >
-                            Save selection
-                          </button>
                         </div>
-                      </div>
-                    ) : selectedBackgroundBadges.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-5 text-sm text-slate-400">
-                        Pick {MAX_BACKGROUND_BADGES} background badges to set expectations.
-                      </div>
-                    ) : (
-                      <div className="grid gap-2">
-                        {selectedBackgroundBadges.map((b) => {
-                          const p = getBadgeProgress(role, ownerId, b.id);
-                          const prog = computeBadgeProgressToNext(b, p);
-                          const reputation = getBadgeReputationScore({
-                            ownerRole: role,
-                            ownerId,
-                            badgeId: b.id,
-                          });
-                          const bar = prog.trustPercent ?? 0;
-                          return (
-                            <div
-                              key={b.id}
-                              className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-start gap-3">
-                                  <div className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100">
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-[11px] uppercase tracking-wide text-slate-500">Background Catalog</div>
+                      {editingBackground ? (
+                        <div className="space-y-2">
+                          {backgroundOptions.map((b) => {
+                            const selected = draftBackgroundIds.includes(b.id);
+                            const full =
+                              !selected && draftBackgroundIds.length >= MAX_BACKGROUND_BADGES;
+                            return (
+                              <button
+                                key={b.id}
+                                type="button"
+                                disabled={!canEditBackground || full}
+                                onClick={() => toggleDraftBackground(b.id)}
+                                className={[
+                                  "w-full text-left rounded-2xl border p-3 transition",
+                                  selected
+                                    ? "border-emerald-500/60 bg-emerald-500/10"
+                                    : "border-slate-800 bg-slate-950/40 hover:bg-slate-900/60",
+                                  !canEditBackground || full
+                                    ? "opacity-60 cursor-not-allowed"
+                                    : "",
+                                ].join(" " )}
+                              >
+                                <div className="flex items-start gap-3 min-w-0">
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={openCatalog}
+                                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " " ) openCatalog(e); }}
+                                    className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100 cursor-pointer"
+                                  >
                                     {iconFor(b.iconKey)}
                                   </div>
-                                  <div>
-                                    <div className="text-sm font-semibold text-slate-100">
-                                      {b.title}
-                                    </div>
-                                    <div className="text-xs text-slate-400 mt-0.5">
-                                      Level {p.maxLevel} -{" "}
-                                      {prog.trustPercent == null
-                                        ? "No data yet"
-                                        : `Confirmations ${prog.trustPercent}%`}
-                                      {" "}- {prog.totalConfirmations} confirmation
-                                      {prog.totalConfirmations === 1 ? "" : "s"}
-                                    </div>
-                                    <div className="text-[11px] text-slate-500 mt-1">
-                                      Recent score: {formatScore(reputation.score)} ({REPUTATION_SCORE_WINDOW_DAYS}d)
-                                    </div>
+                                  <div className="min-w-0">
+                                    <div className="text-sm font-semibold text-slate-100 truncate">{b.title}</div>
+                                    <div className="text-xs text-slate-400 mt-0.5">{b.description}</div>
                                   </div>
                                 </div>
-                                <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                                  Background
-                                </span>
-                              </div>
-                              <div className="mt-3 space-y-2">
-                                <ProgressBar percent={bar} />
-                                {prog.nextRule ? (
-                                  <div className="text-[11px] text-slate-500">
-                                    Next level: {prog.nextRule.minPercent}% with{" "}
-                                    {prog.nextRule.minSamples}+ confirmations
-                                  </div>
-                                ) : (
-                                  <div className="text-[11px] text-slate-500">
-                                    Max level achieved.
-                                  </div>
-                                )}
-                              </div>
-                              <div className="mt-3 text-xs text-slate-300">
-                                {b.description}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                              </button>
+                            );
+                          })}
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              className="px-3 py-1.5 rounded-full text-[11px] border border-slate-700 text-slate-200 hover:bg-slate-800"
+                              onClick={cancelBackgroundSelection}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!canEditBackground || draftBackgroundIds.length !== MAX_BACKGROUND_BADGES}
+                              className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                              onClick={saveBackgroundSelection}
+                            >
+                              Save selection
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-400">Edit selection to update background badges.</div>
+                      )}
+                    </div>
 
-                    {!editingBackground && (
+{!editingBackground && (
                       <div className="flex justify-end">
                         <button
                           type="button"
@@ -1261,91 +1303,160 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                 )}
               </div>
 
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4 min-w-0">
                 <div className="text-xs uppercase tracking-wide text-slate-400">
                   Foreground Badges
                 </div>
-                {myActiveBadges.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-5 text-sm text-slate-400">
-                    No active badges selected yet. Pick up to {MAX_ACTIVE_BADGES} from
-                    the catalog below.
+
+                <div className="text-[11px] text-slate-500">
+                  Select up to {MAX_ACTIVE_BADGES} optional badges to highlight.
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Selected Foreground
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    {myActiveBadges.map((b) => {
-                      const p = getBadgeProgress(role, ownerId, b.id);
-                      const prog = computeBadgeProgressToNext(b, p);
-                      const reputation = getBadgeReputationScore({
-                        ownerRole: role,
-                        ownerId,
-                        badgeId: b.id,
-                      });
-                      const bar = prog.trustPercent ?? 0;
-                      return (
-                        <div
-                          key={b.id}
-                          className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3">
-                              <div className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100">
-                                {iconFor(b.iconKey)}
+                  {myActiveBadges.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-5 text-sm text-slate-400">
+                      No active badges selected yet. Pick up to {MAX_ACTIVE_BADGES} from
+                      the catalog below.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {myActiveBadges.map((b) => {
+                        const p = getBadgeProgress(role, ownerId, b.id);
+                        const prog = computeBadgeProgressToNext(b, p);
+                        const reputation = getBadgeReputationScore({
+                          ownerRole: role,
+                          ownerId,
+                          badgeId: b.id,
+                        });
+                        const bar = prog.trustPercent ?? 0;
+                        return (
+                          <div
+                            key={b.id}
+                            className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <button
+                                  type="button"
+                                  onClick={openCatalog}
+                                  aria-label="Open badge catalog"
+                                  className="h-12 w-12 rounded-2xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100 cursor-pointer"
+                                >
+                                  {iconFor(b.iconKey)}
+                                </button>
+                                <div>
+                                  <div className="text-sm font-semibold text-slate-100">
+                                    {b.title}
+                                  </div>
+                                  <div className="text-xs text-slate-400 mt-0.5">
+                                    Level {p.maxLevel} -{" "}
+                                    {prog.trustPercent == null
+                                      ? "No data yet"
+                                      : `Confirmations ${prog.trustPercent}%`}
+                                    {" "}- {prog.totalConfirmations} confirmation
+                                    {prog.totalConfirmations === 1 ? "" : "s"}
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 mt-1">
+                                    Recent score: {formatScore(reputation.score)} ({REPUTATION_SCORE_WINDOW_DAYS}d)
+                                  </div>
+                                </div>
                               </div>
-                              <div>
-                                <div className="text-sm font-semibold text-slate-100">
-                                  {b.title}
-                                </div>
-                                <div className="text-xs text-slate-400 mt-0.5">
-                                  Level {p.maxLevel} -{" "}
-                                  {prog.trustPercent == null
-                                    ? "No data yet"
-                                    : `Confirmations ${prog.trustPercent}%`}
-                                  {" "}- {prog.totalConfirmations} confirmation
-                                  {prog.totalConfirmations === 1 ? "" : "s"}
-                                </div>
-                                <div className="text-[11px] text-slate-500 mt-1">
-                                  Recent score: {formatScore(reputation.score)} ({REPUTATION_SCORE_WINDOW_DAYS}d)
-                                </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  disabled={readOnly}
+                                  className="px-2.5 py-1 rounded-full text-[11px] border border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    toggleMyActive(b.id);
+                                  }}
+                                >
+                                  Remove
+                                </button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="mt-3 space-y-2">
+                              <ProgressBar percent={bar} />
+                              {prog.nextRule ? (
+                                <div className="text-[11px] text-slate-500">
+                                  Next level: {prog.nextRule.minPercent}% with{" "}
+                                  {prog.nextRule.minSamples}+ confirmations
+                                </div>
+                              ) : (
+                                <div className="text-[11px] text-slate-500">
+                                  Max level achieved.
+                                </div>
+                              )}
+                            </div>
+                            <div className="mt-3 text-xs text-slate-300 space-y-2">
+                              <div>{b.description}</div>
+                              <div className="text-[11px] text-slate-500">{b.howToEarn}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Available Foreground
+                  </div>
+                  {myBadgeDefs.length > 0 ? (
+                    <div className="space-y-2">
+                      {myBadgeDefs.map((b) => {
+                        const isActive = myActiveBadgeIds.includes(b.id);
+                        const isFull = !isActive && myActiveBadgeIds.length >= MAX_ACTIVE_BADGES;
+                        return (
+                          <div
+                            key={b.id}
+                            className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 min-w-0"
+                          >
+                            <div className="flex items-start gap-3 min-w-0">
                               <button
                                 type="button"
-                                disabled={readOnly}
-                                className="px-2.5 py-1 rounded-full text-[11px] border border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  toggleMyActive(b.id);
-                                }}
+                                onClick={openCatalog}
+                                aria-label="Open badge catalog"
+                                className="h-10 w-10 rounded-xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100 cursor-pointer"
                               >
-                                Remove
+                                {iconFor(b.iconKey)}
                               </button>
-                            </div>
-                          </div>
-                          <div className="mt-3 space-y-2">
-                            <ProgressBar percent={bar} />
-                            {prog.nextRule ? (
-                              <div className="text-[11px] text-slate-500">
-                                Next level: {prog.nextRule.minPercent}% with{" "}
-                                {prog.nextRule.minSamples}+ confirmations
+                              <div className="min-w-0">
+                                <div className="text-sm font-semibold text-slate-100 truncate">
+                                  {b.title}
+                                </div>
+                                <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                                  {b.description}
+                                </div>
                               </div>
-                            ) : (
-                              <div className="text-[11px] text-slate-500">
-                                Max level achieved.
-                              </div>
-                            )}
-                          </div>
-                          <div className="mt-3 text-xs text-slate-300 space-y-2">
-                            <div>{b.description}</div>
-                            <div className="text-[11px] text-slate-500">
-                              {b.howToEarn}
                             </div>
+                            <button
+                              type="button"
+                              disabled={readOnly || isFull}
+                              onClick={() => toggleMyActive(b.id)}
+                              className={[
+                                "px-2.5 py-1 rounded-full text-[11px] border transition w-full sm:w-auto",
+                                isActive
+                                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
+                                  : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
+                                readOnly || isFull ? "opacity-60 cursor-not-allowed" : "",
+                              ].join(" " )}
+                            >
+                              {isActive ? "Selected" : isFull ? "Max selected" : "Add"}
+                            </button>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-400">No selectable foreground badges yet.</div>
+                  )}
+                </div>
+
               </div>
             </div>
           </section>
@@ -1398,9 +1509,14 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="h-8 w-8 rounded-xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100">
+                            <button
+                              type="button"
+                              onClick={openCatalog}
+                              aria-label="Open badge catalog"
+                              className="h-8 w-8 rounded-xl badge-token bg-white/5 border border-white/10 flex items-center justify-center text-slate-100 cursor-pointer"
+                            >
                               {iconFor(item.def.iconKey)}
-                            </span>
+                            </button>
                             <div className="text-xs font-semibold text-slate-100 truncate">
                               {item.def.title}
                             </div>

@@ -17,6 +17,13 @@
 body {
   background-color: var(--color-bg);
   color: #f5f5f5;
+  overflow-x: hidden;
+}
+
+html,
+#root {
+  width: 100%;
+  overflow-x: hidden;
 }
 
 /* === Accent Elements === */

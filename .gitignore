@@ -31,3 +31,6 @@ dist-ssr
 checkpoints/
 server/.env
 server/.env.local
+
+# Cloudflare local state
+.wrangler/

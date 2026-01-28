@@ -4,6 +4,11 @@ export type StoreEnvelope<T> = {
   schemaVersion: number;
   data: T;
 };
+let storeListener: ((key: string) => void) | null = null;
+
+export function setStoreListener(listener: ((key: string) => void) | null): void {
+  storeListener = listener;
+}
 
 function hasLocalStorage(): boolean {
   return (
@@ -45,6 +50,7 @@ export function writeStore<T>(
   const envelope: StoreEnvelope<T> = { schemaVersion, data };
   try {
     window.localStorage.setItem(key, JSON.stringify(envelope));
+    if (storeListener) storeListener(key);
   } catch {
     // ignore quota/serialization errors
   }
@@ -54,8 +60,10 @@ export function removeStore(key: string): void {
   if (!hasLocalStorage()) return;
   try {
     window.localStorage.removeItem(key);
+    if (storeListener) storeListener(key);
   } catch {
     // ignore
   }
 }
+
 

@@ -107,3 +107,9 @@ and more like a marketing/recruiting + social media platform.
 - [ ] Add content audit view tying inbox-delivered broadcast messages to the originating broadcast
 - [ ] Add a simple model-based test harness for critical state machines (Linking + Badges + Messages)
 - [ ] Pre-production: disallow "Approve link" until both parties confirm video
+
+## Platform & Growth (Backlog)
+- [ ] Payments + tiered paywalls (feature gating + billing integration).
+- [ ] Transactional email system (signup, password reset, notifications).
+- [ ] Landing page refresh (marketing copy + CTA flows + visual polish).
+

@@ -1,7 +1,13 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getRetainers, getSeekers } from "../lib/data";
-import * as Messages from "../lib/messages";
+import {
+  addMessageToConversation,
+  createConversationWithFirstMessage,
+  getConversationsForSeeker,
+  getMessagesForConversation,
+  markConversationRead,
+} from "../lib/messages";
 import {
   addSubcontractorMessage,
   getSubcontractorMessages,
@@ -65,35 +71,23 @@ const parseFeedFlag = (flag?: string): FeedLinkTarget | null => {
 
 function safeGetConversationsForSeeker(seekerId: string): Conversation[] {
   try {
-    const fn =
-      (Messages as any).getConversationsForSeeker ||
-      (Messages as any).getConversationsForUser ||
-      (Messages as any).getConversations;
-    if (typeof fn === "function") {
-      const res = fn.length >= 2 ? fn(seekerId, "SEEKER") : fn(seekerId);
-      return Array.isArray(res) ? (res as Conversation[]) : [];
-    }
+    return getConversationsForSeeker(seekerId) as Conversation[];
   } catch (err) {
     console.error(err);
   }
   return [];
 }
 
+
 function safeGetMessagesForConversation(conversationId: string): ChatMessage[] {
   try {
-    const fn =
-      (Messages as any).getMessagesForConversation ||
-      (Messages as any).getMessages ||
-      (Messages as any).listMessages;
-    if (typeof fn === "function") {
-      const res = fn(conversationId);
-      return Array.isArray(res) ? (res as ChatMessage[]) : [];
-    }
+    return getMessagesForConversation(conversationId) as ChatMessage[];
   } catch (err) {
     console.error(err);
   }
   return [];
 }
+
 
 function safeAddMessageToConversation(args: {
   conversationId: string;
@@ -101,19 +95,13 @@ function safeAddMessageToConversation(args: {
   senderRole: "SEEKER" | "RETAINER" | "ADMIN";
 }): ChatMessage | null {
   try {
-    const fn =
-      (Messages as any).addMessageToConversation ||
-      (Messages as any).addMessage ||
-      (Messages as any).createMessage;
-    if (typeof fn === "function") {
-      const res = fn(args);
-      return (res as ChatMessage) ?? null;
-    }
+    return addMessageToConversation(args) as ChatMessage;
   } catch (err) {
     console.error(err);
   }
   return null;
 }
+
 
 const BROADCAST_SUBJECT_PREFIX = "[Broadcast]";
 
@@ -125,28 +113,18 @@ function safeCreateConversationWithFirstMessage(args: {
   senderRole: "SEEKER" | "RETAINER" | "ADMIN";
 }): Conversation | null {
   try {
-    const fn =
-      (Messages as any).createConversationWithFirstMessage ||
-      (Messages as any).createConversation ||
-      (Messages as any).startConversation;
-    if (typeof fn === "function") {
-      const res = fn(args);
-      const conv: any = (res as any)?.conversation ?? res;
-      return (conv as Conversation) ?? null;
-    }
+    const res = createConversationWithFirstMessage(args);
+    return res.conversation as Conversation;
   } catch (err) {
     console.error(err);
   }
   return null;
 }
 
+
 function safeMarkConversationRead(conversationId: string, role: "SEEKER" | "RETAINER" | "ADMIN") {
   try {
-    const fn =
-      (Messages as any).markConversationRead ||
-      (Messages as any).markRead ||
-      (Messages as any).setConversationRead;
-    if (typeof fn === "function") fn(conversationId, role);
+    markConversationRead(conversationId, role);
   } catch {
     // non-fatal
   }
@@ -532,7 +510,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
             <span className="font-semibold text-emerald-300">Message</span> button on a Retainer to start one.
           </div>
         ) : (
-          <div className="flex-1 min-h-0 grid grid-cols-12">
+          <div className="flex-1 min-h-0 grid grid-cols-12 h-full lg:min-h-[560px]">
             {/* Retainers rail */}
             <div className="col-span-12 md:col-span-4 lg:col-span-3 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/30 flex flex-col min-h-0">
               <div className="px-4 py-3 border-b border-slate-800 space-y-2">
@@ -761,7 +739,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
           </div>
         )
       ) : (
-        <div className="flex-1 min-h-0 grid grid-cols-12">
+        <div className="flex-1 min-h-0 grid grid-cols-12 h-full lg:min-h-[560px]">
           <div className="col-span-12 md:col-span-4 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/30 flex flex-col min-h-0">
             <div className="px-4 py-3 border-b border-slate-800 space-y-2">
               <div>

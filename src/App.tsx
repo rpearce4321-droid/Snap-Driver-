@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LandingPage from "./pages/LandingPage";
@@ -9,8 +10,23 @@ import SeekerDetailPage from "./pages/SeekerDetailPage";
 import RetainerDetailPage from "./pages/RetainerDetailPage";
 import SignupSeekerPage from "./pages/SignupSeekerPage";
 import SignupRetainerPage from "./pages/SignupRetainerPage";
+import { initServerSync, setSyncListener } from "./lib/serverSync";
 
 export default function App() {
+  const [, forceRender] = useState(0);
+
+  useEffect(() => {
+    setSyncListener(() => {
+      forceRender((v) => v + 1);
+    });
+
+    initServerSync();
+
+    return () => {
+      setSyncListener(null);
+    };
+  }, []);
+
   return (
     <ErrorBoundary>
       <BrowserRouter>

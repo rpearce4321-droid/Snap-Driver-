@@ -278,6 +278,8 @@ const ApprovalGate: React.FC<ApprovalGateProps> = ({
 );
 
 function getApprovalGateCopy(roleLabel: string, status?: string) {
+
+
   switch (status) {
     case "PENDING":
       return {
@@ -392,6 +394,7 @@ const RetainerPage: React.FC = () => {
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
 
   const [noticeTick, setNoticeTick] = useState(0);
+  const [linkTick] = useState(0);
 
   useEffect(() => {
 
@@ -1348,13 +1351,9 @@ const RetainerPage: React.FC = () => {
     );
   }
 
-  const containerStyle = isDesktop
-    ? { zoom: 1.1, height: "calc(100vh / 1.1)", width: "calc(100vw / 1.1)" }
-    : undefined;
-
   return (
 
-    <div className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-hidden" style={containerStyle}>
+    <div className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-hidden">
 
       {/* Left sidebar */}
 
@@ -1669,105 +1668,6 @@ const RetainerPage: React.FC = () => {
               </div>
             </div>
 
-            {currentRetainer ? (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
-                <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                  Your Company
-                </div>
-                <div className="font-semibold text-slate-50 truncate">
-                  {formatRetainerName(currentRetainer)}
-                </div>
-                <div className="text-xs text-slate-400 flex flex-wrap items-center gap-2">
-                  <span>
-                    Status:{" "}
-                    <span className="font-medium text-emerald-400">
-                      {(currentRetainer as any).status}
-                    </span>
-                  </span>
-                  {(() => {
-                    const summary = getRetainerRatingSummary((currentRetainer as any).id);
-                    if (!summary.count) return null;
-                    return (
-                      <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/60 px-2 py-0.5 text-[10px] text-amber-100">
-                        * {summary.avg.toFixed(1)} ({summary.count})
-                      </span>
-                    );
-                  })()}
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  {currentRetainerId ? (
-                    <Link
-                      to={`/retainers/${currentRetainerId}`}
-                      className="text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                    >
-                      View profile
-                    </Link>
-                  ) : (
-                    <span />
-                  )}
-                  <div className="flex items-center gap-3">
-                    <Link
-                      to="/seekers"
-                      className="text-emerald-400 hover:text-emerald-300 font-medium"
-                    >
-                      Seeker
-                    </Link>
-                    <Link
-                      to="/admin"
-                      className="text-emerald-400 hover:text-emerald-300 font-medium"
-                    >
-                      Admin
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-400">
-                No retainer selected yet.
-              </div>
-            )}
-
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
-              {selectableRetainers.length > 1 && (
-                <div>
-                  <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                    Acting as
-                  </label>
-                  <select
-                    className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                    value={currentRetainerId ?? ""}
-                    onChange={(e) => handleSelectRetainer(e.target.value)}
-                  >
-                    {selectableRetainers.map((r: any) => (
-                      <option key={r.id} value={r.id} className="bg-slate-900 text-slate-50">
-                        {formatRetainerName(r)}
-                        {r.status === "PENDING" ? " (Pending)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                  Acting as user
-                </label>
-                <select
-                  className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                  value={currentRetainerUserId ?? ""}
-                  onChange={(e) => handleSelectRetainerUser(e.target.value)}
-                >
-                  <option value="" className="bg-slate-900 text-slate-50">
-                    {retainerLevelLabels.level3} (default)
-                  </option>
-                  {retainerUsers.map((u) => (
-                    <option key={u.id} value={u.id} className="bg-slate-900 text-slate-50">
-                      {formatRetainerUserName(u)} ({retainerLevelLabels[`level${u.level}` as keyof RetainerUserLevelLabels]})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
 
           </div>
         </div>
@@ -1794,6 +1694,98 @@ const RetainerPage: React.FC = () => {
                 >
                   X
                 </button>
+              </div>
+              <div className="space-y-4 mb-6">
+                {currentRetainer ? (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                      Your Company
+                    </div>
+                    <div className="font-semibold text-slate-50 truncate">
+                      {formatRetainerName(currentRetainer)}
+                    </div>
+                    <div className="text-xs text-slate-400 flex flex-wrap items-center gap-2">
+                      <span>
+                        Status:{" "}
+                        <span className="font-medium text-emerald-400">
+                          {(currentRetainer as any).status}
+                        </span>
+                      </span>
+                      {(() => {
+                        const summary = getRetainerRatingSummary((currentRetainer as any).id);
+                        if (!summary.count) return null;
+                        return (
+                          <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/60 px-2 py-0.5 text-[10px] text-amber-100">
+                            * {summary.avg.toFixed(1)} ({summary.count})
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    {currentRetainerId && (
+                      <div className="text-xs">
+                        <Link
+                          to={`/retainers/${currentRetainerId}`}
+                          className="text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                        >
+                          View profile
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-400">
+                    No retainer selected yet.
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
+                  {selectableRetainers.length > 1 && (
+                    <div>
+                      <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                        Acting as
+                      </label>
+                      <select
+                        className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                        value={currentRetainerId ?? ""}
+                        onChange={(e) => handleSelectRetainer(e.target.value)}
+                      >
+                        {selectableRetainers.map((r: any) => (
+                          <option key={r.id} value={r.id} className="bg-slate-900 text-slate-50">
+                            {formatRetainerName(r)}
+                            {r.status === "PENDING" ? " (Pending)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                      Acting as user
+                    </label>
+                    <select
+                      className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                      value={currentRetainerUserId ?? ""}
+                      onChange={(e) => handleSelectRetainerUser(e.target.value)}
+                    >
+                      <option value="" className="bg-slate-900 text-slate-50">
+                        {retainerLevelLabels.level3} (default)
+                      </option>
+                      {retainerUsers.map((u) => (
+                        <option key={u.id} value={u.id} className="bg-slate-900 text-slate-50">
+                          {formatRetainerUserName(u)} ({retainerLevelLabels[`level${u.level}` as keyof RetainerUserLevelLabels]})
+                        </option>
+                      ))}
+                    </select>
+                    {activeRetainerUser && (
+                      <div className="mt-1 text-[10px] text-slate-500">
+                        Level {activeRetainerUser.level}: {retainerLevelLabels[`level${activeRetainerUser.level}` as keyof typeof retainerLevelLabels] ?? `Level ${activeRetainerUser.level}`}
+                      </div>
+                    )}
+                    {retainerUserLevel === 1 && (
+                      <div className="mt-1 text-[10px] text-amber-300">View-only access</div>
+                    )}
+                  </div>
+                </div>
               </div>
               <nav className="space-y-2">
                 <SidebarButton
@@ -1909,6 +1901,8 @@ const RetainerPage: React.FC = () => {
                 currentRetainer={currentRetainer}
 
                 seekers={seekers}
+
+                isDesktop={isDesktop}
 
 
 
@@ -2072,7 +2066,6 @@ const RetainerPage: React.FC = () => {
                 retainerId={currentRetainerId}
 
                 seekers={approvedSeekers}
-
                 canEdit={canEditPortal}
 
                 onMessage={handleMessageSeeker}
@@ -2103,23 +2096,55 @@ const RetainerPage: React.FC = () => {
 
             {activeTab === "messages" && (
 
-              <div className="flex-1 min-h-0 min-w-0">
+              <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-4">
 
-                <MessagingCenterView
+                <div className="flex-1 min-h-0">
 
-                  currentRetainer={currentRetainer}
+                  <MessagingCenterView
 
-                  seekers={seekers}
+                    currentRetainer={currentRetainer}
 
-                  retainerUsers={retainerUsers}
+                    seekers={seekers}
 
-                  activeRetainerUser={activeRetainerUser}
+                    retainerUsers={retainerUsers}
 
-                  canSendExternal={canSendExternal}
+                    activeRetainerUser={activeRetainerUser}
 
-                  canSendInternal={canSendInternal}
+                    canSendExternal={canSendExternal}
 
-                />
+                    canSendInternal={canSendInternal}
+
+                  />
+
+                </div>
+
+                {!isDesktop && (
+
+                  <RetainerFeedPanel
+
+                    retainerId={currentRetainerId}
+
+                    currentRetainer={currentRetainer}
+
+                    seekers={seekers}
+
+                    linkTick={linkTick}
+
+                    canInteract={canEditPortal}
+
+                    onOpenProfile={(s) => navigate(`/seekers/${(s as any).id}`)}
+
+                    onMessage={handleMessageSeeker}
+
+                    onGoToPosts={() => setActiveTab("posts")}
+
+                    onGoToRoutes={() => openActionTab("routes")}
+
+                    className="min-h-[320px]"
+
+                  />
+
+                )}
 
               </div>
 
@@ -2265,9 +2290,728 @@ export default RetainerPage;
 
 
 
+
+type RetainerFeedPanelProps = {
+  retainerId: string | null;
+  currentRetainer?: Retainer;
+  seekers: Seeker[];
+  linkTick: number;
+  canInteract: boolean;
+  onOpenProfile: (s: Seeker) => void;
+  onMessage: (s: Seeker) => void;
+  onGoToPosts: () => void;
+  onGoToRoutes: () => void;
+  className?: string;
+};
+
+
+const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
+  retainerId,
+  currentRetainer,
+  seekers,
+  linkTick,
+  canInteract,
+  onOpenProfile,
+  onMessage,
+  onGoToPosts,
+  onGoToRoutes,
+  className,
+}) => {
+  const retainerDisplayName = currentRetainer ? formatRetainerName(currentRetainer) : "Retainer";
+  const retainerCompany = currentRetainer?.companyName || retainerDisplayName;
+
+  const seekerById = useMemo(
+    () => new Map<string, Seeker>(seekers.map((s) => [s.id, s])),
+    [seekers]
+  );
+
+  const activeLinkSeekerIds = useMemo(() => {
+    if (!retainerId) return new Set<string>();
+    return new Set(
+      getLinksForRetainer(retainerId)
+        .filter((l) => l.status === "ACTIVE")
+        .map((l) => l.seekerId)
+    );
+  }, [retainerId, linkTick]);
+
+
+  const [feedTick, setFeedTick] = useState(0);
+  const [feedFilter, setFeedFilter] = useState<"ALL" | "BROADCAST" | "ROUTE" | "UPDATE">(
+    "ALL"
+  );
+  const [expandedFeedKey, setExpandedFeedKey] = useState<string | null>(null);
+  const feedItems = useMemo(
+    () => (retainerId ? getFeedForRetainer(retainerId) : []),
+    [retainerId, feedTick]
+  );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handle = () => setFeedTick((n) => n + 1);
+    window.addEventListener(ROUTE_RESPONSES_EVENT, handle);
+    window.addEventListener(POST_RESPONSES_EVENT, handle);
+    window.addEventListener(FEED_REACTIONS_EVENT, handle);
+    return () => {
+      window.removeEventListener(ROUTE_RESPONSES_EVENT, handle);
+      window.removeEventListener(POST_RESPONSES_EVENT, handle);
+      window.removeEventListener(FEED_REACTIONS_EVENT, handle);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!retainerId || typeof window === "undefined") return;
+    const raw = window.localStorage.getItem("snapdriver_feed_jump");
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { role?: string; kind?: string; id?: string };
+      if (parsed?.role !== "RETAINER" || !parsed.kind || !parsed.id) return;
+      setExpandedFeedKey(`${parsed.kind}:${parsed.id}`);
+      if (parsed.kind === "ROUTE") setFeedFilter("ROUTE");
+      else if (parsed.kind === "BROADCAST") setFeedFilter("BROADCAST");
+      else setFeedFilter("UPDATE");
+      window.localStorage.removeItem("snapdriver_feed_jump");
+    } catch {
+      // ignore
+    }
+  }, [retainerId, feedItems]);
+
+  const filteredFeedItems = useMemo(() => {
+    if (feedFilter === "ALL") return feedItems;
+    if (feedFilter === "BROADCAST") {
+      return feedItems.filter((it) => it.kind === "BROADCAST");
+    }
+    if (feedFilter === "ROUTE") {
+      return feedItems.filter((it) => it.kind === "ROUTE");
+    }
+    return feedItems.filter((it) => it.kind === "POST");
+  }, [feedFilter, feedItems]);
+
+  const visibleFeedItems = useMemo(
+    () => filteredFeedItems.slice(0, 12),
+    [filteredFeedItems]
+  );
+
+  const fmtWhen = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  };
+
+  const feedWhen = (it: FeedItem) =>
+    it.kind === "BROADCAST" ? it.createdAt : (it as any).updatedAt;
+
+  const feedTitle = (it: FeedItem) => {
+    if (it.kind === "POST") return it.post.title || "Post";
+    if (it.kind === "ROUTE") return it.route.title || "Route";
+    return it.broadcast.subject || "Broadcast";
+  };
+
+  const feedBadge = (it: FeedItem) =>
+    it.kind === "POST" ? it.post.type : it.kind === "ROUTE" ? "ROUTE" : "BROADCAST";
+
+  const feedKey = (it: FeedItem) => `${it.kind}:${it.id}`;
+
+  const toggleFeedItem = (it: FeedItem) => {
+    const key = feedKey(it);
+    setExpandedFeedKey((prev) => (prev === key ? null : key));
+    if (it.kind === "ROUTE" && retainerId) {
+      markRouteResponsesSeen(retainerId, it.route.id);
+    }
+  };
+
+  const renderFeedDetails = (it: FeedItem) => {
+    if (it.kind === "POST") {
+      return (
+        <div className="text-sm text-slate-200 whitespace-pre-wrap">
+          {it.post.body}
+        </div>
+      );
+    }
+
+    if (it.kind === "ROUTE") {
+      const route = it.route;
+      const cityState = [route.city, route.state].filter(Boolean).join(", ");
+      const pay =
+        route.payMin != null || route.payMax != null
+          ? `${route.payModel || "Pay"}: ${
+              route.payMin != null ? `$${route.payMin}` : "-"
+            }${route.payMax != null ? `-$${route.payMax}` : ""}`
+          : null;
+
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          {cityState && (
+            <div>
+              <span className="text-slate-400">Location: </span>
+              {cityState}
+            </div>
+          )}
+          {route.vertical && (
+            <div>
+              <span className="text-slate-400">Vertical: </span>
+              {route.vertical}
+            </div>
+          )}
+          {route.schedule && (
+            <div>
+              <span className="text-slate-400">Schedule: </span>
+              {route.schedule}
+            </div>
+          )}
+          {route.openings != null && (
+            <div>
+              <span className="text-slate-400">Openings: </span>
+              {route.openings}
+            </div>
+          )}
+          {pay && (
+            <div>
+              <span className="text-slate-400">Pay: </span>
+              {pay}
+            </div>
+          )}
+          {route.requirements && (
+            <div className="whitespace-pre-wrap">
+              <span className="text-slate-400">Requirements: </span>
+              {route.requirements}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="text-sm text-slate-200 whitespace-pre-wrap">
+        {it.broadcast.body}
+      </div>
+    );
+  };
+
+  const renderRouteResponses = (route: Route) => {
+    const grouped = getRouteResponsesGrouped(route.id);
+    const total = Object.values(grouped).reduce((sum, list) => sum + list.length, 0);
+    if (total === 0) {
+      return (
+        <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs text-slate-400">
+          No responses yet.
+        </div>
+      );
+    }
+
+    const typeOrder: Array<{
+      key: "INTERESTED" | "REQUEST_INFO" | "DIRECT_MESSAGE" | "NOT_INTERESTED";
+      label: string;
+      tone: string;
+    }> = [
+      { key: "INTERESTED", label: "Interested", tone: "text-emerald-200" },
+      { key: "REQUEST_INFO", label: "Request info", tone: "text-sky-200" },
+      { key: "DIRECT_MESSAGE", label: "Direct messages", tone: "text-amber-200" },
+      { key: "NOT_INTERESTED", label: "Not interested", tone: "text-rose-200" },
+    ];
+
+    const reasonLabel = (code?: string) => {
+      if (!code) return "No reason provided";
+      const match = NOT_INTERESTED_REASONS.find((r) => r.code === code);
+      return match ? match.label : code;
+    };
+
+    return (
+      <div className="space-y-3">
+        {typeOrder.map((group) => {
+          const list = grouped[group.key];
+          if (!list || list.length === 0) return null;
+
+          return (
+            <div key={group.key} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className={`text-xs font-semibold uppercase tracking-wide ${group.tone}`}>
+                  {group.label}
+                </div>
+                <div className="text-[11px] text-slate-400">{list.length}</div>
+              </div>
+              <div className="space-y-2">
+                {list.map((resp) => {
+                  const seeker = seekerById.get(String(resp.seekerId));
+                  const name = seeker ? formatSeekerName(seeker) : `Seeker (${resp.seekerId})`;
+                  const canMessage = seeker && activeLinkSeekerIds.has(String(resp.seekerId));
+
+                  return (
+                    <div key={resp.id} className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-50 truncate">{name}</div>
+                        <div className="text-[11px] text-slate-400">{fmtWhen(resp.createdAt)}</div>
+                        {group.key === "NOT_INTERESTED" && (
+                          <div className="text-[11px] text-slate-400">Reason: {reasonLabel(resp.reasonCode)}</div>
+                        )}
+                        {resp.note && (
+                          <div className="text-[11px] text-slate-300 mt-1">{resp.note}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (seeker) onOpenProfile(seeker);
+                          }}
+                          disabled={!seeker}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          View profile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (seeker) onMessage(seeker);
+                          }}
+                          disabled={!canMessage || !canInteract}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={canMessage ? "" : "Direct message is only available for linked Seekers"}
+                        >
+                          Message
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderPostResponses = (post: RetainerPost) => {
+    const grouped = getPostResponsesGrouped(post.id);
+    const total = Object.values(grouped).reduce((sum, list) => sum + list.length, 0);
+    if (total === 0) {
+      return (
+        <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs text-slate-400">
+          No responses yet.
+        </div>
+      );
+    }
+
+    const typeOrder: Array<{
+      key: "INTERESTED" | "REQUEST_INFO" | "DIRECT_MESSAGE" | "NOT_INTERESTED";
+      label: string;
+      tone: string;
+    }> = [
+      { key: "INTERESTED", label: "Interested", tone: "text-emerald-200" },
+      { key: "REQUEST_INFO", label: "Request info", tone: "text-sky-200" },
+      { key: "DIRECT_MESSAGE", label: "Direct messages", tone: "text-amber-200" },
+      { key: "NOT_INTERESTED", label: "Not interested", tone: "text-rose-200" },
+    ];
+
+    const reasonLabel = (code?: string) => {
+      if (!code) return "No reason provided";
+      const match = NOT_INTERESTED_REASONS.find((r) => r.code === code);
+      return match ? match.label : code;
+    };
+
+    return (
+      <div className="space-y-3">
+        {typeOrder.map((group) => {
+          const list = grouped[group.key];
+          if (!list || list.length === 0) return null;
+
+          return (
+            <div key={group.key} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className={`text-xs font-semibold uppercase tracking-wide ${group.tone}`}>
+                  {group.label}
+                </div>
+                <div className="text-[11px] text-slate-400">{list.length}</div>
+              </div>
+              <div className="space-y-2">
+                {list.map((resp) => {
+                  const seeker = seekerById.get(String(resp.seekerId));
+                  const name = seeker ? formatSeekerName(seeker) : `Seeker (${resp.seekerId})`;
+                  const canMessage = seeker && activeLinkSeekerIds.has(String(resp.seekerId));
+
+                  return (
+                    <div key={resp.id} className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-50 truncate">{name}</div>
+                        <div className="text-[11px] text-slate-400">{fmtWhen(resp.createdAt)}</div>
+                        {group.key === "NOT_INTERESTED" && (
+                          <div className="text-[11px] text-slate-400">Reason: {reasonLabel(resp.reasonCode)}</div>
+                        )}
+                        {resp.note && (
+                          <div className="text-[11px] text-slate-300 mt-1">{resp.note}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (seeker) onOpenProfile(seeker);
+                          }}
+                          disabled={!seeker}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          View profile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (seeker) onMessage(seeker);
+                          }}
+                          disabled={!canMessage || !canInteract}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={canMessage ? "" : "Direct message is only available for linked Seekers"}
+                        >
+                          Message
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderFeedReactions = (
+    itemKind: FeedReactionItemKind,
+    itemId: string
+  ) => {
+    const grouped = getFeedReactionsGrouped(itemKind, itemId);
+    const total = Object.values(grouped).reduce((sum, list) => sum + list.length, 0);
+    if (total === 0) {
+      return (
+        <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs text-slate-400">
+          No reactions yet.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {FEED_REACTION_OPTIONS.map((opt) => {
+          const list = grouped[opt.type];
+          if (!list || list.length === 0) return null;
+
+          return (
+            <div key={opt.type} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-200">
+                  {opt.label}
+                </div>
+                <div className="text-[11px] text-slate-400">{list.length}</div>
+              </div>
+              <div className="space-y-2">
+                {list.map((resp) => {
+                  const seeker = seekerById.get(String(resp.seekerId));
+                  const name = seeker ? formatSeekerName(seeker) : `Seeker (${resp.seekerId})`;
+                  const canMessage = seeker && activeLinkSeekerIds.has(String(resp.seekerId));
+
+                  return (
+                    <div key={resp.id} className="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-50 truncate">{name}</div>
+                        <div className="text-[11px] text-slate-400">{fmtWhen(resp.createdAt)}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (seeker) onOpenProfile(seeker);
+                          }}
+                          disabled={!seeker}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          View profile
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (seeker) onMessage(seeker);
+                          }}
+                          disabled={!canMessage || !canInteract}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={canMessage ? "" : "Direct message is only available for linked Seekers"}
+                        >
+                          Message
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const panelClassName = [
+    "rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div className={panelClassName}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-wide text-slate-400">Feed</div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            Broadcasts, routes, and updates you have shared.
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onGoToPosts}
+            disabled={!retainerId || !canInteract}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            Create broadcast
+          </button>
+          <button
+            type="button"
+            onClick={onGoToRoutes}
+            disabled={!retainerId}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            View routes
+          </button>
+          <button
+            type="button"
+            onClick={() => setFeedTick((n) => n + 1)}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition whitespace-nowrap"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {(
+          [
+            { key: "ALL", label: "All" },
+            { key: "BROADCAST", label: "Broadcasts" },
+            { key: "ROUTE", label: "Routes" },
+            { key: "UPDATE", label: "Updates" },
+          ] as const
+        ).map((item) => {
+          const isActive = feedFilter === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setFeedFilter(item.key)}
+              className={[
+                "px-3 py-1 rounded-full text-[11px] border transition",
+                isActive
+                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
+                  : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
+              ].join(" ")}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {!retainerId ? (
+        <div className="mt-3 text-xs text-slate-400">
+          Select or create a Retainer profile to see your feed.
+        </div>
+      ) : visibleFeedItems.length === 0 ? (
+        <div className="mt-3 text-xs text-slate-400">
+          No recent activity yet. Create a post, broadcast, or route to get started.
+        </div>
+      ) : (
+        <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1">
+          <ul className="space-y-2">
+            {visibleFeedItems.map((it) => {
+              const retainerName = retainerCompany || "Retainer";
+              const when = feedWhen(it);
+              const badge = feedBadge(it);
+              const feedKeyValue = feedKey(it);
+              const isExpanded = expandedFeedKey === feedKeyValue;
+              const isAd = it.kind === "POST" && it.post.type === "AD";
+              const isUpdate = it.kind === "POST" && it.post.type === "UPDATE";
+              const isBroadcast = it.kind === "BROADCAST";
+              const responseCounts =
+                it.kind === "ROUTE"
+                  ? getRouteResponseCounts(it.route.id)
+                  : isAd
+                    ? getPostResponseCounts(it.post.id)
+                    : null;
+              const reactionCounts =
+                isBroadcast || isUpdate
+                  ? getFeedReactionCounts(isBroadcast ? "BROADCAST" : "POST", it.id)
+                  : null;
+              const unreadCount =
+                it.kind === "ROUTE" && retainerId
+                  ? getUnreadRouteResponseCount(retainerId, it.route.id)
+                  : 0;
+
+              return (
+                <li
+                  key={`${it.kind}:${it.id}`}
+                  onClick={() => toggleFeedItem(it)}
+                  className={[
+                    "rounded-xl border bg-slate-950/60 px-3 py-2 cursor-pointer transition",
+                    isExpanded
+                      ? "border-emerald-500/40"
+                      : "border-slate-800 hover:border-slate-700",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex items-start gap-2">
+                      <ProfileAvatar
+                        role="RETAINER"
+                        profile={(currentRetainer ?? { id: retainerId || "retainer" }) as any}
+                        name={retainerName}
+                        size="lg"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFeedItem(it);
+                            }}
+                            className="text-[11px] text-slate-300 hover:text-slate-100 transition truncate max-w-[180px]"
+                            title="View feed details"
+                          >
+                            {retainerName}
+                          </button>
+                          <span className="inline-flex items-center rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-200 bg-slate-900/70">
+                            {badge}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-100 font-medium truncate">
+                          {feedTitle(it)}
+                        </div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          {fmtWhen(when)}
+                        </div>
+                        {responseCounts && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">
+                            <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
+                              Interested {responseCounts.INTERESTED}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-sky-100">
+                              Info {responseCounts.REQUEST_INFO}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-100">
+                              DM {responseCounts.DIRECT_MESSAGE}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-rose-100">
+                              Not interested {responseCounts.NOT_INTERESTED}
+                            </span>
+                            {it.kind === "ROUTE" && unreadCount > 0 && (
+                              <span className="inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-emerald-100">
+                                +{unreadCount} new
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {reactionCounts && (
+                          <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-slate-400">
+                            <span className="inline-flex items-center rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-100">
+                              Thumbs up {reactionCounts.LIKE}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-rose-100">
+                              Thumbs down {reactionCounts.DISLIKE}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-sky-500/30 bg-sky-500/10 px-2 py-0.5 text-sky-100">
+                              Question {reactionCounts.QUESTION}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-100">
+                              Acknowledged {reactionCounts.ACKNOWLEDGE}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="shrink-0 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFeedItem(it);
+                        }}
+                        className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                      >
+                        View
+                      </button>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div
+                      className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-3"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="text-xs uppercase tracking-wide text-slate-400">Post details</div>
+                      {renderFeedDetails(it)}
+                      {it.kind === "ROUTE" && renderRouteResponses(it.route)}
+                      {isAd && renderPostResponses(it.post)}
+                      {(isBroadcast || isUpdate) &&
+                        renderFeedReactions(isBroadcast ? "BROADCAST" : "POST", it.id)}
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {it.kind === "ROUTE" ? (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onGoToRoutes();
+                            }}
+                            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                          >
+                            View in Routes
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onGoToPosts();
+                            }}
+                            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                          >
+                            View in Posts
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {filteredFeedItems.length > visibleFeedItems.length && (
+        <div className="text-[11px] text-slate-500 mt-2">
+          Showing {visibleFeedItems.length} of {filteredFeedItems.length}.
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 /* ------------------------------------------------------------------ */
 
 /* Sidebar button                                                     */
+
 
 /* ------------------------------------------------------------------ */
 
@@ -2321,9 +3065,11 @@ const SidebarButton: React.FC<{
 
 
 
+
 /* ------------------------------------------------------------------ */
 
 /* Dashboard overview                                                 */
+
 
 /* ------------------------------------------------------------------ */
 
@@ -2336,6 +3082,7 @@ const DashboardView: React.FC<{
   currentRetainer?: Retainer;
 
   seekers: Seeker[];
+  isDesktop: boolean;
 
 
 
@@ -2375,6 +3122,7 @@ const DashboardView: React.FC<{
   currentRetainer,
 
   seekers,
+  isDesktop,
 
 
 
@@ -3247,7 +3995,6 @@ const DashboardView: React.FC<{
 
 
 
-  const [linkTick, setLinkTick] = useState(0);
 
   const [scheduleLink, setScheduleLink] = useState<LinkingLink | null>(null);
 
@@ -3259,7 +4006,11 @@ const DashboardView: React.FC<{
 
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
+  
+  
 
+
+  const [linkTick, setLinkTick] = useState(0);
 
   const pendingLinks = useMemo(() => {
 
@@ -3309,11 +4060,73 @@ const DashboardView: React.FC<{
 
 
 
+  const profileCard = (
+    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
+      <div className="flex items-start gap-4">
+        <div className="w-1/3 max-w-[140px] min-w-[96px]">
+          <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
+            <ProfileAvatar
+              role="RETAINER"
+              profile={(currentRetainer ?? { id: retainerId || "retainer" }) as any}
+              name={retainerCompany}
+              size="lg"
+              className="h-full w-full rounded-xl"
+            />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="text-lg font-semibold text-slate-50 truncate">
+            {retainerId ? retainerCompany : "Retainer"}
+          </div>
+          <div className="text-sm text-slate-300 truncate">
+            {retainerId ? retainerUserName : "Select a Retainer profile"}
+          </div>
+          <div className="text-sm text-emerald-200">
+            {retainerReputation?.score == null
+              ? "Reputation -"
+              : `Reputation ${retainerReputation.score}`}
+          </div>
+          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-emerald-400/80"
+              style={{ width: `${retainerReputation?.scorePercent ?? 0}%` }}
+            />
+          </div>
+          <div className="text-xs text-slate-500">
+            Member since {formatMemberSince(currentRetainer?.createdAt)}
+          </div>
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
+              <div className="text-sm font-semibold text-emerald-50">
+                {stats.approvalTotals.yes}/{stats.approvalTotals.total || 0}
+              </div>
+            </div>
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
+              <div className="text-sm font-semibold text-rose-50">
+                {stats.approvalTotals.no}/{stats.approvalTotals.total || 0}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
+              <div className="text-sm font-semibold text-slate-100">
+                {stats.approvalTotals.neutral}/{stats.approvalTotals.total || 0}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+
   return (
 
-    <div className="grid gap-6 grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 h-full">
+    <div className="grid grid-cols-1 gap-0 sm:gap-4 lg:gap-6 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 lg:h-full w-full max-w-full">
 
-      <div className="flex flex-col gap-6 min-h-0 h-full">
+      <div className="flex flex-col gap-6 min-h-0 order-2 lg:order-1 w-full max-w-full">
+        {!isDesktop && profileCard}
 
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
 
@@ -3944,123 +4757,8 @@ const DashboardView: React.FC<{
 
 
 
-      <aside className="space-y-5 lg:sticky lg:top-6 lg:flex lg:flex-col lg:gap-5 lg:space-y-0 lg:overflow-hidden min-h-0 h-full">
-
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
-
-          <div className="flex items-start gap-4">
-
-            <div className="w-1/3 max-w-[140px] min-w-[96px]">
-
-              <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
-
-                <ProfileAvatar
-
-                  role="RETAINER"
-
-                  profile={(currentRetainer ?? { id: retainerId || "retainer" }) as any}
-
-                  name={retainerCompany}
-
-                  size="lg"
-
-                  className="h-full w-full rounded-xl"
-
-                />
-
-              </div>
-
-            </div>
-
-            <div className="min-w-0 flex-1 space-y-1.5">
-
-              <div className="text-lg font-semibold text-slate-50 truncate">
-
-                {retainerId ? retainerCompany : "Retainer"}
-
-              </div>
-
-              <div className="text-sm text-slate-300 truncate">
-
-                {retainerId ? retainerUserName : "Select a Retainer profile"}
-
-              </div>
-
-              <div className="text-sm text-emerald-200">
-
-                {retainerReputation?.score == null
-
-                  ? "Reputation -"
-
-                  : `Reputation ${retainerReputation.score}`}
-
-              </div>
-
-              <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-
-                <div
-
-                  className="h-full bg-emerald-400/80"
-
-                  style={{ width: `${retainerReputation?.scorePercent ?? 0}%` }}
-
-                />
-
-              </div>
-
-              <div className="text-xs text-slate-500">
-
-                Member since {formatMemberSince(currentRetainer?.createdAt)}
-
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 pt-1">
-
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
-
-                  <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
-
-                  <div className="text-sm font-semibold text-emerald-50">
-
-                    {stats.approvalTotals.yes}/{stats.approvalTotals.total || 0}
-
-                  </div>
-
-                </div>
-
-                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
-
-                  <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
-
-                  <div className="text-sm font-semibold text-rose-50">
-
-                    {stats.approvalTotals.no}/{stats.approvalTotals.total || 0}
-
-                  </div>
-
-                </div>
-
-                <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
-
-                  <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
-
-                  <div className="text-sm font-semibold text-slate-100">
-
-                    {stats.approvalTotals.neutral}/{stats.approvalTotals.total || 0}
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-
+      <aside className="hidden lg:flex lg:order-2 lg:sticky lg:top-6 lg:flex-col lg:gap-5 lg:space-y-0 lg:overflow-hidden min-h-0 lg:h-full w-full max-w-full">
+        {profileCard}
 
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 flex-1 min-h-0 overflow-y-auto">
 
@@ -5504,9 +6202,9 @@ const ActionView: React.FC<{
 
           ) : (
 
-            <div className="grid gap-4 lg:grid-cols-2 min-h-0 flex-1">
+            <div className="grid gap-3 md:gap-4 md:grid-cols-2 min-h-0 flex-1 w-full">
 
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full">
 
                 <div className="flex items-start justify-between gap-3">
 
@@ -6446,6 +7144,7 @@ const SeekerBucketPanel: React.FC<{
 
   seekers: Seeker[];
 
+
   bucketKey: SeekerBucketKey;
 
   selectedSeekerIds: Set<string>;
@@ -6798,9 +7497,11 @@ const SeekerBucketPanel: React.FC<{
 
 
 
+
 /* ------------------------------------------------------------------ */
 
 /* View Seekers - vertical wheel                                      */
+
 
 /* ------------------------------------------------------------------ */
 
@@ -6833,6 +7534,9 @@ const ViewSeekersView: React.FC<{
     typeof window !== "undefined" ? window.innerHeight : 800
 
   );
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  );
 
 
 
@@ -6860,7 +7564,10 @@ const ViewSeekersView: React.FC<{
 
     if (typeof window === "undefined") return;
 
-    const handleResize = () => setViewportHeight(window.innerHeight);
+    const handleResize = () => {
+    setViewportHeight(window.innerHeight);
+    setViewportWidth(window.innerWidth);
+  };
 
     window.addEventListener("resize", handleResize);
 
@@ -6925,6 +7632,8 @@ const ViewSeekersView: React.FC<{
   const baseStep = Math.max(70, Math.min(110, viewportHeight * 0.08));
 
   const scaleDrop = viewportHeight < 600 ? 0.18 : viewportHeight < 900 ? 0.14 : 0.12;
+  const baseScale =
+    viewportWidth < 480 ? 0.95 : viewportWidth < 768 ? 1.1 : viewportWidth < 1024 ? 1.25 : 1.45;
 
 
 
@@ -7030,7 +7739,7 @@ const ViewSeekersView: React.FC<{
 
           const translateY = offset * baseStep;
 
-          const scale = (1 - scaleDrop * abs) * 1.5;
+          const scale = (1 - scaleDrop * abs) * baseScale;
 
           const opacity = 1 - 0.2 * abs;
 
@@ -7236,7 +7945,7 @@ const SeekerWheelCard: React.FC<{
 
       className={[
 
-        "absolute w-full max-w-sm md:max-w-md px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
+        "absolute w-[90vw] max-w-sm sm:w-full md:max-w-md px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
 
         "bg-slate-900 flex flex-col shadow-lg",
 
@@ -7562,9 +8271,11 @@ const SeekerWheelCard: React.FC<{
 
 
 
+
 /* ------------------------------------------------------------------ */
 
 /* Compose pop-out from dashboard (Retainer -> Seeker)                */
+
 
 /* ------------------------------------------------------------------ */
 
@@ -7788,6 +8499,7 @@ const ComposeMessagePopover: React.FC<{
 
 
 
+
 /* ------------------------------------------------------------------ */
 
 
@@ -7872,6 +8584,7 @@ const BulkComposeMessagePopover: React.FC<{
 
 /* Messaging Center - Rails + Search + Persist selection              */
 
+
 /* ------------------------------------------------------------------ */
 
 
@@ -7881,6 +8594,7 @@ const MessagingCenterView: React.FC<{
   currentRetainer?: Retainer;
 
   seekers: Seeker[];
+
 
   retainerUsers: RetainerUser[];
 
@@ -7926,11 +8640,14 @@ const MessagingCenterView: React.FC<{
 
 
 
+
 /* ------------------------------------------------------------------ */
+
 
 /* ------------------------------------------------------------------ */
 
 /* Retainer profile form                                              */
+
 
 /* ------------------------------------------------------------------ */
 
@@ -9128,9 +9845,11 @@ function updateRetainerInStorage(updated: any) {
 
 
 
+
 /* ------------------------------------------------------------------ */
 
 /* Helpers                                                            */
+
 
 /* ------------------------------------------------------------------ */
 
@@ -9324,9 +10043,11 @@ function renderHeaderSubtitle(tab: TabKey): string {
 
 
 
+
 /* ------------------------------------------------------------------ */
 
 /* Linking (Retainer)                                                 */
+
 
 /* ------------------------------------------------------------------ */
 
@@ -9337,6 +10058,7 @@ const RetainerLinkingView: React.FC<{
   retainerId: string | null;
 
   seekers: Seeker[];
+
 
   canEdit: boolean;
 
@@ -9349,6 +10071,7 @@ const RetainerLinkingView: React.FC<{
   const [q, setQ] = useState("");
 
   const [refresh, setRefresh] = useState(0);
+
 
 
 
@@ -9516,7 +10239,7 @@ const RetainerLinkingView: React.FC<{
 
       >
 
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
 
           <div className="flex items-start gap-3 min-w-0">
 
@@ -9606,7 +10329,7 @@ const RetainerLinkingView: React.FC<{
 
 
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
 
             <Link
 
@@ -10040,7 +10763,7 @@ const RetainerLinkingView: React.FC<{
 
                 <div className="text-xs uppercase tracking-wide text-slate-400">
 
-                  Pending profiles
+                  Pending links
 
                 </div>
 
@@ -10058,7 +10781,7 @@ const RetainerLinkingView: React.FC<{
 
             {pendingSeekers.length === 0 ? (
 
-              <div className="mt-3 text-xs text-slate-400">No pending profiles right now.</div>
+              <div className="mt-3 text-xs text-slate-400">No pending links right now.</div>
 
             ) : (
 
@@ -10694,9 +11417,11 @@ const SeekerWheelExpandedCard: React.FC<{
 
 
 
+
 /* ------------------------------------------------------------------ */
 
 /* Posts (Retainer)                                                   */
+
 
 /* ------------------------------------------------------------------ */
 
@@ -11434,11 +12159,14 @@ const RetainerPostsView: React.FC<{
 
 
 
+
 /* ------------------------------------------------------------------ */
+
 
 /* ------------------------------------------------------------------ */
 
 /* Routes (Retainer)                                                  */
+
 
 /* ------------------------------------------------------------------ */
 
@@ -11449,6 +12177,7 @@ const RetainerRoutesView: React.FC<{
   retainer?: Retainer;
 
   seekers: Seeker[];
+
 
   canEdit: boolean;
 

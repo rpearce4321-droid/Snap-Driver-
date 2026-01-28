@@ -141,6 +141,8 @@ const ApprovalGate: React.FC<ApprovalGateProps> = ({
 );
 
 function getApprovalGateCopy(roleLabel: string, status?: string) {
+
+
   switch (status) {
     case "PENDING":
       return {
@@ -217,6 +219,7 @@ const SeekerPage: React.FC = () => {
   });
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
+  const [linkTick, setLinkTick] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -822,14 +825,9 @@ const SeekerPage: React.FC = () => {
     );
   }
 
-  const containerStyle = isDesktop
-    ? { zoom: 1.1, height: "calc(100vh / 1.1)", width: "calc(100vw / 1.1)" }
-    : undefined;
-
   return (
     <div
       className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-hidden"
-      style={containerStyle}
     >
       {/* Left sidebar */}
       <aside className="hidden lg:flex w-72 shrink-0 border-r border-slate-800 bg-slate-900/70 backdrop-blur-sm p-4 flex flex-col min-h-0">
@@ -1092,182 +1090,6 @@ const SeekerPage: React.FC = () => {
                 </button>
               </div>
             </div>
-
-            {currentSeeker ? (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
-                <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                  Your Profile
-                </div>
-                <div className="font-semibold text-slate-50 truncate">
-                  {formatSeekerName(currentSeeker)}
-                </div>
-                <div className="text-xs text-slate-400">
-                  Status:{" "}
-                  <span className="font-medium text-emerald-400">{currentSeeker.status}</span>
-                </div>
-                {isSubcontractorView && activeSubcontractor ? (
-                  <div className="text-xs text-slate-400">
-                    Subcontractor:{" "}
-                    <span className="text-slate-200">
-                      {activeSubcontractor.firstName} {activeSubcontractor.lastName}
-                    </span>
-                  </div>
-                ) : null}
-                {!isSubcontractorView && currentSeekerId && (
-                  <div>
-                    <Link
-                      to={`/seekers/${currentSeekerId}`}
-                      className="text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                    >
-                      View profile
-                    </Link>
-                  </div>
-                )}
-                <div className="flex items-center justify-between text-xs">
-                  <span />
-                  <div className="flex items-center gap-3">
-                    <Link to="/retainers" className="text-emerald-400 hover:text-emerald-300 font-medium">
-                      Retainer
-                    </Link>
-                    <Link to="/admin" className="text-emerald-400 hover:text-emerald-300 font-medium">
-                      Admin
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
-                <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                  Get started
-                </div>
-                <div className="text-sm text-slate-200">
-                  You&apos;re not currently acting as any Seeker. Use{" "}
-                  <button
-                    type="button"
-                    onClick={() => openActionTab("editProfile")}
-                    className="font-semibold text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
-                  >
-                    Edit Profile
-                  </button>{" "}
-                  to create a Seeker profile.
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span />
-                  <div className="flex items-center gap-3">
-                    <Link to="/retainers" className="text-emerald-400 hover:text-emerald-300 font-medium">
-                      Retainer
-                    </Link>
-                    <Link to="/admin" className="text-emerald-400 hover:text-emerald-300 font-medium">
-                      Admin
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {(selectableSeekers.length > 1 || currentSeeker) && (
-              <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
-                {selectableSeekers.length > 1 && (
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                      Acting as
-                    </label>
-                    <input
-                      value={seekerSearch}
-                      onChange={(e) => setSeekerSearch(e.target.value)}
-                      placeholder="Type to search..."
-                      className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                    <select
-                      className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                      value={currentSeekerId ?? ""}
-                      onChange={(e) => handleSelectSeeker(e.target.value)}
-                    >
-                      {filteredSelectableSeekers.map((s) => (
-                        <option
-                          key={s.id}
-                          value={s.id}
-                          className="bg-slate-900 text-slate-50"
-                        >
-                          {formatSeekerName(s)}
-                          {s.status === "PENDING" ? " (Pending)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                    {seekerSearch.trim() && (
-                      <div className="mt-1 flex items-center justify-between">
-                        <div className="text-[10px] text-slate-500">
-                          Showing {filteredSelectableSeekers.length} of {selectableSeekers.length}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSeekerSearch("")}
-                          className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {currentSeeker && (
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                      Acting as subcontractor
-                    </label>
-                    <input
-                      value={subcontractorSearch}
-                      onChange={(e) => setSubcontractorSearch(e.target.value)}
-                      placeholder="Type to search..."
-                      className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                    <select
-                      className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                      value={currentSubcontractorId ?? ""}
-                      onChange={(e) => handleSelectSubcontractor(e.target.value)}
-                    >
-                      <option value="" className="bg-slate-900 text-slate-50">
-                        Main Seeker
-                      </option>
-                      {filteredSubcontractors.map((sub) => (
-                        <option
-                          key={sub.id}
-                          value={sub.id}
-                          className="bg-slate-900 text-slate-50"
-                        >
-                          {sub.firstName} {sub.lastName}
-                        </option>
-                      ))}
-                    </select>
-                    {subcontractorSearch.trim() && (
-                      <div className="mt-1 flex items-center justify-between">
-                        <div className="text-[10px] text-slate-500">
-                          Showing {filteredSubcontractors.length} of {subcontractors.length}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setSubcontractorSearch("")}
-                          className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                        >
-                          Clear
-                        </button>
-                      </div>
-                    )}
-                    {isSubcontractorView && (
-                      <button
-                        type="button"
-                        onClick={clearSubcontractorView}
-                        className="mt-2 text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                      >
-                        Exit subcontractor view
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
           </div>
         </div>
 
@@ -1293,6 +1115,160 @@ const SeekerPage: React.FC = () => {
                 >
                   X
                 </button>
+              </div>
+              <div className="space-y-4 mb-6">
+                {currentSeeker ? (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                      Your Profile
+                    </div>
+                    <div className="font-semibold text-slate-50 truncate">
+                      {formatSeekerName(currentSeeker)}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      Status:{" "}
+                      <span className="font-medium text-emerald-400">{currentSeeker.status}</span>
+                    </div>
+                    {isSubcontractorView && activeSubcontractor ? (
+                      <div className="text-xs text-slate-400">
+                        Subcontractor:{" "}
+                        <span className="text-slate-200">
+                          {activeSubcontractor.firstName} {activeSubcontractor.lastName}
+                        </span>
+                      </div>
+                    ) : null}
+                    {!isSubcontractorView && currentSeekerId && (
+                      <div>
+                        <Link
+                          to={`/seekers/${currentSeekerId}`}
+                          className="text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                        >
+                          View profile
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                      Get started
+                    </div>
+                    <div className="text-sm text-slate-200">
+                      You&apos;re not currently acting as any Seeker. Use{" "}
+                      <button
+                        type="button"
+                        onClick={() => openActionTab("editProfile")}
+                        className="font-semibold text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
+                      >
+                        Edit Profile
+                      </button>{" "}
+                      to create a Seeker profile.
+                    </div>
+                  </div>
+                )}
+
+                {(selectableSeekers.length > 1 || currentSeeker) && (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
+                    {selectableSeekers.length > 1 && (
+                      <div>
+                        <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                          Acting as
+                        </label>
+                        <input
+                          value={seekerSearch}
+                          onChange={(e) => setSeekerSearch(e.target.value)}
+                          placeholder="Type to search..."
+                          className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                        <select
+                          className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                          value={currentSeekerId ?? ""}
+                          onChange={(e) => handleSelectSeeker(e.target.value)}
+                        >
+                          {filteredSelectableSeekers.map((s) => (
+                            <option
+                              key={s.id}
+                              value={s.id}
+                              className="bg-slate-900 text-slate-50"
+                            >
+                              {formatSeekerName(s)}
+                              {s.status === "PENDING" ? " (Pending)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                        {seekerSearch.trim() && (
+                          <div className="mt-1 flex items-center justify-between">
+                            <div className="text-[10px] text-slate-500">
+                              Showing {filteredSelectableSeekers.length} of {selectableSeekers.length}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSeekerSearch("")}
+                              className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {currentSeeker && (
+                      <div>
+                        <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                          Acting as subcontractor
+                        </label>
+                        <input
+                          value={subcontractorSearch}
+                          onChange={(e) => setSubcontractorSearch(e.target.value)}
+                          placeholder="Type to search..."
+                          className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                        <select
+                          className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                          value={currentSubcontractorId ?? ""}
+                          onChange={(e) => handleSelectSubcontractor(e.target.value)}
+                        >
+                          <option value="" className="bg-slate-900 text-slate-50">
+                            Main Seeker
+                          </option>
+                          {filteredSubcontractors.map((sub) => (
+                            <option
+                              key={sub.id}
+                              value={sub.id}
+                              className="bg-slate-900 text-slate-50"
+                            >
+                              {sub.firstName} {sub.lastName}
+                            </option>
+                          ))}
+                        </select>
+                        {subcontractorSearch.trim() && (
+                          <div className="mt-1 flex items-center justify-between">
+                            <div className="text-[10px] text-slate-500">
+                              Showing {filteredSubcontractors.length} of {subcontractors.length}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSubcontractorSearch("")}
+                              className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                            >
+                              Clear
+                            </button>
+                          </div>
+                        )}
+                        {isSubcontractorView && (
+                          <button
+                            type="button"
+                            onClick={clearSubcontractorView}
+                            className="mt-2 text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
+                          >
+                            Exit subcontractor view
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <nav className="space-y-2">
                 {isSubcontractorView ? (
@@ -1430,6 +1406,7 @@ const SeekerPage: React.FC = () => {
                 seekerId={currentSeekerId}
                 retainers={retainers}
                 currentSeeker={currentSeeker}
+                isDesktop={isDesktop}
                 onToast={(msg) => setToastMessage(msg)}
                 onGoToMessages={() => setActiveTab("messages")}
                 onGoToRoutes={() => openActionTab("routes")}
@@ -1445,6 +1422,9 @@ const SeekerPage: React.FC = () => {
                 onChangeTab={setActionTab}
                 seekerId={currentSeekerId}
                 currentSeeker={currentSeeker}
+                isDesktop={isDesktop}
+                linkTick={linkTick}
+                setLinkTick={setLinkTick}
                 retainers={retainers}
                 subcontractors={subcontractors}
                 wheelRetainers={wheelRetainers}
@@ -1527,12 +1507,25 @@ const SeekerPage: React.FC = () => {
                   />
                 </div>
               ) : (
-                <div className="flex-1 min-h-0 min-w-0">
-                  <SeekerMessagingCenter
-                    currentSeeker={currentSeeker}
-                    retainers={retainers}
-                    subcontractors={subcontractors}
-                  />
+                <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-4">
+                  <div className="flex-1 min-h-0">
+                    <SeekerMessagingCenter
+                      currentSeeker={currentSeeker}
+                      retainers={retainers}
+                      subcontractors={subcontractors}
+                    />
+                  </div>
+                  {!isDesktop && (
+                    <SeekerFeedPanel
+                      seekerId={currentSeekerId}
+                      retainers={retainers}
+                      linkTick={linkTick}
+                      onToast={(msg) => setToastMessage(msg)}
+                      onComposeMessage={(draft) => setComposeDraft(draft)}
+                      onGoToRoutes={() => openActionTab("routes")}
+                      className="min-h-[320px]"
+                    />
+                  )}
                 </div>
               ))}
 
@@ -1638,10 +1631,610 @@ const SidebarButton: React.FC<{
 /* Dashboard overview                                                 */
 /* ------------------------------------------------------------------ */
 
+
+type SeekerFeedPanelProps = {
+  seekerId: string | null;
+  retainers: Retainer[];
+  linkTick: number;
+  onToast: (message: string) => void;
+  onComposeMessage: (draft: ComposeDraft) => void;
+  onGoToRoutes: () => void;
+  className?: string;
+};
+
+const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
+  seekerId,
+  retainers,
+  linkTick,
+  onToast,
+  onComposeMessage,
+  onGoToRoutes,
+  className,
+}) => {
+  const retainerById = useMemo(
+    () => new Map<string, Retainer>(retainers.map((r) => [r.id, r])),
+    [retainers]
+  );
+
+  const activeLinkRetainerIds = useMemo(() => {
+    if (!seekerId) return new Set<string>();
+    return new Set(
+      getLinksForSeeker(seekerId)
+        .filter((l) => l.status === "ACTIVE")
+        .map((l) => l.retainerId)
+    );
+  }, [seekerId, linkTick]);
+
+  const [feedTick, setFeedTick] = useState(0);
+  const [feedFilter, setFeedFilter] = useState<"ALL" | "BROADCAST" | "ROUTE" | "UPDATE">(
+    "ALL"
+  );
+  const [expandedFeedKey, setExpandedFeedKey] = useState<string | null>(null);
+  const feedItems = useMemo(() => {
+    const all = seekerId ? getFeedForSeeker(seekerId) : [];
+    return all.filter((it) => {
+      const r = retainerById.get(it.retainerId);
+      return !!r && (r as any).status === "APPROVED";
+    });
+  }, [seekerId, feedTick, retainerById]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handle = () => setFeedTick((n) => n + 1);
+    window.addEventListener(ROUTE_RESPONSES_EVENT, handle);
+    window.addEventListener(POST_RESPONSES_EVENT, handle);
+    window.addEventListener(FEED_REACTIONS_EVENT, handle);
+    return () => {
+      window.removeEventListener(ROUTE_RESPONSES_EVENT, handle);
+      window.removeEventListener(POST_RESPONSES_EVENT, handle);
+      window.removeEventListener(FEED_REACTIONS_EVENT, handle);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!seekerId || typeof window === "undefined") return;
+    const raw = window.localStorage.getItem("snapdriver_feed_jump");
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { role?: string; kind?: string; id?: string };
+      if (parsed?.role !== "SEEKER" || !parsed.kind || !parsed.id) return;
+      setExpandedFeedKey(`${parsed.kind}:${parsed.id}`);
+      if (parsed.kind === "ROUTE") setFeedFilter("ROUTE");
+      else if (parsed.kind === "BROADCAST") setFeedFilter("BROADCAST");
+      else setFeedFilter("UPDATE");
+      window.localStorage.removeItem("snapdriver_feed_jump");
+    } catch {
+      // ignore
+    }
+  }, [seekerId, feedItems]);
+
+  const filteredFeedItems = useMemo(() => {
+    if (feedFilter === "ALL") return feedItems;
+    if (feedFilter === "BROADCAST") {
+      return feedItems.filter((it) => it.kind === "BROADCAST");
+    }
+    if (feedFilter === "ROUTE") {
+      return feedItems.filter((it) => it.kind === "ROUTE");
+    }
+    return feedItems.filter((it) => it.kind === "POST");
+  }, [feedFilter, feedItems]);
+
+  const visibleFeedItems = useMemo(
+    () => filteredFeedItems.slice(0, 12),
+    [filteredFeedItems]
+  );
+
+  const fmtWhen = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  };
+
+  const feedWhen = (it: FeedItem) =>
+    it.kind === "BROADCAST" ? it.createdAt : (it as any).updatedAt;
+
+  const feedTitle = (it: FeedItem) => {
+    if (it.kind === "POST") return it.post.title || "Post";
+    if (it.kind === "ROUTE") return it.route.title || "Route";
+    return it.broadcast.subject || "Broadcast";
+  };
+
+  const feedBadge = (it: FeedItem) =>
+    it.kind === "POST" ? it.post.type : it.kind === "ROUTE" ? "ROUTE" : "BROADCAST";
+
+  const feedKey = (it: FeedItem) => `${it.kind}:${it.id}`;
+
+  const toggleFeedItem = (it: FeedItem) => {
+    const key = feedKey(it);
+    setExpandedFeedKey((prev) => (prev === key ? null : key));
+  };
+
+  const responseLabel = (type?: RouteResponseType | PostResponseType | null) => {
+    if (!type) return null;
+    if (type === "DIRECT_MESSAGE") return "Direct message";
+    if (type === "INTERESTED") return "Interested";
+    if (type === "REQUEST_INFO") return "Request info";
+    if (type === "NOT_INTERESTED") return "Not interested";
+    return null;
+  };
+
+  const reactionLabel = (type?: FeedReactionType | null) => {
+    if (!type) return null;
+    const match = FEED_REACTION_OPTIONS.find((opt) => opt.type === type);
+    return match ? match.label : type;
+  };
+
+  const handleRouteResponse = (
+    route: Route,
+    retainerId: string,
+    type: RouteResponseType,
+    canDirectMessage: boolean
+  ) => {
+    if (!seekerId) return;
+    if (type === "DIRECT_MESSAGE") {
+      if (!canDirectMessage) {
+        onToast("Direct message is available after the link is approved.");
+        return;
+      }
+      const retainer = retainerById.get(retainerId);
+      if (!retainer) {
+        onToast("Retainer profile not found.");
+        return;
+      }
+      const subject = route.title || "Route";
+      const body = `Hi ${retainer.companyName || "there"}, I am interested in "${subject}" and would like to learn more.`;
+      onComposeMessage({
+        retainer,
+        initialSubject: subject,
+        initialBody: body,
+        messageFlag: `FEED:ROUTE:${route.id}`,
+        onSent: () => {
+          recordRouteResponse({
+            routeId: route.id,
+            retainerId,
+            seekerId,
+            type: "DIRECT_MESSAGE",
+          });
+        },
+      });
+      return;
+    }
+
+    recordRouteResponse({
+      routeId: route.id,
+      retainerId,
+      seekerId,
+      type,
+    });
+  };
+
+  const handlePostResponse = (
+    post: RetainerPost,
+    retainerId: string,
+    type: PostResponseType,
+    canDirectMessage: boolean
+  ) => {
+    if (!seekerId) return;
+    if (type === "DIRECT_MESSAGE") {
+      if (!canDirectMessage) {
+        onToast("Direct message is available after the link is approved.");
+        return;
+      }
+      const retainer = retainerById.get(retainerId);
+      if (!retainer) {
+        onToast("Retainer profile not found.");
+        return;
+      }
+      const subject = post.title || "Post";
+      const body = `Hi ${retainer.companyName || "there"}, I am interested in "${subject}" and would like to learn more.`;
+      onComposeMessage({
+        retainer,
+        initialSubject: subject,
+        initialBody: body,
+        messageFlag: `FEED:POST:${post.id}`,
+        onSent: () => {
+          recordPostResponse({
+            postId: post.id,
+            retainerId,
+            seekerId,
+            type: "DIRECT_MESSAGE",
+          });
+        },
+      });
+      return;
+    }
+
+    recordPostResponse({
+      postId: post.id,
+      retainerId,
+      seekerId,
+      type,
+    });
+  };
+
+  const handleFeedReaction = (
+    itemKind: FeedReactionItemKind,
+    itemId: string,
+    retainerId: string,
+    type: FeedReactionType
+  ) => {
+    if (!seekerId) return;
+    recordFeedReaction({
+      itemKind,
+      itemId,
+      retainerId,
+      seekerId,
+      type,
+    });
+  };
+
+  const renderResponseButtons = (args: {
+    currentType: RouteResponseType | PostResponseType | null;
+    onSelect: (type: RouteResponseType) => void;
+    canDirectMessage: boolean;
+  }) => {
+    const actions: Array<{ type: RouteResponseType; label: string }> = [
+      { type: "DIRECT_MESSAGE", label: "Direct message" },
+      { type: "INTERESTED", label: "Interested" },
+      { type: "REQUEST_INFO", label: "Request info" },
+      { type: "NOT_INTERESTED", label: "Not interested" },
+    ];
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        {actions.map((action) => {
+          const isActive = args.currentType === action.type;
+          const disabled = action.type === "DIRECT_MESSAGE" && !args.canDirectMessage;
+          return (
+            <button
+              key={action.type}
+              type="button"
+              onClick={() => {
+                if (disabled) return;
+                args.onSelect(action.type);
+              }}
+              className={[
+                "px-3 py-1 rounded-full text-[11px] border transition",
+                isActive
+                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
+                  : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
+                disabled ? "opacity-50 cursor-not-allowed" : "",
+              ].join(" ")}
+              title={
+                disabled
+                  ? "Direct message is available after the link is approved"
+                  : ""
+              }
+            >
+              {action.label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderReactionButtons = (args: {
+    currentType: FeedReactionType | null;
+    onSelect: (type: FeedReactionType) => void;
+  }) => (
+    <div className="flex flex-wrap gap-2">
+      {FEED_REACTION_OPTIONS.map((opt) => {
+        const isActive = args.currentType === opt.type;
+        return (
+          <button
+            key={opt.type}
+            type="button"
+            onClick={() => args.onSelect(opt.type)}
+            className={[
+              "px-3 py-1 rounded-full text-[11px] border transition",
+              isActive
+                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
+                : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
+            ].join(" ")}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderFeedDetails = (it: FeedItem) => {
+    if (it.kind === "POST") {
+      return (
+        <div className="text-sm text-slate-200 whitespace-pre-wrap">
+          {it.post.body}
+        </div>
+      );
+    }
+
+    if (it.kind === "ROUTE") {
+      const route = it.route;
+      const cityState = [route.city, route.state].filter(Boolean).join(", ");
+      const pay =
+        route.payMin != null || route.payMax != null
+          ? `${route.payModel || "Pay"}: ${
+              route.payMin != null ? `$${route.payMin}` : "-"
+            }${route.payMax != null ? `-$${route.payMax}` : ""}`
+          : null;
+
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          {cityState && (
+            <div>
+              <span className="text-slate-400">Location: </span>
+              {cityState}
+            </div>
+          )}
+          {route.vertical && (
+            <div>
+              <span className="text-slate-400">Vertical: </span>
+              {route.vertical}
+            </div>
+          )}
+          {route.schedule && (
+            <div>
+              <span className="text-slate-400">Schedule: </span>
+              {route.schedule}
+            </div>
+          )}
+          {route.openings != null && (
+            <div>
+              <span className="text-slate-400">Openings: </span>
+              {route.openings}
+            </div>
+          )}
+          {pay && (
+            <div>
+              <span className="text-slate-400">Pay: </span>
+              {pay}
+            </div>
+          )}
+          {route.requirements && (
+            <div className="whitespace-pre-wrap">
+              <span className="text-slate-400">Requirements: </span>
+              {route.requirements}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="text-sm text-slate-200 whitespace-pre-wrap">
+        {it.broadcast.body}
+      </div>
+    );
+  };
+
+  const panelClassName = [
+    "rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div className={panelClassName}>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-wide text-slate-400">
+            Feed
+          </div>
+          <div className="text-[11px] text-slate-500 mt-1">
+            Broadcasts, routes, and updates from Retainers.
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={onGoToRoutes}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition whitespace-nowrap"
+          >
+            View routes
+          </button>
+          <button
+            type="button"
+            onClick={() => setFeedTick((n) => n + 1)}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition whitespace-nowrap"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {(
+          [
+            { key: "ALL", label: "All" },
+            { key: "BROADCAST", label: "Broadcasts" },
+            { key: "ROUTE", label: "Routes" },
+            { key: "UPDATE", label: "Updates" },
+          ] as const
+        ).map((item) => {
+          const isActive = feedFilter === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => setFeedFilter(item.key)}
+              className={[
+                "px-3 py-1 rounded-full text-[11px] border transition",
+                isActive
+                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
+                  : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
+              ].join(" ")}
+            >
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {!seekerId ? (
+        <div className="mt-3 text-xs text-slate-400">
+          Select or create a Seeker profile to see your feed.
+        </div>
+      ) : visibleFeedItems.length === 0 ? (
+        <div className="mt-3 text-xs text-slate-400">
+          No recent activity yet. Try linking with a Retainer or check Routes.
+        </div>
+      ) : (
+        <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1">
+          <ul className="space-y-2">
+            {visibleFeedItems.map((it) => {
+              const r = retainerById.get(it.retainerId);
+              const retainerName = r?.companyName || "Retainer";
+              const when = feedWhen(it);
+              const badge = feedBadge(it);
+              const key = feedKey(it);
+              const isExpanded = expandedFeedKey === key;
+              const isAd = it.kind === "POST" && it.post.type === "AD";
+              const isUpdate = it.kind === "POST" && it.post.type === "UPDATE";
+              const isBroadcast = it.kind === "BROADCAST";
+              const routeResponse =
+                seekerId && it.kind === "ROUTE"
+                  ? getRouteResponseForSeeker(it.route.id, seekerId)
+                  : null;
+              const postResponse =
+                seekerId && isAd ? getPostResponseForSeeker(it.post.id, seekerId) : null;
+              const reaction =
+                seekerId && (isBroadcast || isUpdate)
+                  ? getFeedReactionForSeeker(
+                      isBroadcast ? "BROADCAST" : "POST",
+                      isBroadcast ? it.id : it.post.id,
+                      seekerId
+                    )
+                  : null;
+              const responseText = responseLabel(
+                routeResponse?.type || postResponse?.type || null
+              );
+              const reactionText = reactionLabel(reaction?.type || null);
+              const canDirectMessage = activeLinkRetainerIds.has(it.retainerId);
+
+              return (
+                <li
+                  key={key}
+                  className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleFeedItem(it)}
+                    className="w-full text-left"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex items-start gap-2">
+                        <ProfileAvatar
+                          role="RETAINER"
+                          profile={(r ?? { id: it.retainerId }) as any}
+                          name={retainerName}
+                          size="lg"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[11px] text-slate-300 truncate max-w-[180px]">
+                              {retainerName}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-200 bg-slate-900/70">
+                              {badge}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-100 font-medium truncate">
+                            {feedTitle(it)}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {fmtWhen(when)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="shrink-0 flex gap-2">
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-medium bg-slate-900 border border-slate-700 text-slate-200">
+                          {isExpanded ? "Hide" : "View"}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+
+                  {(responseText || reactionText) && (
+                    <div className="mt-2 text-[10px] text-slate-400">
+                      {responseText && `Your response: ${responseText}`}
+                      {responseText && reactionText ? " | " : ""}
+                      {reactionText && `Your reaction: ${reactionText}`}
+                    </div>
+                  )}
+
+                  {isExpanded && (
+                    <div className="mt-3 border-t border-slate-800 pt-3 space-y-3">
+                      {renderFeedDetails(it)}
+
+                      {it.kind === "ROUTE" && (
+                        <div className="space-y-2">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                            Respond
+                          </div>
+                          {renderResponseButtons({
+                            currentType: routeResponse?.type ?? null,
+                            onSelect: (type) =>
+                              handleRouteResponse(it.route, it.retainerId, type, canDirectMessage),
+                            canDirectMessage,
+                          })}
+                        </div>
+                      )}
+
+                      {isAd && (
+                        <div className="space-y-2">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                            Respond
+                          </div>
+                          {renderResponseButtons({
+                            currentType: postResponse?.type ?? null,
+                            onSelect: (type) =>
+                              handlePostResponse(it.post, it.retainerId, type, canDirectMessage),
+                            canDirectMessage,
+                          })}
+                        </div>
+                      )}
+
+                      {(isBroadcast || isUpdate) && (
+                        <div className="space-y-2">
+                          <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                            React
+                          </div>
+                          {renderReactionButtons({
+                            currentType: reaction?.type ?? null,
+                            onSelect: (type) =>
+                              handleFeedReaction(
+                                isBroadcast ? "BROADCAST" : "POST",
+                                isBroadcast ? it.id : it.post.id,
+                                it.retainerId,
+                                type
+                              ),
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {filteredFeedItems.length > visibleFeedItems.length && (
+        <div className="text-[11px] text-slate-500 mt-2">
+          Showing {visibleFeedItems.length} of {filteredFeedItems.length}.
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 const DashboardView: React.FC<{
   seekerId: string | null;
   retainers: Retainer[];
   currentSeeker?: Seeker;
+  isDesktop: boolean;
   onToast: (message: string) => void;
   onGoToMessages: () => void;
   onGoToRoutes: () => void;
@@ -1652,6 +2245,7 @@ const DashboardView: React.FC<{
   seekerId,
   retainers,
   currentSeeker,
+  isDesktop,
   onToast,
   onGoToMessages,
   onGoToRoutes,
@@ -2125,9 +2719,70 @@ const DashboardView: React.FC<{
   const seekerDisplayName = currentSeeker ? formatSeekerName(currentSeeker) : "Seeker";
   const seekerCompany = currentSeeker?.companyName || "Independent Seeker";
 
+  const profileCard = (
+    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
+      <div className="flex items-start gap-4">
+        <div className="w-1/3 max-w-[140px] min-w-[96px]">
+          <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
+            <ProfileAvatar
+              role="SEEKER"
+              profile={(currentSeeker ?? { id: seekerId || "seeker" }) as any}
+              name={seekerDisplayName}
+              size="lg"
+              className="h-full w-full rounded-xl"
+            />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="text-lg font-semibold text-slate-50 truncate">
+            {seekerId ? seekerDisplayName : "Seeker"}
+          </div>
+          <div className="text-sm text-slate-300 truncate">
+            {seekerId ? seekerCompany : "Select a Seeker profile"}
+          </div>
+          <div className="text-sm text-emerald-200">
+            {seekerReputation?.score == null
+              ? "Reputation -"
+              : `Reputation ${seekerReputation.score}`}
+          </div>
+          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-emerald-400/80"
+              style={{ width: `${seekerReputation?.scorePercent ?? 0}%` }}
+            />
+          </div>
+          <div className="text-xs text-slate-500">
+            Member since {formatMemberSince(currentSeeker?.createdAt)}
+          </div>
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
+              <div className="text-sm font-semibold text-emerald-50">
+                {stats.approvalTotals.yes}/{stats.approvalTotals.total || 0}
+              </div>
+            </div>
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
+              <div className="text-sm font-semibold text-rose-50">
+                {stats.approvalTotals.no}/{stats.approvalTotals.total || 0}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
+              <div className="text-sm font-semibold text-slate-100">
+                {stats.approvalTotals.neutral}/{stats.approvalTotals.total || 0}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="grid gap-6 grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 h-full">
-      <div className="flex flex-col gap-6 min-h-0 h-full">
+    <div className="grid grid-cols-1 gap-0 sm:gap-4 lg:gap-6 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 lg:h-full w-full max-w-full">
+      <div className="flex flex-col gap-6 min-h-0 order-2 lg:order-1 w-full max-w-full">
+        {!isDesktop && profileCard}
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -2417,64 +3072,8 @@ const DashboardView: React.FC<{
       </div>
 
       {/* Right rail */}
-      <aside className="space-y-5 lg:sticky lg:top-6 lg:flex lg:flex-col lg:gap-5 lg:space-y-0 lg:overflow-hidden min-h-0 h-full">
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
-          <div className="flex items-start gap-4">
-            <div className="w-1/3 max-w-[140px] min-w-[96px]">
-              <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
-                <ProfileAvatar
-                  role="SEEKER"
-                  profile={(currentSeeker ?? { id: seekerId || "seeker" }) as any}
-                  name={seekerDisplayName}
-                  size="lg"
-                  className="h-full w-full rounded-xl"
-                />
-              </div>
-            </div>
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <div className="text-lg font-semibold text-slate-50 truncate">
-                {seekerId ? seekerDisplayName : "Seeker"}
-              </div>
-              <div className="text-sm text-slate-300 truncate">
-                {seekerId ? seekerCompany : "Select a Seeker profile"}
-              </div>
-              <div className="text-sm text-emerald-200">
-                {seekerReputation?.score == null
-                  ? "Reputation -"
-                  : `Reputation ${seekerReputation.score}`}
-              </div>
-              <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                <div
-                  className="h-full bg-emerald-400/80"
-                  style={{ width: `${seekerReputation?.scorePercent ?? 0}%` }}
-                />
-              </div>
-              <div className="text-xs text-slate-500">
-                Member since {formatMemberSince(currentSeeker?.createdAt)}
-              </div>
-              <div className="grid grid-cols-3 gap-2 pt-1">
-                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
-                  <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
-                  <div className="text-sm font-semibold text-emerald-50">
-                    {stats.approvalTotals.yes}/{stats.approvalTotals.total || 0}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
-                  <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
-                  <div className="text-sm font-semibold text-rose-50">
-                    {stats.approvalTotals.no}/{stats.approvalTotals.total || 0}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
-                  <div className="text-sm font-semibold text-slate-100">
-                    {stats.approvalTotals.neutral}/{stats.approvalTotals.total || 0}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+      <aside className="hidden lg:flex lg:order-2 lg:sticky lg:top-6 lg:flex-col lg:gap-5 lg:space-y-0 lg:overflow-hidden min-h-0 lg:h-full w-full max-w-full">
+        {profileCard}
 
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 flex-1 min-h-0 overflow-y-auto">
           <div className="text-xs uppercase tracking-wide text-slate-400 mb-3">
@@ -2768,6 +3367,9 @@ const ActionView: React.FC<{
   onChangeTab: (tab: ActionTabKey) => void;
   seekerId: string | null;
   currentSeeker?: Seeker;
+  isDesktop: boolean;
+  linkTick: number;
+  setLinkTick: React.Dispatch<React.SetStateAction<number>>;
   retainers: Retainer[];
   subcontractors: Subcontractor[];
   wheelRetainers: Retainer[];
@@ -3279,6 +3881,11 @@ const ViewRetainersView: React.FC<{
     return 800;
   });
 
+  const [viewportWidth, setViewportWidth] = useState(() => {
+    if (typeof window !== "undefined") return window.innerWidth;
+    return 1200;
+  });
+
   const parseZip = (value: string | null | undefined) => {
     const digits = String(value ?? "").replace(/\D/g, "").slice(0, 5);
     if (digits.length !== 5) return null;
@@ -3336,7 +3943,10 @@ const ViewRetainersView: React.FC<{
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const handleResize = () => setViewportHeight(window.innerHeight);
+    const handleResize = () => {
+    setViewportHeight(window.innerHeight);
+    setViewportWidth(window.innerWidth);
+  };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
@@ -3380,6 +3990,9 @@ const ViewRetainersView: React.FC<{
   const baseStep = Math.max(70, Math.min(110, viewportHeight * 0.08));
   const scaleDrop =
     viewportHeight < 600 ? 0.18 : viewportHeight < 900 ? 0.14 : 0.12;
+
+  const baseScale =
+    viewportWidth < 480 ? 0.95 : viewportWidth < 768 ? 1.1 : viewportWidth < 1024 ? 1.25 : 1.45;
 
   const { scheduleMatchByRetainerId, routeCountByRetainerId } = useMemo(() => {
     const matches = new Map<string, ScheduleMatch>();
@@ -3547,6 +4160,7 @@ const ViewRetainersView: React.FC<{
             max-h-[820px]
             flex items-center justify-center
             overflow-hidden
+            px-2
             overscroll-contain
           "
           onWheel={handleWheel}
@@ -3563,7 +4177,7 @@ const ViewRetainersView: React.FC<{
             if (abs > 3) return null;
 
             const translateY = offset * baseStep;
-            const scale = (1 - scaleDrop * abs) * 1.5;
+            const scale = (1 - scaleDrop * abs) * baseScale;
             const opacity = 1 - 0.2 * abs;
             const isCenter = offset === 0;
             const zIndex = 20 - abs;
@@ -3693,7 +4307,7 @@ const RetainerWheelCard: React.FC<{
       }}
       style={style}
       className={[
-        "absolute w-full max-w-sm md:max-w-md px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
+        "absolute w-[90vw] max-w-sm sm:w-full md:max-w-md px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
         "bg-slate-900 flex flex-col shadow-lg",
         isCenter
           ? "border-emerald-500/60 shadow-emerald-900/50 scale-100"
@@ -5979,7 +6593,7 @@ const SeekerLinkingView: React.FC<{
         key={r.id}
         className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3"
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
             <ProfileAvatar role="RETAINER" profile={r} name={retainerName} />
             <div className="min-w-0">
@@ -6012,7 +6626,7 @@ const SeekerLinkingView: React.FC<{
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
             <Link
               to={`/retainers/${r.id}`}
               className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
@@ -6195,8 +6809,8 @@ const SeekerLinkingView: React.FC<{
           No retainers match your search.
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2 min-h-0 flex-1">
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
+        <div className="grid gap-3 md:gap-4 md:grid-cols-2 min-h-0 flex-1 w-full">
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -6220,7 +6834,7 @@ const SeekerLinkingView: React.FC<{
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">
-                  Pending profiles
+                  Pending links
                 </div>
                 <div className="text-[11px] text-slate-500 mt-1">
                   Requests awaiting confirmation or approval.
@@ -6229,7 +6843,7 @@ const SeekerLinkingView: React.FC<{
               <div className="text-xs text-slate-400">{pendingRetainers.length}</div>
             </div>
             {pendingRetainers.length === 0 ? (
-              <div className="mt-3 text-xs text-slate-400">No pending profiles right now.</div>
+              <div className="mt-3 text-xs text-slate-400">No pending links right now.</div>
             ) : (
               <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1 space-y-4">
                 {pendingRetainers.map(renderRetainerCard)}

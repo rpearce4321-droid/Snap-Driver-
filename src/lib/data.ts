@@ -1,4 +1,4 @@
-﻿// src/lib/data.ts
+// src/lib/data.ts
 
 import { readStoreData, removeStore, writeStore } from "./storage";
 import { canRetainerAddUser, canSeekerAddSubcontractor } from "./entitlements";
@@ -429,6 +429,11 @@ function notifySubscribers() {
       // ignore subscriber errors
     }
   }
+}
+
+
+export function notifyDataUpdated(): void {
+  notifySubscribers();
 }
 
 /**
@@ -938,3 +943,6 @@ export function purgeRetainer(id: string) {
   saveRetainers(remaining);
   notifySubscribers();
 }
+
+
+

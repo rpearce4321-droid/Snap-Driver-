@@ -14,6 +14,9 @@ import {
 } from "../lib/data";
 import { getSession, setPortalContext, setSession } from "../lib/session";
 import { autoSeedComprehensive } from "../lib/seed";
+import { buildServerSeedPayload, getLocalSeedSummary } from "../lib/serverSeed";
+import { createSeedBatch, importSeedData, inviteUser, listSeedBatches, purgeSeedBatch } from "../lib/api";
+import { getServerSyncStatus, pullFromServer, setSeedModeEnabled, setServerSyncEnabled, syncToServer } from "../lib/serverSync";
 import {
   getRetainerEntitlements,
   getSeekerEntitlements,
@@ -84,8 +87,7 @@ type Panel =
   | "content:posts"
   | "system:badges"
   | "system:badgeScoring"
-  | "system:badgeAudit"
-  | "messages:external"
+  | "system:badgeAudit"  | "system:server"  | "messages:external"
   | "messages:retainerStaff"
   | "messages:subcontractors";
 
@@ -295,7 +297,7 @@ export default function AdminDashboardPage() {
     if (panel === "content:posts") return "Posts & Broadcasts";
     if (panel === "system:badges") return "Badge Rules";
     if (panel === "system:badgeScoring") return "Badge Scoring";
-    if (panel === "system:badgeAudit") return "Badge Audit";
+    if (panel === "system:badgeAudit") return "Badge Audit";    if (panel === "system:server") return "Server & Seed";
     if (panel === "messages:external") return "Message Traffic (Seeker and Retainer)";
     if (panel === "messages:retainerStaff") return "Retainer Staff Messages";
     if (panel === "messages:subcontractors") return "Subcontractor Messages";
@@ -349,7 +351,7 @@ export default function AdminDashboardPage() {
       items: [
         { label: "Rules", value: "system:badges" },
         { label: "Scoring", value: "system:badgeScoring" },
-        { label: "Audit", value: "system:badgeAudit" },
+        { label: "Audit", value: "system:badgeAudit" },        { label: "Server & Seed", value: "system:server" },
       ],
     },
   ];
@@ -831,6 +833,7 @@ export default function AdminDashboardPage() {
           {panel === "system:badges" && <AdminBadgeRulesPanel />}
           {panel === "system:badgeScoring" && <AdminBadgeScoringPanel />}
           {panel === "system:badgeAudit" && <AdminBadgeAuditPanel />}
+          {panel === "system:server" && <AdminServerPanel />}
 
           {panel === "messages:external" && (
             <div className="h-full">
@@ -1609,6 +1612,321 @@ const AdminBadgeAuditPanel: React.FC = () => {
   );
 };
 
+const AdminServerPanel: React.FC = () => {
+  const summary = useMemo(() => getLocalSeedSummary(), []);
+  const [seedBatches, setSeedBatches] = useState<
+    Array<{ id: string; label: string; createdAt: string }>
+  >([]);
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [seedLabel, setSeedLabel] = useState("");
+  const [seedStatus, setSeedStatus] = useState<string | null>(null);
+  const [seedError, setSeedError] = useState<string | null>(null);
+  const [seedBusy, setSeedBusy] = useState(false);
+  const serverStatus = getServerSyncStatus();
+  const [serverSyncEnabled, setServerSyncEnabledState] = useState(serverStatus.enabled);
+  const [seedModeEnabled, setSeedModeEnabledState] = useState(serverStatus.seedMode);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const toggleServerSync = () => {
+    const next = !serverSyncEnabled;
+    setServerSyncEnabled(next);
+    setServerSyncEnabledState(next);
+  };
+
+  const toggleSeedMode = () => {
+    const next = !seedModeEnabled;
+    setSeedModeEnabled(next);
+    setSeedModeEnabledState(next);
+  };
+
+  const [inviteRole, setInviteRole] = useState<"ADMIN" | "SEEKER" | "RETAINER">("ADMIN");
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+
+  const formatError = (err: any) =>
+    err?.response?.data?.error || err?.message || "Request failed";
+
+  const refreshBatches = async () => {
+    setSeedBusy(true);
+    setSeedError(null);
+    try {
+      const res = await listSeedBatches();
+      setSeedBatches(res.items);
+      if (!selectedBatchId && res.items.length > 0) {
+        setSelectedBatchId(res.items[0].id);
+      }
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+  const handlePullFromServer = async () => {
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      const ok = await pullFromServer();
+      setSeedStatus(ok ? "Pulled server data into local cache." : "Pull completed with no data.");
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handlePushToServer = async () => {
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      await syncToServer();
+      setSeedStatus("Pushed local data to server.");
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshBatches();
+  }, []);
+
+  const handleCreateBatch = async () => {
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      const res = await createSeedBatch(seedLabel.trim() || undefined);
+      setSelectedBatchId(res.seedBatchId);
+      setSeedLabel("");
+      await refreshBatches();
+      setSeedStatus(`Created batch "${res.label}".`);
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!selectedBatchId) {
+      setSeedError("Select or create a seed batch first.");
+      return;
+    }
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      const payload = buildServerSeedPayload(selectedBatchId);
+      const res = await importSeedData(payload);
+      setSeedStatus(`Imported ${res.inserted} rows into seed batch.`);
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handlePurgeBatch = async () => {
+    if (!selectedBatchId) {
+      setSeedError("Select a seed batch to purge.");
+      return;
+    }
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      await purgeSeedBatch({ batchId: selectedBatchId });
+      setSeedStatus("Purged selected seed batch.");
+      setSelectedBatchId("");
+      await refreshBatches();
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handlePurgeAll = async () => {
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      await purgeSeedBatch({ all: true });
+      setSeedStatus("Purged all seed batches.");
+      setSelectedBatchId("");
+      await refreshBatches();
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handleInvite = async () => {
+    const email = inviteEmail.trim();
+    if (!email) {
+      setSeedError("Enter an email to invite.");
+      return;
+    }
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      const res = await inviteUser({ email, role: inviteRole });
+      setInviteLink(res.magicLink);
+      setSeedStatus(`Invite created. Expires ${new Date(res.expiresAt).toLocaleString()}.`);
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handleCopyInvite = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setSeedStatus("Invite link copied.");
+    } catch {
+      setSeedStatus("Invite link ready to copy.");
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
+        <div>
+          <div className="text-sm font-semibold">Server Seed (D1)</div>
+          <div className="text-xs text-white/60">
+            Push your local demo data to Cloudflare. Use seed batches so you can purge later.
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="btn" onClick={handlePullFromServer} disabled={seedBusy}>
+            Pull from Server
+          </button>
+          <button className="btn" onClick={handlePushToServer} disabled={seedBusy}>
+            Push Local to Server
+          </button>
+          <button className="btn" onClick={toggleServerSync} disabled={seedBusy}>
+            Server Sync: {serverSyncEnabled ? "On" : "Off"}
+          </button>
+          <button className="btn" onClick={toggleSeedMode} disabled={seedBusy}>
+            Seed Mode: {seedModeEnabled ? "On" : "Off"}
+          </button>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
+          <div className="space-y-3">
+            <div className="text-xs uppercase tracking-wider text-white/60">Local Snapshot</div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Seekers: {summary.seekers}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Retainers: {summary.retainers}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Retainer Users: {summary.retainerUsers}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Subcontractors: {summary.subcontractors}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Links: {summary.links}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Messages: {summary.messages}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Routes: {summary.routes}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Route Interests: {summary.routeInterests}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Posts: {summary.posts}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Broadcasts: {summary.broadcasts}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Badges: {summary.badgeDefinitions}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Check-ins: {summary.badgeCheckins}</div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-xs uppercase tracking-wider text-white/60">Seed Batch</div>
+            <div className="space-y-3">
+              <input
+                className="input w-full"
+                placeholder="Seed batch label (optional)"
+                value={seedLabel}
+                onChange={(e) => setSeedLabel(e.target.value)}
+              />
+              <div className="flex items-center gap-2">
+                <button className="btn" onClick={handleCreateBatch} disabled={seedBusy}>
+                  Create Batch
+                </button>
+                <button className="btn" onClick={refreshBatches} disabled={seedBusy}>
+                  Refresh
+                </button>
+              </div>
+              <select
+                className="input w-full"
+                value={selectedBatchId}
+                onChange={(e) => setSelectedBatchId(e.target.value)}
+              >
+                <option value="">Select a seed batch</option>
+                {seedBatches.map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {batch.label} ({new Date(batch.createdAt).toLocaleDateString()})
+                  </option>
+                ))}
+              </select>
+              <div className="flex flex-wrap gap-2">
+                <button className="btn" onClick={handleImport} disabled={seedBusy}>
+                  Import Local Seed
+                </button>
+                <button className="btn" onClick={handlePurgeBatch} disabled={seedBusy}>
+                  Purge Selected
+                </button>
+                <button className="btn" onClick={handlePurgeAll} disabled={seedBusy}>
+                  Purge All
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {seedStatus && <div className="text-sm text-emerald-200">{seedStatus}</div>}
+        {seedError && <div className="text-sm text-rose-200">{seedError}</div>}
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
+        <div>
+          <div className="text-sm font-semibold">Magic Link Invites</div>
+          <div className="text-xs text-white/60">Create a temporary invite link for accounts.</div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
+          <input
+            className="input"
+            placeholder="Email address"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+          />
+          <select
+            className="input"
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as "ADMIN" | "SEEKER" | "RETAINER")}
+          >
+            <option value="ADMIN">Admin</option>
+            <option value="RETAINER">Retainer</option>
+            <option value="SEEKER">Seeker</option>
+          </select>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn" onClick={handleInvite} disabled={seedBusy}>
+            Create Invite Link
+          </button>
+          {inviteLink && (
+            <button className="btn" onClick={handleCopyInvite} disabled={seedBusy}>
+              Copy Invite Link
+            </button>
+          )}
+        </div>
+        {inviteLink && (
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs break-all">
+            {inviteLink}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const AdminPostsPanel: React.FC<{
   retainers: Retainer[];
 }> = ({ retainers }) => {
@@ -2163,5 +2481,18 @@ function formatSeekerName(s: Seeker): string {
 function formatRetainerName(r: Retainer): string {
   return r.companyName || (r as any).name || (r as any).ceoName || "Retainer";
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

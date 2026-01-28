@@ -451,6 +451,12 @@ function saveScoreHistory(entries: ReputationScoreHistoryEntry[]) {
   writeStore(BADGE_SCORE_HISTORY_KEY, SCORE_HISTORY_SCHEMA_VERSION, entries);
 }
 
+
+
+export function getReputationScoreHistoryEntries(): ReputationScoreHistoryEntry[] {
+  return loadScoreHistory();
+}
+
 export function getBadgeScoreSnapshot(): BadgeScoreSnapshot {
   return loadScoreSnapshot();
 }
@@ -511,6 +517,16 @@ export function getBadgeScoreSplit(): { expectationsWeight: number; growthWeight
   return { expectationsWeight: snap.expectationsWeight, growthWeight: snap.growthWeight };
 }
 
+export function computeBadgeLevelFromCounts(
+  badgeId: BadgeId,
+  yesCount: number,
+  noCount: number
+): number {
+  const def = getBadgeDefinition(badgeId);
+  return def
+    ? computeBadgeLevel(def, yesCount, noCount)
+    : computeLevelFromCounts(getBadgeLevelRulesForBadge(badgeId), yesCount, noCount);
+}
 export function getBadgeWeight(badgeId: BadgeId): number {
   const snap = loadScoreSnapshot();
   const override = snap.badgeOverrides[badgeId];
@@ -665,7 +681,7 @@ function clampReputationScore(score: number): number {
   );
 }
 
-function reputationScoreToPercent(score: number): number {
+export function reputationScoreToPercent(score: number): number {
   const span = REPUTATION_SCORE_MAX - REPUTATION_SCORE_MIN;
   if (span <= 0) return 0;
   return Math.max(
@@ -832,6 +848,8 @@ export function getBadgeDefinition(badgeId: BadgeId): BadgeDefinition | null {
   return ALL_BADGES.find((b) => b.id === badgeId) ?? null;
 }
 
+
+
 export function getActiveBadges(ownerRole: BadgeOwnerRole, ownerId: string): BadgeId[] {
   if (!ownerId) return [];
   const store = loadStore();
@@ -840,6 +858,11 @@ export function getActiveBadges(ownerRole: BadgeOwnerRole, ownerId: string): Bad
   const ids = sel?.activeBadgeIds ?? [];
   const selectableIds = new Set(getSelectableBadges(ownerRole).map((b) => b.id));
   return ids.filter((id) => selectableIds.has(id)).slice(0, MAX_ACTIVE_BADGES);
+}
+
+export function getBadgeSelections(): BadgeSelection[] {
+  const store = loadStore();
+  return store.selections.slice();
 }
 
 export function setActiveBadges(
@@ -2487,3 +2510,9 @@ const RETAINER_BADGES: BadgeDefinition[] = [
 ];
 
 const ALL_BADGES: BadgeDefinition[] = [...SEEKER_BADGES, ...RETAINER_BADGES];
+
+
+
+
+
+
