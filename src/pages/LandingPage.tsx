@@ -16,9 +16,6 @@ const BODY_FONT = {
   fontFamily: '"Spline Sans", "Avenir Next", "Segoe UI", sans-serif',
 };
 
-const BACKDOOR_USERNAME = "Snapadmin01";
-const BACKDOOR_PASSWORD = "Rachel0407!";
-
 type RoleCardProps = {
   role: AccountRole;
   title: string;
@@ -136,26 +133,6 @@ const RoleCard: React.FC<RoleCardProps> = ({
 };
 
 export default function LandingPage() {
-  const [backdoorUser, setBackdoorUser] = useState("");
-  const [backdoorPass, setBackdoorPass] = useState("");
-  const [backdoorError, setBackdoorError] = useState<string | null>(null);
-  const [backdoorUnlocked, setBackdoorUnlocked] = useState(false);
-
-  const handleUnlockBackdoor = () => {
-    setBackdoorError(null);
-    if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
-      setBackdoorUnlocked(true);
-      setBackdoorUser("");
-      setBackdoorPass("");
-      return;
-    }
-    setBackdoorError("Invalid backdoor credentials.");
-  };
-
-  const handleLockBackdoor = () => {
-    setBackdoorUnlocked(false);
-  };
-
   return (
     <main
       className="min-h-screen bg-[#0a0f18] text-slate-100 relative overflow-hidden"
@@ -168,10 +145,19 @@ export default function LandingPage() {
       <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(15,23,42,0.6),rgba(2,6,23,0.9))]" />
 
       <div className="relative max-w-6xl mx-auto px-6 py-16">
-        <div className="flex flex-wrap items-center justify-between gap-6">
+        <div className="flex items-center justify-between">
+          <div className="text-xs uppercase tracking-[0.45em] text-slate-400">SnapDriver</div>
+          <Link
+            to="/admin"
+            className="rounded-full border border-slate-700 bg-slate-950/70 px-4 py-2 text-[11px] font-semibold text-slate-200 hover:bg-slate-800 transition"
+          >
+            Admin Login
+          </Link>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-6">
           <div>
-            <div className="text-xs uppercase tracking-[0.45em] text-slate-400">SnapDriver</div>
-            <h1 className="mt-4 text-6xl md:text-7xl leading-[0.9] text-slate-50" style={DISPLAY_FONT}>
+            <h1 className="text-6xl md:text-7xl leading-[0.9] text-slate-50" style={DISPLAY_FONT}>
               SnapDriver
             </h1>
             <p className="mt-4 text-xl text-emerald-200" style={DISPLAY_FONT}>
@@ -203,7 +189,7 @@ export default function LandingPage() {
           />
         </div>
 
-        <div className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="mt-10 grid gap-6">
           <div className="rounded-[28px] border border-slate-800/70 bg-slate-950/70 p-6">
             <div className="text-xs uppercase tracking-[0.35em] text-slate-500">How it works</div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 text-sm text-slate-300">
@@ -221,68 +207,6 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="rounded-[28px] border border-slate-800/70 bg-slate-950/70 p-6">
-            <div className="text-xs uppercase tracking-[0.35em] text-amber-300">Testing Access</div>
-            <p className="mt-3 text-sm text-slate-400">
-              Internal shortcut for QA. Unlocking is per tab and resets on refresh.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-3 items-center">
-              {backdoorUnlocked ? (
-                <>
-                  <a
-                    className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-                    href="/admin"
-                  >
-                    Admin backdoor
-                  </a>
-                  <a
-                    className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-                    href="/seekers"
-                  >
-                    Seeker backdoor
-                  </a>
-                  <a
-                    className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800 transition"
-                    href="/retainers"
-                  >
-                    Retainer backdoor
-                  </a>
-                  <button
-                    type="button"
-                    onClick={handleLockBackdoor}
-                    className="rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/20 transition"
-                  >
-                    Lock backdoor
-                  </button>
-                </>
-              ) : (
-                <>
-                  <input
-                    value={backdoorUser}
-                    onChange={(e) => setBackdoorUser(e.target.value)}
-                    placeholder="Username"
-                    className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  />
-                  <input
-                    value={backdoorPass}
-                    onChange={(e) => setBackdoorPass(e.target.value)}
-                    type="password"
-                    placeholder="Password"
-                    className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleUnlockBackdoor}
-                    className="rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition"
-                  >
-                    Unlock
-                  </button>
-                </>
-              )}
-            </div>
-            {backdoorError && <div className="mt-3 text-xs text-rose-300">{backdoorError}</div>}
           </div>
         </div>
       </div>

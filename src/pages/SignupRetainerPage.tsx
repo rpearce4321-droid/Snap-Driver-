@@ -84,6 +84,10 @@ export default function SignupRetainerPage() {
             Create credentials first, then complete the full Retainer profile.
             New profiles are saved as Pending.
           </p>
+          <p className="text-sm text-emerald-200 mt-2">
+            Hire with confidence using verified route history instead of guesswork.
+          </p>
+          </p>
         </div>
 
         {step === "credentials" && (
@@ -95,6 +99,9 @@ export default function SignupRetainerPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
+              name="retainer-email"
+              type="email"
+              autoComplete="email"
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
             <div className="relative">
@@ -103,6 +110,8 @@ export default function SignupRetainerPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
+                name="retainer-password"
+                autoComplete="new-password"
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               <button
@@ -120,6 +129,8 @@ export default function SignupRetainerPage() {
                 onChange={(e) => setConfirm(e.target.value)}
                 type={showPassword ? "text" : "password"}
                 placeholder="Confirm password"
+                name="retainer-confirm"
+                autoComplete="new-password"
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               <button

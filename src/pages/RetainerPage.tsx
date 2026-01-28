@@ -1601,32 +1601,6 @@ const RetainerPage: React.FC = () => {
 
         </nav>
 
-
-
-        <div className="mt-auto pt-4 border-t border-slate-800 text-xs text-slate-500">
-
-          <div className="flex justify-between items-center">
-
-            <span>Other portals</span>
-
-            <div className="flex gap-2">
-
-              <Link to="/seekers" className="text-emerald-400 hover:text-emerald-300 font-medium">
-
-                Seeker
-
-              </Link>
-
-              <Link to="/admin" className="text-emerald-400 hover:text-emerald-300 font-medium">
-
-                Admin
-
-              </Link>
-
-            </div>
-
-          </div>
-
         </div>
 
       </aside>
@@ -1837,18 +1811,6 @@ const RetainerPage: React.FC = () => {
                   }}
                 />
               </nav>
-              <div className="mt-6 pt-4 border-t border-slate-800 text-xs text-slate-500">
-                <div className="flex justify-between items-center">
-                  <span>Other portals</span>
-                  <div className="flex gap-2">
-                    <Link to="/seekers" className="text-emerald-400 hover:text-emerald-300 font-medium">
-                      Seeker
-                    </Link>
-                    <Link to="/admin" className="text-emerald-400 hover:text-emerald-300 font-medium">
-                      Admin
-                    </Link>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

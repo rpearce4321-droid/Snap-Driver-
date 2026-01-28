@@ -15,7 +15,7 @@ import {
 import { getSession, setPortalContext, setSession } from "../lib/session";
 import { autoSeedComprehensive } from "../lib/seed";
 import { buildServerSeedPayload, getLocalSeedSummary } from "../lib/serverSeed";
-import { createSeedBatch, importSeedData, inviteUser, listSeedBatches, purgeSeedBatch } from "../lib/api";
+import { createSeedBatch, importSeedData, inviteUser, listSeedBatches, purgeSeedBatch, login, getSessionMe } from "../lib/api";
 import { getServerSyncStatus, pullFromServer, setSeedModeEnabled, setServerSyncEnabled, syncToServer } from "../lib/serverSync";
 import {
   getRetainerEntitlements,
@@ -100,6 +100,9 @@ const SECTION_DEFAULTS: Record<NavSectionKey, Panel> = {
   content: "routes",
   badges: "system:badges",
 };
+
+const BACKDOOR_USERNAME = "Snapadmin01";
+const BACKDOOR_PASSWORD = "Rachel0407!";
 
 const sectionForPanel = (value: Panel): NavSectionKey | null => {
   if (value === "createSeeker" || value.startsWith("seekers:")) return "seekers";
@@ -196,13 +199,48 @@ function NavSectionHeader({
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
 
-  // Ensure admin session so Admin can open Seeker/Retainer profiles without permission issues.
+  const [authStatus, setAuthStatus] = useState<"checking" | "authed" | "unauth">("checking");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const [backdoorUser, setBackdoorUser] = useState("");
+  const [backdoorPass, setBackdoorPass] = useState("");
+  const [backdoorError, setBackdoorError] = useState<string | null>(null);
+  const [backdoorUnlocked, setBackdoorUnlocked] = useState(false);
+
   useEffect(() => {
     setPortalContext("ADMIN");
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     const existing = getSession();
-    if (!existing || existing.role !== "ADMIN") {
-      setSession({ role: "ADMIN", adminId: "admin" });
+    if (existing?.role === "ADMIN") {
+      setAuthStatus("authed");
+      return () => {
+        active = false;
+      };
     }
+
+    (async () => {
+      try {
+        const res = await getSessionMe();
+        if (res?.user?.role === "ADMIN") {
+          setSession({ role: "ADMIN", adminId: res.user.id });
+          if (active) setAuthStatus("authed");
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      if (active) setAuthStatus("unauth");
+    })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const [seekers, setSeekers] = useState<Seeker[]>(() => getSeekers());
@@ -253,6 +291,36 @@ export default function AdminDashboardPage() {
   const [panel, setPanel] = useState<Panel>("dashboard");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
 
+  const handleAdminLogin = async () => {
+    setAuthError(null);
+    try {
+      const res = await login({ email: authEmail.trim(), password: authPassword });
+      if (!res?.user || res.user.role !== "ADMIN") {
+        throw new Error("This account is not authorized for admin access.");
+      }
+      setSession({ role: "ADMIN", adminId: res.user.id });
+      setAuthStatus("authed");
+      setAuthPassword("");
+    } catch (err: any) {
+      setAuthError(err?.message || "Unable to sign in.");
+    }
+  };
+
+  const handleUnlockBackdoor = () => {
+    setBackdoorError(null);
+    if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
+      setBackdoorUnlocked(true);
+      setBackdoorUser("");
+      setBackdoorPass("");
+      return;
+    }
+    setBackdoorError("Invalid backdoor credentials.");
+  };
+
+  const handleLockBackdoor = () => {
+    setBackdoorUnlocked(false);
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleResize = () => {
@@ -286,6 +354,78 @@ export default function AdminDashboardPage() {
       setPanel(SECTION_DEFAULTS[key]);
     }
   };
+
+
+  if (authStatus === "checking") {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+        <div className="text-sm text-slate-400">Checking admin access...</div>
+      </div>
+    );
+  }
+
+  if (authStatus === "unauth") {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 px-6 py-12">
+        <div className="max-w-xl mx-auto space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="text-xs uppercase tracking-[0.35em] text-slate-500">SnapDriver</div>
+            <Link
+              to="/"
+              className="text-xs uppercase tracking-wide text-slate-400 hover:text-slate-200"
+            >
+              Back to landing
+            </Link>
+          </div>
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
+            <div>
+              <div className="text-xs uppercase tracking-[0.3em] text-slate-500">Admin</div>
+              <h1 className="text-2xl font-semibold text-slate-100">Admin Login</h1>
+              <p className="text-sm text-slate-400 mt-2">
+                Sign in with an admin account to access the dashboard.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <input
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="Email"
+                type="email"
+                autoComplete="username"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+              <div className="relative">
+                <input
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  type={showAuthPassword ? "text" : "password"}
+                  placeholder="Password"
+                  autoComplete="current-password"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAuthPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-400 hover:text-slate-200"
+                  aria-label={showAuthPassword ? "Hide password" : "Show password"}
+                >
+                  {showAuthPassword ? "Hide" : "Show"}
+                </button>
+              </div>
+              {authError && <div className="text-xs text-rose-300">{authError}</div>}
+              <button
+                type="button"
+                onClick={handleAdminLogin}
+                className="w-full rounded-full border border-emerald-500/40 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/30 transition"
+              >
+                Sign in
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   const panelTitle = (() => {
     if (panel === "dashboard") return "Dashboard";
@@ -744,8 +884,67 @@ export default function AdminDashboardPage() {
           ].join(" ")}
         >
           {panel === "dashboard" && (
-            <div className="grid md:grid-cols-2 gap-6 h-full min-h-0">
-              <section className="surface p-5 hover:border-blue-500/30 transition flex flex-col min-h-0">
+            <div className="space-y-4 h-full min-h-0">
+              <section className="surface p-4 border border-white/10 bg-white/5 rounded-2xl">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-white/60">Backdoor access</div>
+                    <div className="text-sm text-white/80">Unlock temporary shortcuts for QA.</div>
+                  </div>
+                  {backdoorUnlocked ? (
+                    <div className="flex flex-wrap gap-2">
+                      <a
+                        className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                        href="/seekers"
+                      >
+                        Seeker backdoor
+                      </a>
+                      <a
+                        className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
+                        href="/retainers"
+                      >
+                        Retainer backdoor
+                      </a>
+                      <button
+                        type="button"
+                        onClick={handleLockBackdoor}
+                        className="rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/20 transition"
+                      >
+                        Lock backdoor
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={backdoorUser}
+                        onChange={(e) => setBackdoorUser(e.target.value)}
+                        placeholder="Username"
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                      />
+                      <input
+                        value={backdoorPass}
+                        onChange={(e) => setBackdoorPass(e.target.value)}
+                        type="password"
+                        placeholder="Password"
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleUnlockBackdoor}
+                        className="rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition"
+                      >
+                        Unlock
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {backdoorError && (
+                  <div className="mt-2 text-xs text-rose-200">{backdoorError}</div>
+                )}
+              </section>
+
+              <div className="grid md:grid-cols-2 gap-6 flex-1 min-h-0">
+                <section className="surface p-5 hover:border-blue-500/30 transition flex flex-col min-h-0">
                 <h2 className="text-xl font-semibold mb-4">Pending Seekers</h2>
                 <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                   <PendingSeekersList seekers={seekersPending} />
@@ -757,6 +956,7 @@ export default function AdminDashboardPage() {
                   <PendingRetainersList retainers={retainersPending} />
                 </div>
               </section>
+              </div>
             </div>
           )}
 
@@ -1891,8 +2091,8 @@ const AdminServerPanel: React.FC = () => {
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
         <div>
-          <div className="text-sm font-semibold">Magic Link Invites</div>
-          <div className="text-xs text-white/60">Create a temporary invite link for accounts.</div>
+          <div className="text-sm font-semibold">Create Logins</div>
+          <div className="text-xs text-white/60">Create a temporary invite link for admin, retainer, or seeker logins.</div>
         </div>
         <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
           <input

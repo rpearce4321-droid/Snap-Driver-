@@ -84,6 +84,11 @@ export default function SignupSeekerPage() {
             Create credentials first, then complete the full Seeker profile. New
             profiles are saved as Pending.
           </p>
+          <p className="text-sm text-emerald-200 mt-2">
+            Build a visible reputation trail so retainers can trust your consistency before
+            the first route even starts.
+          </p>
+          </p>
         </div>
 
         {step === "credentials" && (
@@ -95,6 +100,9 @@ export default function SignupSeekerPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
+              name="seeker-email"
+              type="email"
+              autoComplete="email"
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
             <div className="relative">
@@ -103,6 +111,8 @@ export default function SignupSeekerPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
+                name="seeker-password"
+                autoComplete="new-password"
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               <button
@@ -120,6 +130,8 @@ export default function SignupSeekerPage() {
                 onChange={(e) => setConfirm(e.target.value)}
                 type={showPassword ? "text" : "password"}
                 placeholder="Confirm password"
+                name="seeker-confirm"
+                autoComplete="new-password"
                 className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
               <button
