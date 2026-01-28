@@ -7675,79 +7675,49 @@ const ViewSeekersView: React.FC<{
 
       >
 
-        {wheelSeekers.map((seeker: any, index) => {
-
+        {(() => {
           const len = wheelSeekers.length;
-
           if (len === 0) return null;
+          const offsets = [-3, -2, -1, 0, 1, 2, 3];
+          const seen = new Set<number>();
+          return offsets
+            .map((offset) => {
+              const index = (centerIndex + offset + len) % len;
+              if (seen.has(index)) return null;
+              seen.add(index);
+              const seeker = wheelSeekers[index];
+              return { seeker, offset };
+            })
+            .filter((item): item is { seeker: Seeker; offset: number } => !!item)
+            .map(({ seeker, offset }) => {
+              const abs = Math.abs(offset);
+              const translateY = offset * baseStep;
+              const scale = (1 - scaleDrop * abs) * baseScale;
+              const opacity = 1 - 0.2 * abs;
+              const isCenter = offset === 0;
+              const zIndex = 20 - abs;
 
+              const style: CSSProperties = {
+                transform: `translateY(${translateY}px) scale(${scale})`,
+                opacity,
+                zIndex,
+              };
 
-
-          let offset = index - centerIndex;
-
-          if (offset > len / 2) offset -= len;
-
-          if (offset < -len / 2) offset += len;
-
-
-
-          const abs = Math.abs(offset);
-
-          if (abs > 3) return null;
-
-
-
-          const translateY = offset * baseStep;
-
-          const scale = (1 - scaleDrop * abs) * baseScale;
-
-          const opacity = 1 - 0.2 * abs;
-
-          const isCenter = offset === 0;
-
-          const zIndex = 20 - abs;
-
-
-
-          const style: CSSProperties = {
-
-            transform: `translateY(${translateY}px) scale(${scale})`,
-
-            opacity,
-
-            zIndex,
-
-          };
-
-
-
-          return (
-
-            <SeekerWheelCard
-
-              key={seeker.id}
-
-              seeker={seeker}
-
-              style={style}
-
-              isCenter={isCenter}
-
-              onOpenProfile={() => setExpandedSeeker(seeker)}
-
-              onMessage={() => onMessage(seeker)}
-
-              onClassify={(bucket) => onClassify(seeker, bucket)}
-
-              canInteract={canInteract}
-
-              scheduleMatch={scheduleMatchBySeekerId.get(String(seeker.id))}
-
-            />
-
-          );
-
-        })}
+              return (
+                <SeekerWheelCard
+                  key={seeker.id}
+                  seeker={seeker}
+                  style={style}
+                  isCenter={isCenter}
+                  onOpenProfile={() => setExpandedSeeker(seeker)}
+                  onMessage={() => onMessage(seeker)}
+                  onClassify={(bucket) => onClassify(seeker, bucket)}
+                  canInteract={canInteract}
+                  scheduleMatch={scheduleMatchBySeekerId.get(String(seeker.id))}
+                />
+              );
+            });
+        })()}
 
       </div>
 

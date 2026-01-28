@@ -1,5 +1,5 @@
 ﻿// src/pages/SeekerPage.tsx
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -3836,7 +3836,7 @@ const ViewRetainersView: React.FC<{
   onMessage,
 }) => {
   const [centerIndex, setCenterIndex] = useState(0);
-  const [wheelAccumulator, setWheelAccumulator] = useState(0);
+  const wheelAccumulatorRef = useRef(0);
   const [expandedRetainer, setExpandedRetainer] = useState<Retainer | null>(null);
   const [reputationMin, setReputationMin] = useState(0);
   const [distanceZip, setDistanceZip] = useState("");
@@ -3925,24 +3925,24 @@ const ViewRetainersView: React.FC<{
     e.stopPropagation();
 
     const threshold = 60;
-    const nextAcc = wheelAccumulator + e.deltaY;
+    const nextAcc = wheelAccumulatorRef.current + e.deltaY;
 
     if (nextAcc > threshold) {
-      setWheelAccumulator(0);
+      wheelAccumulatorRef.current = 0;
       setCenterIndex((prev) =>
         filteredRetainers.length === 0
           ? 0
           : (prev + 1) % filteredRetainers.length
       );
     } else if (nextAcc < -threshold) {
-      setWheelAccumulator(0);
+      wheelAccumulatorRef.current = 0;
       setCenterIndex((prev) =>
         filteredRetainers.length === 0
           ? 0
           : (prev - 1 + filteredRetainers.length) % filteredRetainers.length
       );
     } else {
-      setWheelAccumulator(nextAcc);
+      wheelAccumulatorRef.current = nextAcc;
     }
   };
 
@@ -4133,47 +4133,53 @@ const ViewRetainersView: React.FC<{
           "
           onWheel={handleWheel}
         >
-          {filteredRetainers.map((retainer, index) => {
+          {(() => {
             const len = filteredRetainers.length;
             if (len === 0) return null;
+            const offsets = [-3, -2, -1, 0, 1, 2, 3];
+            const seen = new Set<number>();
+            return offsets
+              .map((offset) => {
+                const index = (centerIndex + offset + len) % len;
+                if (seen.has(index)) return null;
+                seen.add(index);
+                const retainer = filteredRetainers[index];
+                return { retainer, offset };
+              })
+              .filter((item): item is { retainer: Retainer; offset: number } => !!item)
+              .map(({ retainer, offset }) => {
+                const abs = Math.abs(offset);
+                const translateY = offset * baseStep;
+                const scale = (1 - scaleDrop * abs) * baseScale;
+                const opacity = 1 - 0.2 * abs;
+                const isCenter = offset === 0;
+                const zIndex = 20 - abs;
 
-            let offset = index - centerIndex;
-            if (offset > len / 2) offset -= len;
-            if (offset < -len / 2) offset += len;
+                const style: CSSProperties = {
+                  transform: `translateY(${translateY}px) scale(${scale})`,
+                  opacity,
+                  zIndex,
+                };
 
-            const abs = Math.abs(offset);
-            if (abs > 3) return null;
-
-            const translateY = offset * baseStep;
-            const scale = (1 - scaleDrop * abs) * baseScale;
-            const opacity = 1 - 0.2 * abs;
-            const isCenter = offset === 0;
-            const zIndex = 20 - abs;
-
-            const style: CSSProperties = {
-              transform: `translateY(${translateY}px) scale(${scale})`,
-              opacity,
-              zIndex,
-            };
-
-            return (
-              <RetainerWheelCard
-                key={retainer.id}
-                retainer={retainer}
-                style={style}
-                isCenter={isCenter}
-                scheduleMatch={scheduleMatchByRetainerId.get(retainer.id)}
-                onOpenProfile={() => setExpandedRetainer(retainer)}
-                onMessage={() => onMessage(retainer)}
-                canMessage={!!seekerId}
-                routeCount={routeCountByRetainerId.get(retainer.id)}
-                isLinked={
-                  !!(seekerId && getLink(seekerId, retainer.id)?.status === "ACTIVE")
-                }
-                onClassify={(bucket) => onClassify(retainer, bucket)}
-              />
-            );
-          })}
+                return (
+                  <RetainerWheelCard
+                    key={retainer.id}
+                    retainer={retainer}
+                    style={style}
+                    isCenter={isCenter}
+                    scheduleMatch={scheduleMatchByRetainerId.get(retainer.id)}
+                    onOpenProfile={() => setExpandedRetainer(retainer)}
+                    onMessage={() => onMessage(retainer)}
+                    canMessage={!!seekerId}
+                    routeCount={routeCountByRetainerId.get(retainer.id)}
+                    isLinked={
+                      !!(seekerId && getLink(seekerId, retainer.id)?.status === "ACTIVE")
+                    }
+                    onClassify={(bucket) => onClassify(retainer, bucket)}
+                  />
+                );
+              });
+          })()}
         </div>
       )}
 
