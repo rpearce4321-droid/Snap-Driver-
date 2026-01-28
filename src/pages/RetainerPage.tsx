@@ -359,6 +359,9 @@ const retainerActiveUserKey = (retainerId: string) =>
 
   `snapdriver_retainer_active_user_${retainerId}`;
 
+const BACKDOOR_USERNAME = "Snapadmin01";
+const BACKDOOR_PASSWORD = "Rachel0407!";
+
 
 
 const RetainerPage: React.FC = () => {
@@ -393,6 +396,10 @@ const RetainerPage: React.FC = () => {
   }, [isDesktop, isMobileNavOpen]);
 
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
+  const [backdoorUser, setBackdoorUser] = useState("");
+  const [backdoorPass, setBackdoorPass] = useState("");
+  const [backdoorUnlocked, setBackdoorUnlocked] = useState(false);
+  const [backdoorError, setBackdoorError] = useState<string | null>(null);
 
   const [noticeTick, setNoticeTick] = useState(0);
   const [linkTick] = useState(0);
@@ -684,6 +691,17 @@ const RetainerPage: React.FC = () => {
 
     setActiveTab("action");
 
+  };
+
+  const handleUnlockBackdoor = () => {
+    setBackdoorError(null);
+    if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
+      setBackdoorUnlocked(true);
+      setBackdoorUser("");
+      setBackdoorPass("");
+      return;
+    }
+    setBackdoorError("Invalid backdoor credentials.");
   };
 
   useEffect(() => {
@@ -1446,7 +1464,43 @@ const RetainerPage: React.FC = () => {
 
 
 
-            {selectableRetainers.length > 1 && (
+
+            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-amber-300 mb-2">Backdoor access</div>
+              {backdoorUnlocked ? (
+                <div className="text-[11px] text-emerald-300">Unlocked for this tab.</div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={backdoorUser}
+                      onChange={(e) => setBackdoorUser(e.target.value)}
+                      placeholder="Username"
+                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <input
+                      value={backdoorPass}
+                      onChange={(e) => setBackdoorPass(e.target.value)}
+                      type="password"
+                      placeholder="Password"
+                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUnlockBackdoor}
+                      className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 transition"
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                  {backdoorError && (
+                    <div className="mt-2 text-[11px] text-rose-300">{backdoorError}</div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {backdoorUnlocked && selectableRetainers.length > 1 && (
 
               <div className="mt-3">
 
@@ -1486,23 +1540,16 @@ const RetainerPage: React.FC = () => {
 
 
 
-            <div className="mt-3">
-
-              <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-
-                Acting as user
-
-              </label>
-
-              <select
-
-                className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-
-                value={currentRetainerUserId ?? ""}
-
-                onChange={(e) => handleSelectRetainerUser(e.target.value)}
-
-              >
+            {backdoorUnlocked && (
+              <div className="mt-3">
+                <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
+                  Acting as user
+                </label>
+                <select
+                  className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
+                  value={currentRetainerUserId ?? ""}
+                  onChange={(e) => handleSelectRetainerUser(e.target.value)}
+                >
 
                 <option value="" className="bg-slate-900 text-slate-50">
 
@@ -1539,6 +1586,7 @@ const RetainerPage: React.FC = () => {
               )}
 
             </div>
+          )}
 
           </div>
 
@@ -1712,7 +1760,43 @@ const RetainerPage: React.FC = () => {
                 )}
 
                 <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
-                  {selectableRetainers.length > 1 && (
+      
+            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-amber-300 mb-2">Backdoor access</div>
+              {backdoorUnlocked ? (
+                <div className="text-[11px] text-emerald-300">Unlocked for this tab.</div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={backdoorUser}
+                      onChange={(e) => setBackdoorUser(e.target.value)}
+                      placeholder="Username"
+                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <input
+                      value={backdoorPass}
+                      onChange={(e) => setBackdoorPass(e.target.value)}
+                      type="password"
+                      placeholder="Password"
+                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUnlockBackdoor}
+                      className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 transition"
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                  {backdoorError && (
+                    <div className="mt-2 text-[11px] text-rose-300">{backdoorError}</div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {backdoorUnlocked && selectableRetainers.length > 1 && (
                     <div>
                       <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
                         Acting as

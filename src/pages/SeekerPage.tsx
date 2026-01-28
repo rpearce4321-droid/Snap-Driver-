@@ -207,6 +207,9 @@ const SEEKER_RETAINER_BUCKETS_KEY = "snapdriver_seeker_retainer_buckets";
 const seekerSubcontractorKey = (seekerId: string) =>
   `snapdriver_seeker_active_sub_${seekerId}`;
 
+const BACKDOOR_USERNAME = "Snapadmin01";
+const BACKDOOR_PASSWORD = "Rachel0407!";
+
 const SeekerPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -221,6 +224,10 @@ const SeekerPage: React.FC = () => {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
   const [linkTick, setLinkTick] = useState(0);
+  const [backdoorUser, setBackdoorUser] = useState("");
+  const [backdoorPass, setBackdoorPass] = useState("");
+  const [backdoorUnlocked, setBackdoorUnlocked] = useState(false);
+  const [backdoorError, setBackdoorError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -242,6 +249,17 @@ const SeekerPage: React.FC = () => {
   const openActionTab = (tab: ActionTabKey) => {
     setActionTab(tab);
     setActiveTab("action");
+  };
+
+  const handleUnlockBackdoor = () => {
+    setBackdoorError(null);
+    if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
+      setBackdoorUnlocked(true);
+      setBackdoorUser("");
+      setBackdoorPass("");
+      return;
+    }
+    setBackdoorError("Invalid backdoor credentials.");
   };
 
   useEffect(() => {
@@ -864,7 +882,43 @@ const SeekerPage: React.FC = () => {
               </div>
             )}
 
-            {selectableSeekers.length > 1 && (
+
+            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-amber-300 mb-2">Backdoor access</div>
+              {backdoorUnlocked ? (
+                <div className="text-[11px] text-emerald-300">Unlocked for this tab.</div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={backdoorUser}
+                      onChange={(e) => setBackdoorUser(e.target.value)}
+                      placeholder="Username"
+                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <input
+                      value={backdoorPass}
+                      onChange={(e) => setBackdoorPass(e.target.value)}
+                      type="password"
+                      placeholder="Password"
+                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUnlockBackdoor}
+                      className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 transition"
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                  {backdoorError && (
+                    <div className="mt-2 text-[11px] text-rose-300">{backdoorError}</div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {backdoorUnlocked && selectableSeekers.length > 1 && (
               <div className="mt-3">
                 <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
                   Acting as
@@ -908,7 +962,7 @@ const SeekerPage: React.FC = () => {
               </div>
             )}
 
-            {currentSeeker && (
+            {backdoorUnlocked && currentSeeker && (
               <div className="mt-3">
                 <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
                   Acting as subcontractor
@@ -1150,7 +1204,43 @@ const SeekerPage: React.FC = () => {
 
                 {(selectableSeekers.length > 1 || currentSeeker) && (
                   <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
-                    {selectableSeekers.length > 1 && (
+        
+            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-amber-300 mb-2">Backdoor access</div>
+              {backdoorUnlocked ? (
+                <div className="text-[11px] text-emerald-300">Unlocked for this tab.</div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={backdoorUser}
+                      onChange={(e) => setBackdoorUser(e.target.value)}
+                      placeholder="Username"
+                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <input
+                      value={backdoorPass}
+                      onChange={(e) => setBackdoorPass(e.target.value)}
+                      type="password"
+                      placeholder="Password"
+                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUnlockBackdoor}
+                      className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 transition"
+                    >
+                      Unlock
+                    </button>
+                  </div>
+                  {backdoorError && (
+                    <div className="mt-2 text-[11px] text-rose-300">{backdoorError}</div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {backdoorUnlocked && selectableSeekers.length > 1 && (
                       <div>
                         <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
                           Acting as
@@ -1194,7 +1284,7 @@ const SeekerPage: React.FC = () => {
                       </div>
                     )}
 
-                    {currentSeeker && (
+                    {backdoorUnlocked && currentSeeker && (
                       <div>
                         <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
                           Acting as subcontractor
