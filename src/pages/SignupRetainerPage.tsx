@@ -87,7 +87,6 @@ export default function SignupRetainerPage() {
           <p className="text-sm text-emerald-200 mt-2">
             Hire with confidence using verified route history instead of guesswork.
           </p>
-          </p>
         </div>
 
         {step === "credentials" && (

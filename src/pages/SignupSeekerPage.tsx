@@ -88,7 +88,6 @@ export default function SignupSeekerPage() {
             Build a visible reputation trail so retainers can trust your consistency before
             the first route even starts.
           </p>
-          </p>
         </div>
 
         {step === "credentials" && (

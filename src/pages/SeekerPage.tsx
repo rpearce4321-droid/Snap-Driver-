@@ -1035,7 +1035,6 @@ const SeekerPage: React.FC = () => {
             </>
           )}
         </nav>
-        </div>
       </aside>
 
       {/* Main content */}
@@ -1345,7 +1344,6 @@ const SeekerPage: React.FC = () => {
                 </button>
               )}
               </div>
-            </div>
           </div>
         )}
 

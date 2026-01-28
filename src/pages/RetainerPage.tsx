@@ -1601,8 +1601,6 @@ const RetainerPage: React.FC = () => {
 
         </nav>
 
-        </div>
-
       </aside>
 
 
@@ -1812,7 +1810,6 @@ const RetainerPage: React.FC = () => {
                 />
               </nav>
               </div>
-            </div>
           </div>
         )}
 
