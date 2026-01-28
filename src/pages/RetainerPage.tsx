@@ -8860,7 +8860,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
 
 
-  const MAX_IMAGE_BYTES = 1024 * 1024;
+  const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
   const handlePhotoFile = (
 
@@ -8873,7 +8873,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     if (!file || readOnly) return;
 
     if (file.size > MAX_IMAGE_BYTES) {
-      setError("Image is too large for local demo storage. Use a smaller file (<= 1MB) or paste a URL.");
+      setError("Image is too large for local demo storage. Use a smaller file (<= 6MB) or paste a URL.");
       return;
     }
     setError(null);

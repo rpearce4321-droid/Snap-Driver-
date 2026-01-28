@@ -5271,7 +5271,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     else if (e.deltaY < 0) goPrev();
   };
 
-  const MAX_IMAGE_BYTES = 1024 * 1024;
+  const MAX_IMAGE_BYTES = 6 * 1024 * 1024;
 
   const handlePhotoFile = (
     file: File | null,
@@ -5279,7 +5279,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
   ) => {
     if (!file) return;
     if (file.size > MAX_IMAGE_BYTES) {
-      setError("Image is too large for local demo storage. Use a smaller file (<= 1MB) or paste a URL.");
+      setError("Image is too large for local demo storage. Use a smaller file (<= 6MB) or paste a URL.");
       return;
     }
     setError(null);
