@@ -297,7 +297,8 @@ export default function AdminDashboardPage() {
     if (panel === "content:posts") return "Posts & Broadcasts";
     if (panel === "system:badges") return "Badge Rules";
     if (panel === "system:badgeScoring") return "Badge Scoring";
-    if (panel === "system:badgeAudit") return "Badge Audit";    if (panel === "system:server") return "Server & Seed";
+    if (panel === "system:badgeAudit") return "Badge Audit";
+    if (panel === "system:server") return "Server & Seed";
     if (panel === "messages:external") return "Message Traffic (Seeker and Retainer)";
     if (panel === "messages:retainerStaff") return "Retainer Staff Messages";
     if (panel === "messages:subcontractors") return "Subcontractor Messages";
@@ -510,6 +511,9 @@ export default function AdminDashboardPage() {
                 </NavButton>
                 <NavButton active={panel === "system:badgeAudit"} onClick={() => setPanel("system:badgeAudit")}>
                   Badge Audit
+                </NavButton>
+                <NavButton active={panel === "system:server"} onClick={() => setPanel("system:server")}>
+                  Server & Seed
                 </NavButton>
               </div>
             )}
