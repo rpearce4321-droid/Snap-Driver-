@@ -5,6 +5,7 @@ import { SeekerProfileForm } from "./SeekerPage";
 import { createAccount, getAccountByEmail } from "../lib/accounts";
 import { getSeekerById } from "../lib/data";
 import { setSession } from "../lib/session";
+import { queueServerSync } from "../lib/serverSync";
 
 export default function SignupSeekerPage() {
   const navigate = useNavigate();
@@ -62,6 +63,7 @@ export default function SignupSeekerPage() {
       });
       window.localStorage.setItem("snapdriver_current_seeker_id", id);
       setSession({ role: "SEEKER", seekerId: id });
+      queueServerSync();
       navigate("/seekers");
     } catch (err: any) {
       setError(err?.message || "Unable to create account.");

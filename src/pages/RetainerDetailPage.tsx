@@ -15,7 +15,7 @@ import {
 import { can, assertCan } from "../lib/permissions";
 import { getLink, requestLink, type Link as LinkModel } from "../lib/linking";
 import { getRoutesForRetainer, type Route } from "../lib/routes";
-import { getPortalContext, getSession } from "../lib/session";
+import { clearPortalContext, clearSession, getPortalContext, getSession } from "../lib/session";
 import { DAYS, type DayOfWeek } from "../lib/schedule";
 import HierarchyCanvas from "../components/HierarchyCanvas";
 import { getBadgeSummaryForProfile, getReputationScoreForProfile } from "../lib/badges";
@@ -170,6 +170,16 @@ export default function RetainerDetailPage() {
       return;
     }
     navigate(dashboardPath);
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    clearPortalContext();
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("snapdriver_current_seeker_id");
+      window.localStorage.removeItem("snapdriver_current_retainer_id");
+    }
+    navigate("/");
   };
 
   const badgeLinkState = {
@@ -422,8 +432,9 @@ export default function RetainerDetailPage() {
           {backLabel}
         </button>
 
-        {role === "SEEKER" && status === "APPROVED" && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {role === "SEEKER" && status === "APPROVED" && (
+            <>
             {!isLinked && (
               <button
                 type="button"
@@ -439,8 +450,12 @@ export default function RetainerDetailPage() {
                 Linked
               </span>
             )}
-          </div>
-        )}
+          </>
+          )}
+          <button type="button" className="btn" onClick={handleLogout}>
+            Log out
+          </button>
+        </div>
       </div>
 
       <section className="rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shrink-0">

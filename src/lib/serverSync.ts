@@ -454,6 +454,7 @@ export async function pullFromServer(): Promise<boolean> {
 }
 
 export async function initServerSync(): Promise<void> {
+  setServerSyncEnabled(true);
   setStoreListener((key) => queueServerSync(key));
   if (typeof window === "undefined") return;
   try {

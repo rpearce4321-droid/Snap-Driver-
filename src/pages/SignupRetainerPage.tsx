@@ -5,6 +5,7 @@ import { RetainerProfileForm } from "./RetainerPage";
 import { createAccount, getAccountByEmail } from "../lib/accounts";
 import { getRetainerById } from "../lib/data";
 import { setSession } from "../lib/session";
+import { queueServerSync } from "../lib/serverSync";
 
 export default function SignupRetainerPage() {
   const navigate = useNavigate();
@@ -62,6 +63,7 @@ export default function SignupRetainerPage() {
       });
       window.localStorage.setItem("snapdriver_current_retainer_id", id);
       setSession({ role: "RETAINER", retainerId: id });
+      queueServerSync();
       navigate("/retainers");
     } catch (err: any) {
       setError(err?.message || "Unable to create account.");

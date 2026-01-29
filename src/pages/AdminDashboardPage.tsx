@@ -12,7 +12,7 @@ import {
   type Retainer,
   type Seeker,
 } from "../lib/data";
-import { getSession, setPortalContext, setSession } from "../lib/session";
+import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
 import { autoSeedComprehensive } from "../lib/seed";
 import { buildServerSeedPayload, getLocalSeedSummary } from "../lib/serverSeed";
 import { createSeedBatch, importSeedData, inviteUser, listSeedBatches, purgeSeedBatch, login, getSessionMe } from "../lib/api";
@@ -213,6 +213,16 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     setPortalContext("ADMIN");
   }, []);
+
+  const handleLogout = () => {
+    clearSession();
+    clearPortalContext();
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("snapdriver_current_seeker_id");
+      window.localStorage.removeItem("snapdriver_current_retainer_id");
+    }
+    navigate("/");
+  };
 
   useEffect(() => {
     let active = true;
@@ -702,6 +712,11 @@ export default function AdminDashboardPage() {
             )}
           </section>
         </nav>
+        <div className="px-3 pb-4">
+          <button type="button" className="btn w-full" onClick={handleLogout}>
+            Log out
+          </button>
+        </div>
       </aside>
 
       <div className="flex-1 flex flex-col">
@@ -758,6 +773,9 @@ export default function AdminDashboardPage() {
                 }}
               >
                 Reset + Seed Comprehensive
+              </button>
+              <button type="button" className="btn" onClick={handleLogout}>
+                Log out
               </button>
               <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">
                 Session: ADMIN
@@ -840,6 +858,17 @@ export default function AdminDashboardPage() {
                   </span>
                 </div>
 
+                <button
+                  type="button"
+                  className="btn w-full"
+                  onClick={() => {
+                    setIsMobileNavOpen(false);
+                    handleLogout();
+                  }}
+                >
+                  Log out
+                </button>
+
                 {panelGroups.map((group) => (
                   <div key={group.label}>
                     <div className="text-[10px] uppercase tracking-wider text-white/60 mb-2">
@@ -889,6 +918,9 @@ export default function AdminDashboardPage() {
                 }}
               >
                 Reset + Seed Comprehensive
+              </button>
+              <button type="button" className="btn" onClick={handleLogout}>
+                Log out
               </button>
               <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">
                 Session: ADMIN

@@ -54,3 +54,8 @@ export function getPortalContext(): Role | null {
   const raw = window.sessionStorage.getItem(PORTAL_CONTEXT_KEY);
   return raw === "ADMIN" || raw === "SEEKER" || raw === "RETAINER" ? raw : null;
 }
+
+export function clearPortalContext(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.removeItem(PORTAL_CONTEXT_KEY);
+}

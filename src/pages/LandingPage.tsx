@@ -95,7 +95,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
               placeholder="Email"
               name={`${role}-email`}
               type="email"
-              autoComplete="username"
+              autoComplete={`section-${role.toLowerCase()} username`}
               className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400"
             />
             <div className="relative">
@@ -105,7 +105,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
                 name={`${role}-password`}
-                autoComplete="current-password"
+                autoComplete={`section-${role.toLowerCase()} current-password`}
                 className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-400"
               />
               <button

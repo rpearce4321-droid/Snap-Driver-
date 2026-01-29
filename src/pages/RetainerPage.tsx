@@ -209,7 +209,7 @@ import {
 
 import { badgeIconFor } from "../components/badgeIcons";
 
-import { getSession, setPortalContext } from "../lib/session";
+import { clearPortalContext, clearSession, getSession, setPortalContext } from "../lib/session";
 
 import { getRetainerEntitlements } from "../lib/entitlements";
 
@@ -353,6 +353,7 @@ type SeekerBucketKey = "excellent" | "possible" | "notNow";
 
 
 const CURRENT_RETAINER_KEY = "snapdriver_current_retainer_id";
+const CURRENT_SEEKER_KEY = "snapdriver_current_seeker_id";
 
 const RETAINER_SEEKER_BUCKETS_KEY = "snapdriver_retainer_seeker_buckets";
 
@@ -397,6 +398,16 @@ const RetainerPage: React.FC = () => {
       setIsMobileNavOpen(false);
     }
   }, [isDesktop, isMobileNavOpen]);
+
+  const handleLogout = () => {
+    clearSession();
+    clearPortalContext();
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(CURRENT_RETAINER_KEY);
+      window.localStorage.removeItem(CURRENT_SEEKER_KEY);
+    }
+    navigate("/");
+  };
 
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
   const [backdoorUser, setBackdoorUser] = useState("");
@@ -1661,6 +1672,9 @@ const RetainerPage: React.FC = () => {
           <SidebarButton label="Badges" active={activeTab === "badges"} onClick={() => setActiveTab("badges")} />
 
         </nav>
+        <div className="pt-3 border-t border-slate-800 mt-3">
+          <SidebarButton label="Log out" active={false} onClick={handleLogout} />
+        </div>
 
       </aside>
 
@@ -1915,6 +1929,16 @@ const RetainerPage: React.FC = () => {
                   }}
                 />
               </nav>
+              <div className="pt-4 mt-4 border-t border-slate-800">
+                <SidebarButton
+                  label="Log out"
+                  active={false}
+                  onClick={() => {
+                    setIsMobileNavOpen(false);
+                    handleLogout();
+                  }}
+                />
+              </div>
               </div>
           </div>
         )}
@@ -6116,6 +6140,9 @@ const ActionView: React.FC<{
         <ViewSeekersView
 
           wheelSeekers={wheelSeekers}
+          excellentSeekers={excellentSeekers}
+          possibleSeekers={possibleSeekers}
+          notNowSeekers={notNowSeekers}
 
           onClassify={onClassifySeeker}
 
@@ -7725,442 +7752,286 @@ const SeekerBucketPanel: React.FC<{
 
 
 const ViewSeekersView: React.FC<{
-
   wheelSeekers: Seeker[];
-
+  excellentSeekers: Seeker[];
+  possibleSeekers: Seeker[];
+  notNowSeekers: Seeker[];
   onClassify: (seeker: Seeker, bucket: SeekerBucketKey) => void;
-
   onOpenProfile: (seeker: Seeker) => void;
-
   onMessage: (seeker: Seeker) => void;
-
   retainerRoutes: Route[];
-
   canInteract?: boolean;
-
-}> = ({ wheelSeekers, onClassify, onOpenProfile, onMessage, retainerRoutes, canInteract = true }) => {
-
+}> = ({ wheelSeekers, excellentSeekers, possibleSeekers, notNowSeekers, onClassify, onOpenProfile, onMessage, retainerRoutes, canInteract = true }) => {
   const [centerIndex, setCenterIndex] = useState(0);
-
-  const [prevIndex, setPrevIndex] = useState<number | null>(null);
-
-  const [slideDir, setSlideDir] = useState(1);
-
-  const [animPhase, setAnimPhase] = useState<"start" | "end">("end");
-
   const wheelAccumulatorRef = useRef(0);
-
-  const animationRef = useRef<number | null>(null);
-
   const [expandedSeeker, setExpandedSeeker] = useState<Seeker | null>(null);
 
-
-
   const activeRoutes = useMemo(
-
     () => (retainerRoutes || []).filter((r) => r.status === "ACTIVE"),
-
     [retainerRoutes]
-
   );
 
-
-
   useEffect(() => {
-
     if (wheelSeekers.length === 0) setCenterIndex(0);
-
     else setCenterIndex((prev) => Math.max(0, Math.min(prev, wheelSeekers.length - 1)));
-
-    setPrevIndex(null);
-
-    setAnimPhase("end");
-
   }, [wheelSeekers.length]);
 
-
-
-  useEffect(() => {
-
-    return () => {
-
-      if (animationRef.current) window.clearTimeout(animationRef.current);
-
-    };
-
-  }, []);
-
-
-
   const goToNext = (direction: number) => {
-
     if (wheelSeekers.length === 0) return;
-
     const nextIndex = (centerIndex + direction + wheelSeekers.length) % wheelSeekers.length;
-
     if (nextIndex === centerIndex) return;
-
-    setPrevIndex(centerIndex);
-
-    setSlideDir(direction);
-
     setCenterIndex(nextIndex);
-
-    setAnimPhase("start");
-
-    requestAnimationFrame(() => setAnimPhase("end"));
-
-    if (animationRef.current) window.clearTimeout(animationRef.current);
-
-    animationRef.current = window.setTimeout(() => {
-
-      setPrevIndex(null);
-
-    }, 240);
-
   };
 
-
+  const handleClassifyCurrent = (bucket: SeekerBucketKey) => {
+    if (!currentSeeker) return;
+    onClassify(currentSeeker, bucket);
+  };
 
   const handleWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
-
     if (wheelSeekers.length === 0) return;
-
     e.preventDefault();
-
     e.stopPropagation();
 
-
-
     const threshold = 30;
-
     const nextAcc = wheelAccumulatorRef.current + e.deltaY;
-
     wheelAccumulatorRef.current = nextAcc;
 
-
-
     if (Math.abs(nextAcc) >= threshold) {
-
       wheelAccumulatorRef.current = 0;
-
       const direction = nextAcc > 0 ? 1 : -1;
-
       goToNext(direction);
-
     }
-
   };
 
-
-
   useEffect(() => {
-
     const onKeyDown = (e: KeyboardEvent) => {
-
       if (e.key === "ArrowDown") {
-
         e.preventDefault();
-
         goToNext(1);
-
       }
-
       if (e.key === "ArrowUp") {
-
         e.preventDefault();
-
         goToNext(-1);
-
       }
-
     };
-
     window.addEventListener("keydown", onKeyDown);
-
     return () => window.removeEventListener("keydown", onKeyDown);
-
   });
 
 
-
-  if (wheelSeekers.length === 0) {
-
-    return (
-
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
-
-        You&apos;ve sorted all approved Seekers. Check your Excellent, Possible, and Not now lists on the dashboard.
-
-      </div>
-
-    );
-
-  }
-
-
-
   const scheduleMatchBySeekerId = useMemo(() => {
-
     const map = new Map<string, ScheduleMatch>();
-
     if (activeRoutes.length === 0) return map;
 
-
-
     for (const s of wheelSeekers) {
-
       const availability = (s as any).availability;
-
       if (!availability?.blocks?.length) continue;
-
       const m = bestMatchForRoutes({ availability, routes: activeRoutes as any });
-
       if (m.percent > 0) map.set(String((s as any).id), m);
-
     }
 
-
-
     return map;
-
   }, [activeRoutes, wheelSeekers]);
 
-
-
   useEffect(() => {
-
     if (!expandedSeeker) return;
-
     const onKeyDown = (e: KeyboardEvent) => {
-
       if (e.key === "Escape") setExpandedSeeker(null);
-
     };
-
     window.addEventListener("keydown", onKeyDown);
-
     return () => window.removeEventListener("keydown", onKeyDown);
-
   }, [expandedSeeker]);
 
-
-
   const currentSeeker = wheelSeekers[centerIndex] ?? null;
-
-  const previousSeeker = prevIndex != null ? wheelSeekers[prevIndex] : null;
-
+  const nextSeeker =
+    wheelSeekers.length > 1
+      ? wheelSeekers[(centerIndex + 1) % wheelSeekers.length]
+      : null;
+  const prevPeek =
+    wheelSeekers.length > 1
+      ? wheelSeekers[(centerIndex - 1 + wheelSeekers.length) % wheelSeekers.length]
+      : null;
+  const nextPeek = nextSeeker;
   const remaining = Math.max(0, wheelSeekers.length - centerIndex - 1);
 
-  const offset = slideDir > 0 ? 50 : -50;
-
-
-
-  const prevStyle: React.CSSProperties = {
-
-    transition: "transform 220ms ease, opacity 220ms ease",
-
-    transform: animPhase === "start" ? "translateY(0px)" : `translateY(${offset * -1}px)`,
-
-    opacity: animPhase === "start" ? 1 : 0,
-
+    const renderPeekCard = (s: Seeker) => {
+    const name = formatSeekerName(s);
+    const city = (s as any).city ?? "-";
+    const state = (s as any).state ?? "-";
+    return (
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 px-4 py-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <ProfileAvatar role="SEEKER" profile={s} name={name} size="sm" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-50 truncate">{name}</div>
+            <div className="text-xs text-slate-400 truncate">
+              {city !== "-" || state !== "-" ? `${city}, ${state}` : "Location not set"}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
+  const railTone = {
+    emerald: "border-emerald-500/40",
+    sky: "border-sky-500/40",
+    rose: "border-rose-500/40",
+  } as const;
 
-
-  const currentStyle: React.CSSProperties = {
-
-    transition: "transform 220ms ease, opacity 220ms ease",
-
-    transform: animPhase === "start" ? `translateY(${offset}px)` : "translateY(0px)",
-
-    opacity: animPhase === "start" ? 0 : 1,
-
+  const renderRailCard = (s: Seeker, tone: keyof typeof railTone) => {
+    const name = formatSeekerName(s);
+    const city = (s as any).city ?? "-";
+    const state = (s as any).state ?? "-";
+    return (
+      <div className={`rounded-2xl bg-slate-900/80 border px-4 py-3 ${railTone[tone]}`}>
+        <div className="flex items-center gap-3 min-w-0">
+          <ProfileAvatar role="SEEKER" profile={s} name={name} size="sm" />
+          <div className="min-w-0">
+            <div className="text-sm font-semibold text-slate-50 truncate">{name}</div>
+            <div className="text-xs text-slate-400 truncate">
+              {city !== "-" || state !== "-" ? `${city}, ${state}` : "Location not set"}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
-
-
 
   return (
-
     <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 md:p-6">
-
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
-
         <div>
-
           <h3 className="text-lg font-semibold text-slate-50">Approved Seekers</h3>
-
           <p className="text-xs text-slate-400">
-
             Scroll to browse one profile at a time. Click to open the full profile, or sort them into your lists.
-
           </p>
-
         </div>
-
         <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-300">
-
           Scroll to browse ? Click to expand
-
         </div>
-
       </div>
-
-
 
       <div className="flex items-center justify-between text-[11px] text-slate-400 mb-3">
-
         <span>
-
-          Profile {centerIndex + 1} of {wheelSeekers.length}
-
+          Profile {wheelSeekers.length === 0 ? 0 : centerIndex + 1} of {wheelSeekers.length}
         </span>
-
         <span>
-
           {remaining} left
-
         </span>
-
       </div>
 
-
-
-      <div
-
-        className="relative w-full min-h-[480px] h-[68vh] lg:h-[72vh] max-h-[940px] flex items-start justify-start overflow-hidden"
-
-        onWheel={handleWheel}
-
-      >
-
-        {previousSeeker && (
-
-          <div className="absolute left-0 top-0 w-full max-w-md" style={prevStyle}>
-
-            <SeekerWheelCard
-
-              seeker={previousSeeker}
-
-              isCenter={false}
-
-              onOpenProfile={() => setExpandedSeeker(previousSeeker)}
-
-              onMessage={() => onMessage(previousSeeker)}
-
-              onClassify={(bucket) => onClassify(previousSeeker, bucket)}
-
-              canInteract={canInteract}
-
-              scheduleMatch={scheduleMatchBySeekerId.get(String(previousSeeker.id))}
-
-            />
-
-          </div>
-
-        )}
-
-
-
-        {currentSeeker && (
-
-          <div className="relative w-full max-w-md" style={currentStyle}>
-
-            <SeekerWheelCard
-
-              seeker={currentSeeker}
-
-              isCenter={true}
-
-              onOpenProfile={() => setExpandedSeeker(currentSeeker)}
-
-              onMessage={() => onMessage(currentSeeker)}
-
-              onClassify={(bucket) => onClassify(currentSeeker, bucket)}
-
-              canInteract={canInteract}
-
-              scheduleMatch={scheduleMatchBySeekerId.get(String(currentSeeker.id))}
-
-            />
-
-          </div>
-
-        )}
-
-      </div>
-
-
-
-      {expandedSeeker && (
-
-        <div className="fixed inset-0 z-50">
-
-          <div
-
-            className="absolute inset-0 bg-black/70"
-
-            onClick={() => setExpandedSeeker(null)}
-
-          />
-
-          <div className="relative h-full w-full p-6 md:p-10 flex items-center justify-center overflow-y-auto">
-
-            <div role="dialog" aria-modal="true" className="w-full max-w-5xl">
-
-              <SeekerWheelExpandedCard
-
-                seeker={expandedSeeker}
-
-                scheduleMatch={scheduleMatchBySeekerId.get(String(expandedSeeker.id))}
-
-                activeRoutes={activeRoutes}
-
-                canInteract={canInteract}
-
-                onClose={() => setExpandedSeeker(null)}
-
-                onOpenFullProfile={() => {
-
-                  onOpenProfile(expandedSeeker);
-
-                  setExpandedSeeker(null);
-
-                }}
-
-                onMessage={() => {
-
-                  onMessage(expandedSeeker);
-
-                  setExpandedSeeker(null);
-
-                }}
-
-                onClassify={(bucket) => {
-
-                  onClassify(expandedSeeker, bucket);
-
-                  setExpandedSeeker(null);
-
-                }}
-
-              />
-
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div
+          className="relative flex-1 min-h-[360px] h-[50vh] sm:h-[56vh] md:h-[52vh] lg:h-[60vh] xl:h-[70vh] max-h-[900px] flex items-center justify-start overflow-hidden"
+          onWheel={handleWheel}
+        >
+          {prevPeek && (
+            <div className="hidden xl:block absolute left-0 top-6 w-full max-w-md">
+              {renderPeekCard(prevPeek)}
             </div>
+          )}
 
-          </div>
+          {nextPeek && (
+            <div className="hidden xl:block absolute left-0 bottom-6 w-full max-w-md">
+              {renderPeekCard(nextPeek)}
+            </div>
+          )}
 
+          {currentSeeker && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full max-w-md">
+              <SeekerWheelCard
+                seeker={currentSeeker}
+                isCenter={true}
+                onOpenProfile={() => setExpandedSeeker(currentSeeker)}
+                onMessage={() => onMessage(currentSeeker)}
+                onClassify={(bucket) => handleClassifyCurrent(bucket)}
+                canInteract={canInteract}
+                scheduleMatch={scheduleMatchBySeekerId.get(String(currentSeeker.id))}
+              />
+            </div>
+          )}
+
+
+          {!currentSeeker && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full max-w-md">
+              <div className="w-full max-w-md px-3 py-3 sm:px-4 sm:py-4 rounded-2xl border border-slate-700 bg-slate-900/70 text-slate-300 min-h-[220px] sm:min-h-[260px] flex items-center justify-center text-center">
+                <p className="text-sm">
+                  You&apos;ve sorted through all available profiles. Time to head over to the Linking tab and send link requests.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
+        <div className="hidden lg:block relative w-full lg:w-64 shrink-0 h-[64vh] lg:h-[70vh]">
+          <div className="absolute left-0 right-0 top-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-3 h-[28%] flex flex-col">
+            <div className="text-xs uppercase tracking-wide text-emerald-200">Excellent</div>
+            <div className="text-[11px] text-emerald-100 mt-1">{excellentSeekers.length} saved</div>
+            <div className="mt-2 space-y-2 overflow-y-auto pr-1">
+              {excellentSeekers.map((s) => (
+                <div key={s.id}>{renderRailCard(s, "emerald")}</div>
+              ))}
+            </div>
+          </div>
+
+          <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-3 py-3 h-[28%] flex flex-col">
+            <div className="text-xs uppercase tracking-wide text-sky-200">Possible</div>
+            <div className="text-[11px] text-sky-100 mt-1">{possibleSeekers.length} saved</div>
+            <div className="mt-2 space-y-2 overflow-y-auto pr-1">
+              {possibleSeekers.map((s) => (
+                <div key={s.id}>{renderRailCard(s, "sky")}</div>
+              ))}
+            </div>
+          </div>
+
+          <div className="absolute left-0 right-0 bottom-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-3 h-[28%] flex flex-col">
+            <div className="text-xs uppercase tracking-wide text-rose-200">Not now</div>
+            <div className="text-[11px] text-rose-100 mt-1">{notNowSeekers.length} saved</div>
+            <div className="mt-2 space-y-2 overflow-y-auto pr-1">
+              {notNowSeekers.map((s) => (
+                <div key={s.id}>{renderRailCard(s, "rose")}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {expandedSeeker && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setExpandedSeeker(null)}
+          />
+          <div className="relative h-full w-full p-6 md:p-10 flex items-center justify-center overflow-y-auto">
+            <div role="dialog" aria-modal="true" className="w-full max-w-5xl">
+              <SeekerWheelExpandedCard
+                seeker={expandedSeeker}
+                scheduleMatch={scheduleMatchBySeekerId.get(String(expandedSeeker.id))}
+                activeRoutes={activeRoutes}
+                canInteract={canInteract}
+                onClose={() => setExpandedSeeker(null)}
+                onOpenFullProfile={() => {
+                  onOpenProfile(expandedSeeker);
+                  setExpandedSeeker(null);
+                }}
+                onMessage={() => {
+                  onMessage(expandedSeeker);
+                  setExpandedSeeker(null);
+                }}
+                onClassify={(bucket) => {
+                  onClassify(expandedSeeker, bucket);
+                  setExpandedSeeker(null);
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
-
     </div>
-
   );
-
 };
-
-
 
 const SeekerWheelCard: React.FC<{
 
@@ -8244,7 +8115,7 @@ const SeekerWheelCard: React.FC<{
 
       className={[
 
-        "w-full max-w-md px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer min-h-[560px]",
+        "w-full max-w-md px-3 py-2 sm:px-4 sm:py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer min-h-[300px] sm:min-h-[360px] md:min-h-[360px] lg:min-h-[500px] xl:min-h-[560px] scale-[0.94] md:scale-[0.90] lg:scale-[0.96] xl:scale-100 origin-top",
 
         "bg-slate-900 flex flex-col shadow-lg",
 
@@ -8262,7 +8133,7 @@ const SeekerWheelCard: React.FC<{
 
       <div className="mb-3">
 
-        <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 h-28 w-full flex items-center justify-center">
+        <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 h-20 sm:h-24 md:h-28 lg:h-32 xl:h-36 w-full flex items-center justify-center">
 
           {photoUrl ? (
 
@@ -8346,55 +8217,43 @@ const SeekerWheelCard: React.FC<{
 
 
 
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      
+      <div className="mt-2 space-y-2">
+        <div>
+          <div className="flex items-center justify-between text-[10px] text-slate-300">
+            <span className="flex items-center gap-1">
+              {badgeIconFor("shield", "h-3.5 w-3.5")}
+              <span className="font-semibold">
+                {reputation.score == null ? "Reputation -" : `Reputation ${reputation.score}`}
+              </span>
+            </span>
+            {reputation.total > 0 && <span className="text-slate-500">({reputation.total})</span>}
+          </div>
+          <div className="mt-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-emerald-400/80"
+              style={{ width: `${reputation.scorePercent ?? 0}%` }}
+            />
+          </div>
+        </div>
 
-        <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/40 px-2 py-0.5 text-[10px] text-slate-200">
-
-          {badgeIconFor("shield", "h-3.5 w-3.5")}
-
-          <span className="font-semibold">
-
-            {reputation.score == null ? "Reputation -" : `Reputation ${reputation.score}`}
-
-          </span>
-
-          {reputation.total > 0 && <span className="text-slate-400">({reputation.total})</span>}
-
-        </span>
-
-
-
-        {scheduleMatch && scheduleMatch.percent > 0 ? (
-
-          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-100">
-
-            {badgeIconFor("clock", "h-3.5 w-3.5")}
-
-            <span className="font-semibold">{scheduleMatch.percent}% match</span>
-
-            {scheduleMatch.overlapDays.length > 0 && (
-
-              <span className="text-emerald-200/70">- {formatDaysShort(scheduleMatch.overlapDays)}</span>
-
-            )}
-
-          </span>
-
-        ) : (
-
-          <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/30 px-2 py-0.5 text-[10px] text-slate-400">
-
-            {badgeIconFor("clock", "h-3.5 w-3.5")}
-
-            Schedule -
-
-          </span>
-
-        )}
-
+        <div className="flex flex-wrap items-center gap-2">
+          {scheduleMatch && scheduleMatch.percent > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-100">
+              {badgeIconFor("clock", "h-3.5 w-3.5")}
+              <span className="font-semibold">{scheduleMatch.percent}% match</span>
+              {scheduleMatch.overlapDays.length > 0 && (
+                <span className="text-emerald-200/70">- {formatDaysShort(scheduleMatch.overlapDays)}</span>
+              )}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/30 px-2 py-0.5 text-[10px] text-slate-400">
+              {badgeIconFor("clock", "h-3.5 w-3.5")}
+              Schedule -
+            </span>
+          )}
+        </div>
       </div>
-
-
 
       {topBadges.length > 0 && (
 
@@ -9938,7 +9797,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
               {companyPhotoUrl ? (
 
-                <div className="h-28 w-full rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
+                <div className="h-20 sm:h-24 md:h-28 lg:h-32 xl:h-36 w-full rounded-xl border border-slate-700 bg-slate-900 overflow-hidden">
 
                   <img src={companyPhotoUrl} alt="Company" className="h-full w-full object-cover" />
 

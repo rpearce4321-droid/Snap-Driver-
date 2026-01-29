@@ -13,7 +13,7 @@ import { can, assertCan } from "../lib/permissions";
 import { getLink, requestLink, type Link as LinkModel } from "../lib/linking";
 import type { WeeklyAvailability } from "../lib/schedule";
 import { DAYS, isDayOfWeek } from "../lib/schedule";
-import { getPortalContext, getSession } from "../lib/session";
+import { clearPortalContext, clearSession, getPortalContext, getSession } from "../lib/session";
 import HierarchyCanvas from "../components/HierarchyCanvas";
 import { getBadgeSummaryForProfile, getReputationScoreForProfile } from "../lib/badges";
 import {
@@ -150,6 +150,16 @@ export default function SeekerDetailPage() {
       return;
     }
     navigate(dashboardPath);
+  };
+
+  const handleLogout = () => {
+    clearSession();
+    clearPortalContext();
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("snapdriver_current_seeker_id");
+      window.localStorage.removeItem("snapdriver_current_retainer_id");
+    }
+    navigate("/");
   };
 
   const badgeLinkState = {
@@ -405,8 +415,9 @@ export default function SeekerDetailPage() {
           {backLabel}
         </button>
 
-        {role === "RETAINER" && status === "APPROVED" && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {role === "RETAINER" && status === "APPROVED" && (
+            <>
             {!isLinked && (
               <button
                 type="button"
@@ -422,8 +433,12 @@ export default function SeekerDetailPage() {
                 Linked
               </span>
             )}
-          </div>
-        )}
+          </>
+          )}
+          <button type="button" className="btn" onClick={handleLogout}>
+            Log out
+          </button>
+        </div>
       </div>
 
       <section className="rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shrink-0">
