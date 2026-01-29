@@ -7746,15 +7746,6 @@ const ViewSeekersView: React.FC<{
 
   const [expandedSeeker, setExpandedSeeker] = useState<Seeker | null>(null);
 
-  const [viewportHeight, setViewportHeight] = useState(() =>
-
-    typeof window !== "undefined" ? window.innerHeight : 800
-
-  );
-  const [viewportWidth, setViewportWidth] = useState(() =>
-    typeof window !== "undefined" ? window.innerWidth : 1200
-  );
-
 
 
   const activeRoutes = useMemo(
@@ -7777,23 +7768,6 @@ const ViewSeekersView: React.FC<{
 
 
 
-  useEffect(() => {
-
-    if (typeof window === "undefined") return;
-
-    const handleResize = () => {
-    setViewportHeight(window.innerHeight);
-    setViewportWidth(window.innerWidth);
-  };
-
-    window.addEventListener("resize", handleResize);
-
-    return () => window.removeEventListener("resize", handleResize);
-
-  }, []);
-
-
-
   const handleWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
 
     if (wheelSeekers.length === 0) return;
@@ -7804,7 +7778,7 @@ const ViewSeekersView: React.FC<{
 
 
 
-    const threshold = 20;
+    const threshold = 30;
 
     const nextAcc = wheelAccumulatorRef.current + e.deltaY;
 
@@ -7818,11 +7792,13 @@ const ViewSeekersView: React.FC<{
 
       const direction = nextAcc > 0 ? 1 : -1;
 
-      setCenterIndex((prev) =>
+      setCenterIndex((prev) => {
 
-        wheelSeekers.length === 0 ? 0 : (prev + direction + wheelSeekers.length) % wheelSeekers.length
+        const next = prev + direction;
 
-      );
+        return Math.max(0, Math.min(next, wheelSeekers.length - 1));
+
+      });
 
     }
 
@@ -7843,14 +7819,6 @@ const ViewSeekersView: React.FC<{
     );
 
   }
-
-
-
-  const baseStep = Math.max(70, Math.min(110, viewportHeight * 0.08));
-
-  const scaleDrop = viewportHeight < 600 ? 0.18 : viewportHeight < 900 ? 0.14 : 0.12;
-  const baseScale =
-    viewportWidth < 480 ? 0.95 : viewportWidth < 768 ? 1.1 : viewportWidth < 1024 ? 1.25 : 1.45;
 
 
 
@@ -7900,11 +7868,17 @@ const ViewSeekersView: React.FC<{
 
 
 
+  const currentSeeker = wheelSeekers[centerIndex] ?? null;
+
+  const remaining = Math.max(0, wheelSeekers.length - centerIndex - 1);
+
+
+
   return (
 
     <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 md:p-6">
 
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
 
         <div>
 
@@ -7912,13 +7886,35 @@ const ViewSeekersView: React.FC<{
 
           <p className="text-xs text-slate-400">
 
-            Spin the wheel to browse approved Seekers. Click to open the full profile, or sort them into your lists.
+            Scroll to browse one profile at a time. Click to open the full profile, or sort them into your lists.
 
           </p>
 
         </div>
 
-        <div className="text-[11px] text-slate-500">Use your mouse wheel to spin</div>
+        <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-300">
+
+          Scroll to browse ? Click to expand
+
+        </div>
+
+      </div>
+
+
+
+      <div className="flex items-center justify-between text-[11px] text-slate-400 mb-3">
+
+        <span>
+
+          Profile {centerIndex + 1} of {wheelSeekers.length}
+
+        </span>
+
+        <span>
+
+          {remaining} left
+
+        </span>
 
       </div>
 
@@ -7926,55 +7922,37 @@ const ViewSeekersView: React.FC<{
 
       <div
 
-        className="relative w-full min-h-[360px] h-[60vh] md:h-[65vh] lg:h-[70vh] max-h-[820px] flex items-center justify-center overflow-hidden"
+        className="relative w-full min-h-[360px] h-[60vh] md:h-[65vh] lg:h-[70vh] max-h-[820px] flex items-center justify-center"
 
         onWheel={handleWheel}
 
       >
 
-        {(() => {
-          const len = wheelSeekers.length;
-          if (len === 0) return null;
-          const offsets = [-3, -2, -1, 0, 1, 2, 3];
-          const seen = new Set<number>();
-          return offsets
-            .map((offset) => {
-              const index = (centerIndex + offset + len) % len;
-              if (seen.has(index)) return null;
-              seen.add(index);
-              const seeker = wheelSeekers[index];
-              return { seeker, offset };
-            })
-            .filter((item): item is { seeker: Seeker; offset: number } => !!item)
-            .map(({ seeker, offset }) => {
-              const abs = Math.abs(offset);
-              const translateY = offset * baseStep;
-              const scale = (1 - scaleDrop * abs) * baseScale;
-              const opacity = 1 - 0.2 * abs;
-              const isCenter = offset === 0;
-              const zIndex = 20 - abs;
+        {currentSeeker && (
 
-              const style: CSSProperties = {
-                transform: `translateY(${translateY}px) scale(${scale})`,
-                opacity,
-                zIndex,
-              };
+          <div className="w-full max-w-md mx-auto">
 
-              return (
-                <SeekerWheelCard
-                  key={seeker.id}
-                  seeker={seeker}
-                  style={style}
-                  isCenter={isCenter}
-                  onOpenProfile={() => setExpandedSeeker(seeker)}
-                  onMessage={() => onMessage(seeker)}
-                  onClassify={(bucket) => onClassify(seeker, bucket)}
-                  canInteract={canInteract}
-                  scheduleMatch={scheduleMatchBySeekerId.get(String(seeker.id))}
-                />
-              );
-            });
-        })()}
+            <SeekerWheelCard
+
+              seeker={currentSeeker}
+
+              isCenter={true}
+
+              onOpenProfile={() => setExpandedSeeker(currentSeeker)}
+
+              onMessage={() => onMessage(currentSeeker)}
+
+              onClassify={(bucket) => onClassify(currentSeeker, bucket)}
+
+              canInteract={canInteract}
+
+              scheduleMatch={scheduleMatchBySeekerId.get(String(currentSeeker.id))}
+
+            />
+
+          </div>
+
+        )}
 
       </div>
 
@@ -8132,7 +8110,7 @@ const SeekerWheelCard: React.FC<{
 
       className={[
 
-        "absolute w-[90vw] max-w-sm sm:w-full md:max-w-md px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
+        "w-full max-w-md mx-auto px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
 
         "bg-slate-900 flex flex-col shadow-lg",
 

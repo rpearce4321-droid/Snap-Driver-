@@ -4037,19 +4037,9 @@ const ViewRetainersView: React.FC<{
   const deferredPayCycleFrequency = useDeferredValue(payCycleFrequency);
   const deferredPayCycleCloseDay = useDeferredValue(payCycleCloseDay);
 
-  const [viewportHeight, setViewportHeight] = useState(() => {
-    if (typeof window !== "undefined") return window.innerHeight;
-    return 800;
-  });
-
-  const [viewportWidth, setViewportWidth] = useState(() => {
-    if (typeof window !== "undefined") return window.innerWidth;
-    return 1200;
-  });
-
   const parseZip = (value: string | null | undefined) => {
     const digits = String(value ?? "").replace(/\D/g, "").slice(0, 5);
-    if (digits.length !== 5) return null;
+    if (digits.length != 5) return null;
     const n = Number(digits);
     return Number.isFinite(n) ? n : null;
   };
@@ -4102,7 +4092,7 @@ const ViewRetainersView: React.FC<{
   }, [wheelRetainers, deferredReputationMin, hasDistanceFilter, deferredDistanceZip, distanceMiles, deferredPayCycleFrequency, deferredPayCycleCloseDay, reputationById]);
 
   useEffect(() => {
-    if (filteredRetainers.length === 0) {
+    if (filteredRetainers.length == 0) {
       setCenterIndex(0);
     } else {
       setCenterIndex((prev) =>
@@ -4111,40 +4101,22 @@ const ViewRetainersView: React.FC<{
     }
   }, [filteredRetainers.length]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const handleResize = () => {
-    setViewportHeight(window.innerHeight);
-    setViewportWidth(window.innerWidth);
-  };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
   const handleWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
     if (filteredRetainers.length === 0) return;
     e.preventDefault();
     e.stopPropagation();
 
-    const threshold = 60;
+    const threshold = 30;
     const nextAcc = wheelAccumulatorRef.current + e.deltaY;
+    wheelAccumulatorRef.current = nextAcc;
 
-    if (nextAcc > threshold) {
+    if (Math.abs(nextAcc) >= threshold) {
       wheelAccumulatorRef.current = 0;
-      setCenterIndex((prev) =>
-        filteredRetainers.length === 0
-          ? 0
-          : (prev + 1) % filteredRetainers.length
-      );
-    } else if (nextAcc < -threshold) {
-      wheelAccumulatorRef.current = 0;
-      setCenterIndex((prev) =>
-        filteredRetainers.length === 0
-          ? 0
-          : (prev - 1 + filteredRetainers.length) % filteredRetainers.length
-      );
-    } else {
-      wheelAccumulatorRef.current = nextAcc;
+      const direction = nextAcc > 0 ? 1 : -1;
+      setCenterIndex((prev) => {
+        const next = prev + direction;
+        return Math.max(0, Math.min(next, filteredRetainers.length - 1));
+      });
     }
   };
 
@@ -4156,13 +4128,6 @@ const ViewRetainersView: React.FC<{
       </div>
     );
   }
-
-  const baseStep = Math.max(70, Math.min(110, viewportHeight * 0.08));
-  const scaleDrop =
-    viewportHeight < 600 ? 0.18 : viewportHeight < 900 ? 0.14 : 0.12;
-
-  const baseScale =
-    viewportWidth < 480 ? 0.95 : viewportWidth < 768 ? 1.1 : viewportWidth < 1024 ? 1.25 : 1.45;
 
   const { scheduleMatchByRetainerId, routeCountByRetainerId } = useMemo(() => {
     const matches = new Map<string, ScheduleMatch>();
@@ -4205,16 +4170,18 @@ const ViewRetainersView: React.FC<{
 
   return (
     <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 md:p-6">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
         <div>
           <h3 className="text-lg font-semibold text-slate-50">Approved Retainers</h3>
           <p className="text-xs text-slate-400">
-            Spin the wheel to browse approved Retainers. Hover to preview, click
-            to open the full profile, or sort them into your lists.
+            Scroll to browse one profile at a time. Click to open the full profile, or sort them into your lists.
           </p>
         </div>
-        <div className="text-[11px] text-slate-500">Use your mouse wheel to spin</div>
+        <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-300">
+          Scroll to browse ? Click to expand
+        </div>
       </div>
+
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-[11px] text-slate-400">Reputation</label>
@@ -4319,70 +4286,38 @@ const ViewRetainersView: React.FC<{
           )}
         </div>
       ) : (
-        <div
-          className="
-            relative
-            w-full
-            min-h-[360px]
-            h-[60vh]
-            md:h-[65vh]
-            lg:h-[70vh]
-            max-h-[820px]
-            flex items-center justify-center
-            overflow-hidden
-            px-2
-            overscroll-contain
-          "
-          onWheel={handleWheel}
-        >
-          {(() => {
-            const len = filteredRetainers.length;
-            if (len === 0) return null;
-            const offsets = [-3, -2, -1, 0, 1, 2, 3];
-            const seen = new Set<number>();
-            return offsets
-              .map((offset) => {
-                const index = (centerIndex + offset + len) % len;
-                if (seen.has(index)) return null;
-                seen.add(index);
-                const retainer = filteredRetainers[index];
-                return { retainer, offset };
-              })
-              .filter((item): item is { retainer: Retainer; offset: number } => !!item)
-              .map(({ retainer, offset }) => {
-                const abs = Math.abs(offset);
-                const translateY = offset * baseStep;
-                const scale = (1 - scaleDrop * abs) * baseScale;
-                const opacity = 1 - 0.2 * abs;
-                const isCenter = offset === 0;
-                const zIndex = 20 - abs;
-
-                const style: CSSProperties = {
-                  transform: `translateY(${translateY}px) scale(${scale})`,
-                  opacity,
-                  zIndex,
-                };
-
-                return (
-                  <RetainerWheelCard
-                    key={retainer.id}
-                    retainer={retainer}
-                    style={style}
-                    isCenter={isCenter}
-                    scheduleMatch={scheduleMatchByRetainerId.get(retainer.id)}
-                    onOpenProfile={() => setExpandedRetainer(retainer)}
-                    onMessage={() => onMessage(retainer)}
-                    canMessage={!!seekerId}
-                    routeCount={routeCountByRetainerId.get(retainer.id)}
-                    isLinked={
-                      !!(seekerId && getLink(seekerId, retainer.id)?.status === "ACTIVE")
-                    }
-                    onClassify={(bucket) => onClassify(retainer, bucket)}
-                  />
-                );
-              });
-          })()}
-        </div>
+        <>
+          <div className="flex items-center justify-between text-[11px] text-slate-400 mb-3">
+            <span>
+              Profile {centerIndex + 1} of {filteredRetainers.length}
+            </span>
+            <span>
+              {Math.max(0, filteredRetainers.length - centerIndex - 1)} left
+            </span>
+          </div>
+          <div
+            className="relative w-full min-h-[360px] h-[60vh] md:h-[65vh] lg:h-[70vh] max-h-[820px] flex items-center justify-center"
+            onWheel={handleWheel}
+          >
+            {filteredRetainers[centerIndex] && (
+              <div className="w-full max-w-md mx-auto">
+                <RetainerWheelCard
+                  retainer={filteredRetainers[centerIndex]}
+                  isCenter={true}
+                  scheduleMatch={scheduleMatchByRetainerId.get(filteredRetainers[centerIndex].id)}
+                  onOpenProfile={() => setExpandedRetainer(filteredRetainers[centerIndex])}
+                  onMessage={() => onMessage(filteredRetainers[centerIndex])}
+                  canMessage={!!seekerId}
+                  routeCount={routeCountByRetainerId.get(filteredRetainers[centerIndex].id)}
+                  isLinked={
+                    !!(seekerId && getLink(seekerId, filteredRetainers[centerIndex].id)?.status === "ACTIVE")
+                  }
+                  onClassify={(bucket) => onClassify(filteredRetainers[centerIndex], bucket)}
+                />
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {expandedRetainer && (
@@ -4483,7 +4418,7 @@ const RetainerWheelCard: React.FC<{
       }}
       style={style}
       className={[
-        "absolute w-[90vw] max-w-sm sm:w-full md:max-w-md px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
+        "w-full max-w-md mx-auto px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
         "bg-slate-900 flex flex-col shadow-lg",
         isCenter
           ? "border-emerald-500/60 shadow-emerald-900/50 scale-100"
