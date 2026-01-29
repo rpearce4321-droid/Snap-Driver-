@@ -7742,7 +7742,15 @@ const ViewSeekersView: React.FC<{
 
   const [centerIndex, setCenterIndex] = useState(0);
 
+  const [prevIndex, setPrevIndex] = useState<number | null>(null);
+
+  const [slideDir, setSlideDir] = useState(1);
+
+  const [animPhase, setAnimPhase] = useState<"start" | "end">("end");
+
   const wheelAccumulatorRef = useRef(0);
+
+  const animationRef = useRef<number | null>(null);
 
   const [expandedSeeker, setExpandedSeeker] = useState<Seeker | null>(null);
 
@@ -7764,7 +7772,53 @@ const ViewSeekersView: React.FC<{
 
     else setCenterIndex((prev) => Math.max(0, Math.min(prev, wheelSeekers.length - 1)));
 
+    setPrevIndex(null);
+
+    setAnimPhase("end");
+
   }, [wheelSeekers.length]);
+
+
+
+  useEffect(() => {
+
+    return () => {
+
+      if (animationRef.current) window.clearTimeout(animationRef.current);
+
+    };
+
+  }, []);
+
+
+
+  const goToNext = (direction: number) => {
+
+    if (wheelSeekers.length === 0) return;
+
+    const nextIndex = (centerIndex + direction + wheelSeekers.length) % wheelSeekers.length;
+
+    if (nextIndex === centerIndex) return;
+
+    setPrevIndex(centerIndex);
+
+    setSlideDir(direction);
+
+    setCenterIndex(nextIndex);
+
+    setAnimPhase("start");
+
+    requestAnimationFrame(() => setAnimPhase("end"));
+
+    if (animationRef.current) window.clearTimeout(animationRef.current);
+
+    animationRef.current = window.setTimeout(() => {
+
+      setPrevIndex(null);
+
+    }, 240);
+
+  };
 
 
 
@@ -7792,17 +7846,41 @@ const ViewSeekersView: React.FC<{
 
       const direction = nextAcc > 0 ? 1 : -1;
 
-      setCenterIndex((prev) => {
-
-        const next = prev + direction;
-
-        return Math.max(0, Math.min(next, wheelSeekers.length - 1));
-
-      });
+      goToNext(direction);
 
     }
 
   };
+
+
+
+  useEffect(() => {
+
+    const onKeyDown = (e: KeyboardEvent) => {
+
+      if (e.key === "ArrowDown") {
+
+        e.preventDefault();
+
+        goToNext(1);
+
+      }
+
+      if (e.key === "ArrowUp") {
+
+        e.preventDefault();
+
+        goToNext(-1);
+
+      }
+
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => window.removeEventListener("keydown", onKeyDown);
+
+  });
 
 
 
@@ -7870,7 +7948,35 @@ const ViewSeekersView: React.FC<{
 
   const currentSeeker = wheelSeekers[centerIndex] ?? null;
 
+  const previousSeeker = prevIndex != null ? wheelSeekers[prevIndex] : null;
+
   const remaining = Math.max(0, wheelSeekers.length - centerIndex - 1);
+
+  const offset = slideDir > 0 ? 50 : -50;
+
+
+
+  const prevStyle: React.CSSProperties = {
+
+    transition: "transform 220ms ease, opacity 220ms ease",
+
+    transform: animPhase === "start" ? "translateY(0px)" : `translateY(${offset * -1}px)`,
+
+    opacity: animPhase === "start" ? 1 : 0,
+
+  };
+
+
+
+  const currentStyle: React.CSSProperties = {
+
+    transition: "transform 220ms ease, opacity 220ms ease",
+
+    transform: animPhase === "start" ? `translateY(${offset}px)` : "translateY(0px)",
+
+    opacity: animPhase === "start" ? 0 : 1,
+
+  };
 
 
 
@@ -7922,15 +8028,43 @@ const ViewSeekersView: React.FC<{
 
       <div
 
-        className="relative w-full min-h-[360px] h-[60vh] md:h-[65vh] lg:h-[70vh] max-h-[820px] flex items-center justify-center"
+        className="relative w-full min-h-[480px] h-[68vh] lg:h-[72vh] max-h-[940px] flex items-start justify-start overflow-hidden"
 
         onWheel={handleWheel}
 
       >
 
+        {previousSeeker && (
+
+          <div className="absolute left-0 top-0 w-full max-w-md" style={prevStyle}>
+
+            <SeekerWheelCard
+
+              seeker={previousSeeker}
+
+              isCenter={false}
+
+              onOpenProfile={() => setExpandedSeeker(previousSeeker)}
+
+              onMessage={() => onMessage(previousSeeker)}
+
+              onClassify={(bucket) => onClassify(previousSeeker, bucket)}
+
+              canInteract={canInteract}
+
+              scheduleMatch={scheduleMatchBySeekerId.get(String(previousSeeker.id))}
+
+            />
+
+          </div>
+
+        )}
+
+
+
         {currentSeeker && (
 
-          <div className="w-full max-w-md mx-auto">
+          <div className="relative w-full max-w-md" style={currentStyle}>
 
             <SeekerWheelCard
 
@@ -8110,7 +8244,7 @@ const SeekerWheelCard: React.FC<{
 
       className={[
 
-        "w-full max-w-md mx-auto px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
+        "w-full max-w-md px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer min-h-[560px]",
 
         "bg-slate-900 flex flex-col shadow-lg",
 

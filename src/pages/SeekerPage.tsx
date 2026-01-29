@@ -4024,7 +4024,11 @@ const ViewRetainersView: React.FC<{
   onMessage,
 }) => {
   const [centerIndex, setCenterIndex] = useState(0);
+  const [prevIndex, setPrevIndex] = useState<number | null>(null);
+  const [slideDir, setSlideDir] = useState(1);
+  const [animPhase, setAnimPhase] = useState<"start" | "end">("end");
   const wheelAccumulatorRef = useRef(0);
+  const animationRef = useRef<number | null>(null);
   const [expandedRetainer, setExpandedRetainer] = useState<Retainer | null>(null);
   const [reputationMin, setReputationMin] = useState(0);
   const [distanceZip, setDistanceZip] = useState("");
@@ -4039,7 +4043,7 @@ const ViewRetainersView: React.FC<{
 
   const parseZip = (value: string | null | undefined) => {
     const digits = String(value ?? "").replace(/\D/g, "").slice(0, 5);
-    if (digits.length != 5) return null;
+    if (digits.length !== 5) return null;
     const n = Number(digits);
     return Number.isFinite(n) ? n : null;
   };
@@ -4092,14 +4096,35 @@ const ViewRetainersView: React.FC<{
   }, [wheelRetainers, deferredReputationMin, hasDistanceFilter, deferredDistanceZip, distanceMiles, deferredPayCycleFrequency, deferredPayCycleCloseDay, reputationById]);
 
   useEffect(() => {
-    if (filteredRetainers.length == 0) {
+    if (filteredRetainers.length === 0) {
       setCenterIndex(0);
     } else {
-      setCenterIndex((prev) =>
-        Math.max(0, Math.min(prev, filteredRetainers.length - 1))
-      );
+      setCenterIndex((prev) => Math.max(0, Math.min(prev, filteredRetainers.length - 1)));
     }
+    setPrevIndex(null);
+    setAnimPhase("end");
   }, [filteredRetainers.length]);
+
+  useEffect(() => {
+    return () => {
+      if (animationRef.current) window.clearTimeout(animationRef.current);
+    };
+  }, []);
+
+  const goToNext = (direction: number) => {
+    if (filteredRetainers.length === 0) return;
+    const nextIndex = (centerIndex + direction + filteredRetainers.length) % filteredRetainers.length;
+    if (nextIndex === centerIndex) return;
+    setPrevIndex(centerIndex);
+    setSlideDir(direction);
+    setCenterIndex(nextIndex);
+    setAnimPhase("start");
+    requestAnimationFrame(() => setAnimPhase("end"));
+    if (animationRef.current) window.clearTimeout(animationRef.current);
+    animationRef.current = window.setTimeout(() => {
+      setPrevIndex(null);
+    }, 240);
+  };
 
   const handleWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
     if (filteredRetainers.length === 0) return;
@@ -4113,12 +4138,24 @@ const ViewRetainersView: React.FC<{
     if (Math.abs(nextAcc) >= threshold) {
       wheelAccumulatorRef.current = 0;
       const direction = nextAcc > 0 ? 1 : -1;
-      setCenterIndex((prev) => {
-        const next = prev + direction;
-        return Math.max(0, Math.min(next, filteredRetainers.length - 1));
-      });
+      goToNext(direction);
     }
   };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        goToNext(1);
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        goToNext(-1);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
   if (wheelRetainers.length === 0) {
     return (
@@ -4167,6 +4204,23 @@ const ViewRetainersView: React.FC<{
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [expandedRetainer]);
+
+  const currentRetainer = filteredRetainers[centerIndex] ?? null;
+  const previousRetainer = prevIndex != null ? filteredRetainers[prevIndex] : null;
+  const remaining = Math.max(0, filteredRetainers.length - centerIndex - 1);
+  const offset = slideDir > 0 ? 50 : -50;
+
+  const prevStyle: React.CSSProperties = {
+    transition: "transform 220ms ease, opacity 220ms ease",
+    transform: animPhase === "start" ? "translateY(0px)" : `translateY(${offset * -1}px)`,
+    opacity: animPhase === "start" ? 1 : 0,
+  };
+
+  const currentStyle: React.CSSProperties = {
+    transition: "transform 220ms ease, opacity 220ms ease",
+    transform: animPhase === "start" ? `translateY(${offset}px)` : "translateY(0px)",
+    opacity: animPhase === "start" ? 0 : 1,
+  };
 
   return (
     <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 md:p-6">
@@ -4292,27 +4346,44 @@ const ViewRetainersView: React.FC<{
               Profile {centerIndex + 1} of {filteredRetainers.length}
             </span>
             <span>
-              {Math.max(0, filteredRetainers.length - centerIndex - 1)} left
+              {remaining} left
             </span>
           </div>
           <div
-            className="relative w-full min-h-[360px] h-[60vh] md:h-[65vh] lg:h-[70vh] max-h-[820px] flex items-center justify-center"
+            className="relative w-full min-h-[480px] h-[68vh] lg:h-[72vh] max-h-[940px] flex items-start justify-start overflow-hidden"
             onWheel={handleWheel}
           >
-            {filteredRetainers[centerIndex] && (
-              <div className="w-full max-w-md mx-auto">
+            {previousRetainer && (
+              <div className="absolute left-0 top-0 w-full max-w-md" style={prevStyle}>
                 <RetainerWheelCard
-                  retainer={filteredRetainers[centerIndex]}
-                  isCenter={true}
-                  scheduleMatch={scheduleMatchByRetainerId.get(filteredRetainers[centerIndex].id)}
-                  onOpenProfile={() => setExpandedRetainer(filteredRetainers[centerIndex])}
-                  onMessage={() => onMessage(filteredRetainers[centerIndex])}
+                  retainer={previousRetainer}
+                  isCenter={false}
+                  scheduleMatch={scheduleMatchByRetainerId.get(previousRetainer.id)}
+                  onOpenProfile={() => setExpandedRetainer(previousRetainer)}
+                  onMessage={() => onMessage(previousRetainer)}
                   canMessage={!!seekerId}
-                  routeCount={routeCountByRetainerId.get(filteredRetainers[centerIndex].id)}
+                  routeCount={routeCountByRetainerId.get(previousRetainer.id)}
                   isLinked={
-                    !!(seekerId && getLink(seekerId, filteredRetainers[centerIndex].id)?.status === "ACTIVE")
+                    !!(seekerId && getLink(seekerId, previousRetainer.id)?.status === "ACTIVE")
                   }
-                  onClassify={(bucket) => onClassify(filteredRetainers[centerIndex], bucket)}
+                  onClassify={(bucket) => onClassify(previousRetainer, bucket)}
+                />
+              </div>
+            )}
+            {currentRetainer && (
+              <div className="relative w-full max-w-md" style={currentStyle}>
+                <RetainerWheelCard
+                  retainer={currentRetainer}
+                  isCenter={true}
+                  scheduleMatch={scheduleMatchByRetainerId.get(currentRetainer.id)}
+                  onOpenProfile={() => setExpandedRetainer(currentRetainer)}
+                  onMessage={() => onMessage(currentRetainer)}
+                  canMessage={!!seekerId}
+                  routeCount={routeCountByRetainerId.get(currentRetainer.id)}
+                  isLinked={
+                    !!(seekerId && getLink(seekerId, currentRetainer.id)?.status === "ACTIVE")
+                  }
+                  onClassify={(bucket) => onClassify(currentRetainer, bucket)}
                 />
               </div>
             )}
@@ -4418,7 +4489,7 @@ const RetainerWheelCard: React.FC<{
       }}
       style={style}
       className={[
-        "w-full max-w-md mx-auto px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer",
+        "w-full max-w-md px-4 py-3 rounded-2xl border transition-all duration-300 ease-out cursor-pointer min-h-[560px]",
         "bg-slate-900 flex flex-col shadow-lg",
         isCenter
           ? "border-emerald-500/60 shadow-emerald-900/50 scale-100"
@@ -4427,7 +4498,7 @@ const RetainerWheelCard: React.FC<{
       ].join(" ")}
     >
       <div className="mb-3">
-        <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 h-28 w-full flex items-center justify-center">
+        <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 h-56 w-full flex items-center justify-center">
           {photoUrl ? (
             <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
           ) : (
