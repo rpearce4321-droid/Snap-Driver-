@@ -176,6 +176,7 @@ function getApprovalGateCopy(roleLabel: string, status?: string) {
 
 type TabKey =
   | "dashboard"
+  | "find"
   | "action"
   | "linking"
   | "badges"
@@ -1068,8 +1069,17 @@ const SeekerPage: React.FC = () => {
                 onClick={() => setActiveTab("dashboard")}
               />
               <SidebarButton
+                label="Find Retainers"
+                active={activeTab === "find"}
+                onClick={() => {
+                  setActiveTab("find");
+                  setActionTab("wheel");
+                }}
+              />
+              <SidebarButton
                 label="Action"
-                active={activeTab === "action"}
+                active=
+{activeTab === "action"}
                 onClick={() => setActiveTab("action")}
               />
               <SidebarButton
@@ -1388,6 +1398,15 @@ const SeekerPage: React.FC = () => {
                       }}
                     />
                     <SidebarButton
+                      label="Find Retainers"
+                      active={activeTab === "find"}
+                      onClick={() => {
+                        setActiveTab("find");
+                        setActionTab("wheel");
+                        setIsMobileNavOpen(false);
+                      }}
+                    />
+                    <SidebarButton
                       label="Action"
                       active={activeTab === "action"}
                       onClick={() => {
@@ -1474,7 +1493,7 @@ const SeekerPage: React.FC = () => {
               />
             )}
 
-            {activeTab === "action" && !isSubcontractorView && (
+                        {activeTab === "find" && !isSubcontractorView && (
               <ActionView
                 actionTab={actionTab}
                 onChangeTab={setActionTab}
@@ -1501,6 +1520,60 @@ const SeekerPage: React.FC = () => {
                 onReturnToWheel={handleReturnRetainerToWheel}
                 onRebucketById={handleRebucketById}
                 onMessage={handleMessageRetainer}
+                onToast={(msg) => setToastMessage(msg)}
+                onSeekerCreated={handleSeekerCreated}
+                onSeekerUpdated={handleSeekerUpdated}
+                onCreateSubcontractor={(input) => {
+                  if (!currentSeeker) return;
+                  const created = addSubcontractor(currentSeeker.id, input);
+                  if (!created) {
+                    setToastMessage("Cannot add subcontractor: plan limit reached.");
+                    return;
+                  }
+                  refreshSeekersAndSession();
+                }}
+                onRemoveSubcontractor={(id) => {
+                  if (!currentSeeker) return;
+                  removeSubcontractor(currentSeeker.id, id);
+                  refreshSeekersAndSession();
+                }}
+                onUpdateHierarchyNodes={(nodes) => {
+                  if (!currentSeeker) return;
+                  setSeekerHierarchyNodes(currentSeeker.id, nodes);
+                  refreshSeekersAndSession();
+                }}
+                visibleTabs={["wheel", "lists"]}
+              />
+            )}
+
+{activeTab === "action" && !isSubcontractorView && (
+              <ActionView
+                actionTab={actionTab}
+                onChangeTab={setActionTab}
+                seekerId={currentSeekerId}
+                currentSeeker={currentSeeker}
+                isDesktop={isDesktop}
+                linkTick={linkTick}
+                setLinkTick={setLinkTick}
+                retainers={retainers}
+                subcontractors={subcontractors}
+                wheelRetainers={wheelRetainers}
+                excellentRetainers={retainerBuckets.excellent}
+                possibleRetainers={retainerBuckets.possible}
+                notNowRetainers={retainerBuckets.notNow}
+                selectedRetainerIds={selectedRetainerIds}
+                onToggleSelectedRetainer={toggleSelectedRetainer}
+                onSelectAllRetainers={selectAllRetainersInLists}
+                onClearSelectedRetainers={clearSelectedRetainers}
+                onBulkMessageSelected={bulkMessageSelectedRetainers}
+                onBulkRequestLinkSelected={bulkRequestLinksForSelectedRetainers}
+                onBulkReturnToWheelSelected={bulkReturnSelectedRetainersToWheel}
+                onClassifyRetainer={handleClassifyRetainer}
+                onOpenProfile={handleOpenRetainerProfileFromAction}
+                onReturnToWheel={handleReturnRetainerToWheel}
+                onRebucketById={handleRebucketById}
+                onMessage={handleMessageRetainer}
+                visibleTabs={["routes", "schedule", "editProfile", "addSubcontractor", "hierarchy"]}
                 onToast={(msg) => setToastMessage(msg)}
                 onSeekerCreated={handleSeekerCreated}
                 onSeekerUpdated={handleSeekerUpdated}
@@ -3435,6 +3508,7 @@ const ActionView: React.FC<{
   retainers: Retainer[];
   subcontractors: Subcontractor[];
   wheelRetainers: Retainer[];
+  visibleTabs?: ActionTabKey[];
   excellentRetainers: Retainer[];
   possibleRetainers: Retainer[];
   notNowRetainers: Retainer[];
@@ -3464,6 +3538,7 @@ const ActionView: React.FC<{
   retainers,
   subcontractors,
   wheelRetainers,
+  visibleTabs,
   excellentRetainers,
   possibleRetainers,
   notNowRetainers,
@@ -3512,15 +3587,34 @@ const ActionView: React.FC<{
   const getScheduleMatch = (retainerId: string): ScheduleMatch | undefined =>
     scheduleMatchByRetainerId.get(retainerId);
 
-  const actionTabs: { key: ActionTabKey; label: string }[] = [
-    { key: "wheel", label: "Wheel" },
-    { key: "lists", label: "Sorting Lists" },
-    { key: "routes", label: "Routes" },
-    { key: "schedule", label: "Scheduling" },
-    { key: "editProfile", label: "Edit Profile" },
-    { key: "addSubcontractor", label: "Add Subcontractor" },
-    { key: "hierarchy", label: "Hierarchy" },
-  ];
+  const actionTabs: { key: ActionTabKey; label: string }[] = useMemo(
+    () => [
+      { key: "wheel", label: "Wheel" },
+      { key: "lists", label: "Sorting Lists" },
+      { key: "routes", label: "Routes" },
+      { key: "schedule", label: "Scheduling" },
+      { key: "editProfile", label: "Edit Profile" },
+      { key: "addSubcontractor", label: "Add Subcontractor" },
+      { key: "hierarchy", label: "Hierarchy" },
+    ],
+    []
+  );
+
+  const visibleTabKeys = useMemo(
+    () => (visibleTabs && visibleTabs.length ? visibleTabs : actionTabs.map((tab) => tab.key)),
+    [visibleTabs, actionTabs]
+  );
+
+  const filteredTabs = useMemo(
+    () => actionTabs.filter((tab) => visibleTabKeys.includes(tab.key)),
+    [actionTabs, visibleTabKeys]
+  );
+
+  useEffect(() => {
+    if (!visibleTabKeys.includes(actionTab) && filteredTabs.length) {
+      onChangeTab(filteredTabs[0].key);
+    }
+  }, [actionTab, filteredTabs, visibleTabKeys, onChangeTab]);
 
   const tabButtonClass = (isActive: boolean) =>
     [
@@ -3538,7 +3632,7 @@ const ActionView: React.FC<{
   return (
     <div className="flex flex-col gap-4 min-h-0">
       <div className="flex flex-wrap gap-2">
-        {actionTabs.map((tab) => (
+        {filteredTabs.map((tab) => (
           <button
             key={tab.key}
             type="button"
@@ -5929,6 +6023,8 @@ function renderHeaderTitle(tab: TabKey): string {
       return "Seeker Dashboard";
     case "action":
       return "Action Center";
+    case "find":
+      return "Find Retainers";
     case "linking":
       return "Linking";
     case "badges":
@@ -5949,7 +6045,9 @@ function renderHeaderSubtitle(tab: TabKey): string {
     case "dashboard":
       return "Link requests, feed updates, and badge progress at a glance.";
     case "action":
-      return "Wheel, lists, routes, scheduling, and team tools in one place.";
+      return "Routes, scheduling, and profile tools in one place.";
+    case "find":
+      return "Spin the wheel and sort Retainers into your working lists.";
     case "linking":
       return "Confirm video calls and approve links with Retainers to unlock linked-only content.";
     case "badges":

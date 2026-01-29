@@ -318,6 +318,8 @@ type TabKey =
 
   | "dashboard"
 
+  | "find"
+
   | "action"
 
   | "linking"
@@ -1639,6 +1641,15 @@ const RetainerPage: React.FC = () => {
 
           <SidebarButton label="Dashboard" active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} />
 
+          <SidebarButton
+            label="Find Seekers"
+            active={activeTab === "find"}
+            onClick={() => {
+              setActiveTab("find");
+              setActionTab("wheel");
+            }}
+          />
+
           <SidebarButton label="Action" active={activeTab === "action"} onClick={() => setActiveTab("action")} />
 
           <SidebarButton label="Linking" active={activeTab === "linking"} onClick={() => setActiveTab("linking")} />
@@ -1855,6 +1866,15 @@ const RetainerPage: React.FC = () => {
                   }}
                 />
                 <SidebarButton
+                  label="Find Seekers"
+                  active={activeTab === "find"}
+                  onClick={() => {
+                    setActiveTab("find");
+                    setActionTab("wheel");
+                    setIsMobileNavOpen(false);
+                  }}
+                />
+                <SidebarButton
                   label="Action"
                   active={activeTab === "action"}
                   onClick={() => {
@@ -1986,6 +2006,126 @@ const RetainerPage: React.FC = () => {
 
 
 
+            {activeTab === "find" && (
+
+              <ActionView
+
+                actionTab={actionTab}
+
+                noticeTick={noticeTick}
+
+                onChangeTab={setActionTab}
+
+                retainerId={currentRetainerId}
+
+                currentRetainer={currentRetainer}
+
+                seekers={seekers}
+
+                wheelSeekers={wheelSeekers}
+
+                excellentSeekers={seekerBuckets.excellent}
+
+                possibleSeekers={seekerBuckets.possible}
+
+                notNowSeekers={seekerBuckets.notNow}
+
+                selectedSeekerIds={selectedSeekerIds}
+
+                onToggleSelectedSeeker={toggleSelectedSeeker}
+
+                onSelectAllSeekers={selectAllSeekersInLists}
+
+                onClearSelectedSeekers={clearSelectedSeekers}
+
+                onBulkMessageSelected={bulkMessageSelectedSeekers}
+
+                onBulkRequestLinkSelected={bulkRequestLinksForSelectedSeekers}
+
+                onBulkReturnToWheelSelected={bulkReturnSelectedSeekersToWheel}
+
+                onClassifySeeker={handleClassifySeeker}
+
+                onOpenProfile={handleOpenSeekerProfileFromAction}
+
+                onReturnToWheel={handleReturnSeekerToWheel}
+
+                onRebucketById={handleRebucketById}
+
+                onMessage={handleMessageSeeker}
+
+                visibleTabs={["wheel", "lists"]}
+
+                retainerRoutes={currentRetainer ? getRoutesForRetainer(currentRetainer.id) : []}
+
+                canInteract={canEditPortal}
+
+                retainerUsers={retainerUsers}
+
+                retainerLevelLabels={retainerLevelLabels}
+
+                canManageUsers={canManageUsers}
+
+                onCreateUser={(input) => {
+
+                  if (!currentRetainer) return;
+
+                  const created = addRetainerUser(currentRetainer.id, input);
+
+                  if (!created) {
+
+                    setToastMessage("Cannot add user: plan limit reached.");
+
+                    return;
+
+                  }
+
+                  refreshRetainersAndSession();
+
+                }}
+
+                onRemoveUser={(id) => {
+
+                  if (!currentRetainer) return;
+
+                  removeRetainerUser(currentRetainer.id, id);
+
+                  refreshRetainersAndSession();
+
+                }}
+
+                onUpdateUserLabels={(labels) => {
+
+                  if (!currentRetainer) return;
+
+                  setRetainerUserLevelLabels(currentRetainer.id, labels);
+
+                  refreshRetainersAndSession();
+
+                }}
+
+                onUpdateHierarchyNodes={(nodes) => {
+
+                  if (!currentRetainer || !canEditPortal) return;
+
+                  setRetainerHierarchyNodes(currentRetainer.id, nodes);
+
+                  refreshRetainersAndSession();
+
+                }}
+
+                onRetainerCreated={handleRetainerCreated}
+
+                onRetainerUpdated={handleRetainerUpdated}
+
+                onToast={(msg) => setToastMessage(msg)}
+
+              />
+
+            )}
+
+
+
             {activeTab === "action" && (
 
               <ActionView
@@ -2033,6 +2173,8 @@ const RetainerPage: React.FC = () => {
                 onRebucketById={handleRebucketById}
 
                 onMessage={handleMessageSeeker}
+
+                visibleTabs={["routes", "schedule", "editProfile", "addUsers", "hierarchy"]}
 
                 retainerRoutes={currentRetainer ? getRoutesForRetainer(currentRetainer.id) : []}
 
@@ -5409,6 +5551,7 @@ const ActionView: React.FC<{
   seekers: Seeker[];
 
   wheelSeekers: Seeker[];
+  visibleTabs?: ActionTabKey[];
 
   excellentSeekers: Seeker[];
 
@@ -5479,6 +5622,8 @@ const ActionView: React.FC<{
   seekers,
 
   wheelSeekers,
+
+  visibleTabs,
 
   excellentSeekers,
 
@@ -5696,23 +5841,61 @@ const ActionView: React.FC<{
 
 
 
-  const actionTabs: { key: ActionTabKey; label: string }[] = [
+  const actionTabs: { key: ActionTabKey; label: string }[] = useMemo(
 
-    { key: "wheel", label: "Wheel" },
+    () => [
 
-    { key: "lists", label: "Sorting Lists" },
+      { key: "wheel", label: "Wheel" },
 
-    { key: "routes", label: "Routes" },
+      { key: "lists", label: "Sorting Lists" },
 
-    { key: "schedule", label: "Scheduling" },
+      { key: "routes", label: "Routes" },
 
-    { key: "editProfile", label: "Edit Profile" },
+      { key: "schedule", label: "Scheduling" },
 
-    { key: "addUsers", label: "Add User" },
+      { key: "editProfile", label: "Edit Profile" },
 
-    { key: "hierarchy", label: "Hierarchy" },
+      { key: "addUsers", label: "Add User" },
 
-  ];
+      { key: "hierarchy", label: "Hierarchy" },
+
+    ],
+
+    []
+
+  );
+
+
+
+  const visibleTabKeys = useMemo(
+
+    () => (visibleTabs && visibleTabs.length ? visibleTabs : actionTabs.map((tab) => tab.key)),
+
+    [visibleTabs, actionTabs]
+
+  );
+
+
+
+  const filteredTabs = useMemo(
+
+    () => actionTabs.filter((tab) => visibleTabKeys.includes(tab.key)),
+
+    [actionTabs, visibleTabKeys]
+
+  );
+
+
+
+  useEffect(() => {
+
+    if (!visibleTabKeys.includes(actionTab) && filteredTabs.length) {
+
+      onChangeTab(filteredTabs[0].key);
+
+    }
+
+  }, [actionTab, filteredTabs, visibleTabKeys, onChangeTab]);
 
 
 
@@ -5902,7 +6085,7 @@ const ActionView: React.FC<{
 
       <div className="flex flex-wrap gap-2">
 
-        {actionTabs.map((tab) => (
+        {filteredTabs.map((tab) => (
 
           <button
 
@@ -9965,6 +10148,10 @@ function renderHeaderTitle(tab: TabKey): string {
 
       return "Action Center";
 
+    case "find":
+
+      return "Find Seekers";
+
     case "linking":
 
       return "Linking";
@@ -10000,6 +10187,10 @@ function renderHeaderSubtitle(tab: TabKey): string {
       return "High-level overview of your Retainer account and sorted Seeker lists.";
 
     case "action":
+
+      return "Manage routes, schedules, and profile actions.";
+
+    case "find":
 
       return "Spin the wheel and sort Seekers into your working lists.";
 
