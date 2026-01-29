@@ -959,8 +959,8 @@ export default function AdminDashboardPage() {
           ].join(" ")}
         >
           {panel === "dashboard" && (
-            <div className="space-y-4 h-full min-h-0">
-              <section className="surface p-4 border border-white/10 bg-white/5 rounded-2xl">
+            <div className="flex flex-col gap-4 h-full min-h-0">
+              <section className="surface p-4 border border-white/10 bg-white/5 rounded-2xl shrink-0">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-xs uppercase tracking-wide text-white/60">Backdoor access</div>
@@ -1018,7 +1018,7 @@ export default function AdminDashboardPage() {
                 )}
               </section>
 
-              <div className="grid md:grid-cols-2 gap-6 flex-1 min-h-0">
+              <div className="grid md:grid-cols-2 gap-6 flex-1 min-h-0 overflow-hidden">
                 <section className="surface p-5 hover:border-blue-500/30 transition flex flex-col min-h-0">
                 <h2 className="text-xl font-semibold mb-4">Pending Seekers</h2>
                 <div className="flex-1 min-h-0 overflow-y-auto pr-1">
@@ -1970,6 +1970,13 @@ const AdminServerPanel: React.FC = () => {
     refreshBatches();
   }, []);
 
+  useEffect(() => {
+    if (seedBatches.length === 0) return;
+    if (!selectedBatchId || !seedBatches.some((batch) => batch.id === selectedBatchId)) {
+      setSelectedBatchId(seedBatches[0].id);
+    }
+  }, [seedBatches, selectedBatchId]);
+
   const handleCreateBatch = async () => {
     setSeedBusy(true);
     setSeedError(null);
@@ -1988,7 +1995,8 @@ const AdminServerPanel: React.FC = () => {
   };
 
   const handleImport = async () => {
-    if (!selectedBatchId) {
+    const targetBatchId = selectedBatchId || seedBatches[0]?.id;
+    if (!targetBatchId) {
       setSeedError("Select or create a seed batch first.");
       return;
     }
@@ -1996,7 +2004,7 @@ const AdminServerPanel: React.FC = () => {
     setSeedError(null);
     setSeedStatus(null);
     try {
-      const payload = buildServerSeedPayload(selectedBatchId);
+      const payload = buildServerSeedPayload(targetBatchId);
       const res = await importSeedData(payload);
       setSeedStatus(`Imported ${res.inserted} rows into seed batch.`);
     } catch (err: any) {
@@ -2007,7 +2015,8 @@ const AdminServerPanel: React.FC = () => {
   };
 
   const handlePurgeBatch = async () => {
-    if (!selectedBatchId) {
+    const targetBatchId = selectedBatchId || seedBatches[0]?.id;
+    if (!targetBatchId) {
       setSeedError("Select a seed batch to purge.");
       return;
     }
@@ -2015,7 +2024,7 @@ const AdminServerPanel: React.FC = () => {
     setSeedError(null);
     setSeedStatus(null);
     try {
-      await purgeSeedBatch({ batchId: selectedBatchId });
+      await purgeSeedBatch({ batchId: targetBatchId });
       setSeedStatus("Purged selected seed batch.");
       setSelectedBatchId("");
       await refreshBatches();
@@ -2074,6 +2083,45 @@ const AdminServerPanel: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
+        <div>
+          <div className="text-sm font-semibold">Create Logins</div>
+          <div className="text-xs text-white/60">Create a temporary invite link for admin, retainer, or seeker logins.</div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
+          <input
+            className="input"
+            placeholder="Email address"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+          />
+          <select
+            className="input"
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as "ADMIN" | "SEEKER" | "RETAINER")}
+          >
+            <option value="ADMIN">Admin</option>
+            <option value="RETAINER">Retainer</option>
+            <option value="SEEKER">Seeker</option>
+          </select>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn" onClick={handleInvite} disabled={seedBusy}>
+            Create Invite Link
+          </button>
+          {inviteLink && (
+            <button className="btn" onClick={handleCopyInvite} disabled={seedBusy}>
+              Copy Invite Link
+            </button>
+          )}
+        </div>
+        {inviteLink && (
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs break-all">
+            {inviteLink}
+          </div>
+        )}
+      </div>
+
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
         <div>
           <div className="text-sm font-semibold">Server Seed (D1)</div>
@@ -2164,45 +2212,7 @@ const AdminServerPanel: React.FC = () => {
         {seedError && <div className="text-sm text-rose-200">{seedError}</div>}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
-        <div>
-          <div className="text-sm font-semibold">Create Logins</div>
-          <div className="text-xs text-white/60">Create a temporary invite link for admin, retainer, or seeker logins.</div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
-          <input
-            className="input"
-            placeholder="Email address"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-          />
-          <select
-            className="input"
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value as "ADMIN" | "SEEKER" | "RETAINER")}
-          >
-            <option value="ADMIN">Admin</option>
-            <option value="RETAINER">Retainer</option>
-            <option value="SEEKER">Seeker</option>
-          </select>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="btn" onClick={handleInvite} disabled={seedBusy}>
-            Create Invite Link
-          </button>
-          {inviteLink && (
-            <button className="btn" onClick={handleCopyInvite} disabled={seedBusy}>
-              Copy Invite Link
-            </button>
-          )}
-        </div>
-        {inviteLink && (
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs break-all">
-            {inviteLink}
-          </div>
-        )}
-      </div>
-    </div>
+
   );
 };
 
