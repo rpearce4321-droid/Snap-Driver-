@@ -148,7 +148,7 @@ import {
 } from "../lib/broadcasts";
 
 import { deliverRetainerBroadcastToLinkedSeekers } from "../lib/broadcastDelivery";
-import { changePassword, resetPassword } from "../lib/api";
+import { changePassword, resetPassword, syncUpsert } from "../lib/api";
 
 import { getFeedForRetainer, type FeedItem } from "../lib/feed";
 import {
@@ -379,6 +379,7 @@ const RetainerPage: React.FC = () => {
   const session = useMemo(() => getSession(), []);
   const isSessionRetainer = session?.role === "RETAINER";
   const sessionRetainerId = isSessionRetainer ? session.retainerId ?? null : null;
+  const sessionEmail = session?.email ? String(session.email).toLowerCase() : null;
   const [isHydratingSession, setIsHydratingSession] = useState(() => isSessionRetainer && !!sessionRetainerId);
 
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
@@ -548,6 +549,15 @@ const RetainerPage: React.FC = () => {
     [retainers, sessionRetainerId]
   );
 
+  const effectiveRetainer = useMemo(() => {
+    if (!isSessionRetainer) return sessionRetainer;
+    if (sessionRetainer) return sessionRetainer;
+    if (!currentRetainer || !sessionEmail) return undefined;
+    const match = String((currentRetainer as any).email ?? "").toLowerCase();
+    return match && match === sessionEmail ? currentRetainer : undefined;
+  }, [isSessionRetainer, sessionRetainer, currentRetainer, sessionEmail]);
+
+
   useEffect(() => {
     if (!isSessionRetainer || !sessionRetainerId) {
       setIsHydratingSession(false);
@@ -581,6 +591,14 @@ const RetainerPage: React.FC = () => {
     };
     hydrate();
   }, [isSessionRetainer, sessionRetainerId, sessionRetainer, session?.email]);
+
+  useEffect(() => {
+    if (!effectiveRetainer || sessionRetainer) return;
+    setCurrentRetainerId(effectiveRetainer.id);
+    persistCurrentRetainerId(effectiveRetainer.id);
+    setSession({ role: "RETAINER", retainerId: effectiveRetainer.id, email: sessionEmail ?? undefined });
+    syncUpsert({ retainers: [effectiveRetainer] }).catch(() => undefined);
+  }, [effectiveRetainer, sessionRetainer, sessionEmail]);
 
 
   useEffect(() => {
@@ -1391,7 +1409,7 @@ const RetainerPage: React.FC = () => {
 
   }, [approvedSeekers]);
 
-  if (isSessionRetainer && isHydratingSession && sessionRetainerId && !sessionRetainer) {
+  if (isSessionRetainer && isHydratingSession && sessionRetainerId && !effectiveRetainer) {
     return (
       <ApprovalGate
         title="Loading profile"
@@ -1408,15 +1426,15 @@ const RetainerPage: React.FC = () => {
             title: "Profile not linked",
             body: "This account has no Retainer profile linked yet. Please contact Snap admin.",
           }
-        : !sessionRetainer
+        : !effectiveRetainer
         ? {
             title: "Profile not found",
             body: "We could not load your Retainer profile. It may have been cleared or created in a different browser.",
           }
-        : (sessionRetainer as any).status !== "APPROVED"
+        : (effectiveRetainer as any).status !== "APPROVED"
         ? {
-            ...getApprovalGateCopy("Retainer", (sessionRetainer as any).status),
-            status: (sessionRetainer as any).status,
+            ...getApprovalGateCopy("Retainer", (effectiveRetainer as any).status),
+            status: (effectiveRetainer as any).status,
           }
         : null
       : null;
