@@ -66,6 +66,12 @@ export async function login(payload: { email: string; password: string }) {
   return r.data as { ok: boolean; user: { id: string; email: string; role: string; status: string } };
 }
 
+export async function lookupProfile(payload: { email: string; role: string }) {
+  const params = new URLSearchParams({ email: payload.email, role: payload.role });
+  const r = await api.get(`/profile/lookup?${params.toString()}`);
+  return r.data as { ok: boolean; id: string; status: string };
+}
+
 export async function logout() {
   const r = await api.post('/auth/logout');
   return r.data as { ok: boolean };
@@ -110,4 +116,6 @@ export async function syncUpsert(payload: any) {
   const r = await api.post('/sync/upsert', payload);
   return r.data as { ok: boolean };
 }
+
+
 

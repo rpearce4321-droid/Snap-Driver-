@@ -7,7 +7,8 @@ import {
   type AccountRole,
 } from "../lib/accounts";
 import { setSession } from "../lib/session";
-import { login, resetPassword } from "../lib/api";
+import { pullFromServer } from "../lib/serverSync";
+import { login, resetPassword, lookupProfile } from "../lib/api";
 
 const DISPLAY_FONT = {
   fontFamily: '"Bebas Neue", "Oswald", "Arial Black", sans-serif',
@@ -46,25 +47,40 @@ const RoleCard: React.FC<RoleCardProps> = ({
     setError(null);
     setResetStatus(null);
     setResetLink(null);
+    const normEmail = email.trim().toLowerCase();
     try {
-      const account = authenticateAccount({ email, password, role });
-      const profileId = getAccountProfileId(account);
-      if (!profileId) throw new Error("Account has no linked profile.");
+      const server = await login({ email: normEmail, password });
+      const resolved = await lookupProfile({ email: normEmail, role });
       if (role === "SEEKER") {
-        window.localStorage.setItem("snapdriver_current_seeker_id", profileId);
-        setSession({ role, seekerId: profileId });
+        window.localStorage.setItem("snapdriver_current_seeker_id", resolved.id);
+        setSession({ role, seekerId: resolved.id, email: normEmail });
       } else {
-        window.localStorage.setItem("snapdriver_current_retainer_id", profileId);
-        setSession({ role, retainerId: profileId });
+        window.localStorage.setItem("snapdriver_current_retainer_id", resolved.id);
+        setSession({ role, retainerId: resolved.id, email: normEmail });
       }
       try {
-        await login({ email, password });
+        await pullFromServer();
       } catch {
-        // ignore server auth failures for local-only accounts
+        // ignore pull errors
       }
       navigate(role === "SEEKER" ? "/seekers" : "/retainers");
-    } catch (err: any) {
-      setError(err?.message || "Unable to sign in.");
+      return;
+    } catch (err) {
+      try {
+        const account = authenticateAccount({ email: normEmail, password, role });
+        const profileId = getAccountProfileId(account);
+        if (!profileId) throw new Error("Account has no linked profile.");
+        if (role === "SEEKER") {
+          window.localStorage.setItem("snapdriver_current_seeker_id", profileId);
+          setSession({ role, seekerId: profileId, email: normEmail });
+        } else {
+          window.localStorage.setItem("snapdriver_current_retainer_id", profileId);
+          setSession({ role, retainerId: profileId, email: normEmail });
+        }
+        navigate(role === "SEEKER" ? "/seekers" : "/retainers");
+      } catch (localErr) {
+        setError(localErr?.message || err?.response?.data?.error || "Unable to sign in.");
+      }
     }
   };
 

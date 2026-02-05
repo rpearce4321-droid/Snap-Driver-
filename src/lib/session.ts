@@ -1,4 +1,4 @@
-﻿// src/lib/session.ts
+// src/lib/session.ts
 import { readStoreData, removeStore, writeStore } from "./storage";
 
 export type Role = "ADMIN" | "SEEKER" | "RETAINER";
@@ -7,7 +7,7 @@ export type Session = {
   role: Role;
   seekerId?: string;
   retainerId?: string;
-  adminId?: string;
+  adminId?: string;\n  email?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -59,3 +59,4 @@ export function clearPortalContext(): void {
   if (typeof window === "undefined") return;
   window.sessionStorage.removeItem(PORTAL_CONTEXT_KEY);
 }
+
