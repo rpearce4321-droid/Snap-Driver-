@@ -7,7 +7,8 @@ export type Session = {
   role: Role;
   seekerId?: string;
   retainerId?: string;
-  adminId?: string;\n  email?: string;
+  adminId?: string;
+  email?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -59,4 +60,5 @@ export function clearPortalContext(): void {
   if (typeof window === "undefined") return;
   window.sessionStorage.removeItem(PORTAL_CONTEXT_KEY);
 }
+
 
