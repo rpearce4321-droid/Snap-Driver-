@@ -220,6 +220,7 @@ const SeekerPage: React.FC = () => {
   const session = useMemo(() => getSession(), []);
   const isSessionSeeker = session?.role === "SEEKER";
   const sessionSeekerId = isSessionSeeker ? session.seekerId ?? null : null;
+  const sessionEmail = session?.email ? String(session.email).toLowerCase() : null;
   const [isHydratingSession, setIsHydratingSession] = useState(() => isSessionSeeker && !!sessionSeekerId);
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
   const [isDesktop, setIsDesktop] = useState(() => {
@@ -369,6 +370,15 @@ const SeekerPage: React.FC = () => {
     [seekers, sessionSeekerId]
   );
 
+  const effectiveSeeker = useMemo(() => {
+    if (!isSessionSeeker) return sessionSeeker;
+    if (sessionSeeker) return sessionSeeker;
+    if (!currentSeeker || !sessionEmail) return undefined;
+    const match = String((currentSeeker as any).email ?? "").toLowerCase();
+    return match && match === sessionEmail ? currentSeeker : undefined;
+  }, [isSessionSeeker, sessionSeeker, currentSeeker, sessionEmail]);
+
+
   useEffect(() => {
     if (!isSessionSeeker || !sessionSeekerId) {
       setIsHydratingSession(false);
@@ -410,6 +420,14 @@ const SeekerPage: React.FC = () => {
     };
     hydrate();
   }, [isSessionSeeker, sessionSeekerId, sessionSeeker, session?.email, currentSeeker]);
+
+  useEffect(() => {
+    if (!effectiveSeeker || sessionSeeker) return;
+    setCurrentSeekerId(effectiveSeeker.id);
+    persistCurrentSeekerId(effectiveSeeker.id);
+    setSession({ role: "SEEKER", seekerId: effectiveSeeker.id, email: sessionEmail ?? undefined });
+    syncUpsert({ seekers: [effectiveSeeker] }).catch(() => undefined);
+  }, [effectiveSeeker, sessionSeeker, sessionEmail]);
   const subcontractors = useMemo(
     () => (currentSeeker ? currentSeeker.subcontractors ?? [] : []),
     [currentSeeker]
@@ -886,15 +904,15 @@ const SeekerPage: React.FC = () => {
             title: "Profile not linked",
             body: "This account has no Seeker profile linked yet. Please contact Snap admin.",
           }
-        : !sessionSeeker
+        : !effectiveSeeker
         ? {
             title: "Profile not found",
             body: "We could not load your Seeker profile. It may have been cleared or created in a different browser.",
           }
-        : sessionSeeker.status !== "APPROVED"
+        : effectiveSeeker.status !== "APPROVED"
         ? {
-            ...getApprovalGateCopy("Seeker", sessionSeeker.status),
-            status: sessionSeeker.status,
+            ...getApprovalGateCopy("Seeker", effectiveSeeker.status),
+            status: effectiveSeeker.status,
           }
         : null
       : null;
