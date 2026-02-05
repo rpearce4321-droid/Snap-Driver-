@@ -2211,7 +2211,7 @@ const AdminServerPanel: React.FC = () => {
         {seedStatus && <div className="text-sm text-emerald-200">{seedStatus}</div>}
         {seedError && <div className="text-sm text-rose-200">{seedError}</div>}
       </div>
-
+    </div>
 
   );
 };
