@@ -1894,7 +1894,7 @@ const AdminBadgeAuditPanel: React.FC = () => {
 };
 
 const AdminServerPanel: React.FC = () => {
-  const summary = useMemo(() => getLocalSeedSummary(), []);
+  const [localSummary, setLocalSummary] = useState(() => getLocalSeedSummary());
   const [seedBatches, setSeedBatches] = useState<
     Array<{ id: string; label: string; createdAt: string }>
   >([]);
@@ -1957,6 +1957,7 @@ const AdminServerPanel: React.FC = () => {
     try {
       const ok = await pullFromServer();
       setSeedStatus(ok ? "Pulled server data into local cache." : "Pull completed with no data.");
+      refreshLocalSummary();
     } catch (err: any) {
       setSeedError(formatError(err));
     } finally {
@@ -1989,6 +1990,10 @@ const AdminServerPanel: React.FC = () => {
     }
   }, [seedBatches, selectedBatchId]);
 
+    const applySeedIncludes = (payload: ReturnType<typeof buildServerSeedPayload>) => {
+    return payload;
+  };
+
   const handleCreateBatch = async () => {
     setSeedBusy(true);
     setSeedError(null);
@@ -2006,6 +2011,35 @@ const AdminServerPanel: React.FC = () => {
     }
   };
 
+  const handleSeedLocalDemo = () => {
+    autoSeedComprehensive({ retainers: 5, seekers: 5, force: true });
+    refreshLocalSummary();
+    setSeedStatus("Local demo data created.");
+  };
+
+  const handleQuickSeed = async () => {
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      autoSeedComprehensive({ retainers: 5, seekers: 5, force: true });
+      refreshLocalSummary();
+      const res = await createSeedBatch(`demo_${new Date().toISOString().slice(0, 10)}`);
+      setSelectedBatchId(res.seedBatchId);
+      setSeedBatches((prev) => [
+        { id: res.seedBatchId, label: res.label, createdAt: new Date().toISOString() },
+        ...prev,
+      ]);
+      const payload = applySeedIncludes(buildServerSeedPayload(res.seedBatchId));
+      const importRes = await importSeedData(payload);
+      setSeedStatus(`Seeded local demo and imported ${importRes.inserted} rows.`);
+    } catch (err) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
   const handleImport = async () => {
     const targetBatchId = selectedBatchId || seedBatches[0]?.id;
     if (!targetBatchId) {
@@ -2016,35 +2050,7 @@ const AdminServerPanel: React.FC = () => {
     setSeedError(null);
     setSeedStatus(null);
     try {
-      const payload = buildServerSeedPayload(targetBatchId);
-      if (!seedIncludes.profiles) {
-        payload.seekers = [];
-        payload.retainers = [];
-        payload.retainerUsers = [];
-        payload.subcontractors = [];
-      }
-      if (!seedIncludes.links) {
-        payload.links = [];
-        payload.conversations = [];
-        payload.messages = [];
-      }
-      if (!seedIncludes.routes) {
-        payload.routes = [];
-        payload.routeInterests = [];
-      }
-      if (!seedIncludes.content) {
-        payload.posts = [];
-        payload.broadcasts = [];
-      }
-      if (!seedIncludes.badges) {
-        payload.badgeDefinitions = [];
-        payload.badgeSelections = [];
-        payload.badgeCheckins = [];
-      }
-      if (!seedIncludes.reputation) {
-        payload.reputationScores = [];
-        payload.recordHallEntries = [];
-      }
+      const payload = applySeedIncludes(buildServerSeedPayload(targetBatchId));
       const res = await importSeedData(payload);
       setSeedStatus(`Imported ${res.inserted} rows into seed batch.`);
     } catch (err: any) {
@@ -2103,6 +2109,7 @@ const AdminServerPanel: React.FC = () => {
       await wipeAllServerData({ confirm: wipeConfirm.trim() });
       if (wipeLocalAfterServer) {
         wipeLocalDataComprehensive();
+      refreshLocalSummary();
       }
       setSeedStatus(wipeLocalAfterServer ? "Server + local data wiped." : "Server data wiped.");
       setWipeConfirm("");
@@ -2241,19 +2248,27 @@ const AdminServerPanel: React.FC = () => {
         <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
           <div className="space-y-3">
             <div className="text-xs uppercase tracking-wider text-white/60">Local Snapshot</div>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn" onClick={handleSeedLocalDemo} disabled={seedBusy}>
+                Seed Local Demo
+              </button>
+              <button className="btn" onClick={handleQuickSeed} disabled={seedBusy}>
+                Seed + Push to Server
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Seekers: {summary.seekers}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Retainers: {summary.retainers}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Retainer Users: {summary.retainerUsers}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Subcontractors: {summary.subcontractors}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Links: {summary.links}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Messages: {summary.messages}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Routes: {summary.routes}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Route Interests: {summary.routeInterests}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Posts: {summary.posts}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Broadcasts: {summary.broadcasts}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Badges: {summary.badgeDefinitions}</div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Check-ins: {summary.badgeCheckins}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Seekers: {localSummary.seekers}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Retainers: {localSummary.retainers}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Retainer Users: {localSummary.retainerUsers}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Subcontractors: {localSummary.subcontractors}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Links: {localSummary.links}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Messages: {localSummary.messages}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Routes: {localSummary.routes}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Route Interests: {localSummary.routeInterests}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Posts: {localSummary.posts}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Broadcasts: {localSummary.broadcasts}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Badges: {localSummary.badgeDefinitions}</div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">Check-ins: {localSummary.badgeCheckins}</div>
             </div>
           </div>
 
