@@ -1,4 +1,4 @@
-﻿// src/pages/SeekerPage.tsx
+// src/pages/SeekerPage.tsx
 import React, { useMemo, useState, useEffect, useRef, lazy, Suspense, useDeferredValue } from "react";
 import type { CSSProperties } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -93,11 +93,12 @@ import {
   getReputationScoreForProfile,
 } from "../lib/badges";
 import { badgeIconFor } from "../components/badgeIcons";
-import { clearPortalContext, clearSession, getSession, setPortalContext } from "../lib/session";
+import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
 import { changePassword, resetPassword } from "../lib/api";
 import { getRetainerPosts, type RetainerPost } from "../lib/posts";
 import { getStockImageUrl } from "../lib/stockImages";
 import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
+import { pullFromServer } from "../lib/serverSync";
 
 // Derive types from data helpers so we don't rely on exported types
 type Seeker = ReturnType<typeof getSeekers>[number];
@@ -367,6 +368,30 @@ const SeekerPage: React.FC = () => {
     [seekers, sessionSeekerId]
   );
 
+  useEffect(() => {
+    if (!isSessionSeeker) return;
+    if (sessionSeeker) return;
+    const email = session?.email ? String(session.email).toLowerCase() : null;
+    const hydrate = async () => {
+      try {
+        await pullFromServer();
+      } catch {
+        // ignore
+      }
+      const refreshed = getSeekers();
+      setSeekers(refreshed);
+      let found = sessionSeekerId ? refreshed.find((s) => s.id === sessionSeekerId) : undefined;
+      if (!found && email) {
+        found = refreshed.find((s) => String((s as any).email ?? "").toLowerCase() === email);
+      }
+      if (found) {
+        setCurrentSeekerId(found.id);
+        persistCurrentSeekerId(found.id);
+        setSession({ role: "SEEKER", seekerId: found.id, email: email ?? undefined });
+      }
+    };
+    hydrate();
+  }, [isSessionSeeker, sessionSeekerId, sessionSeeker, session?.email]);
   const subcontractors = useMemo(
     () => (currentSeeker ? currentSeeker.subcontractors ?? [] : []),
     [currentSeeker]
@@ -939,7 +964,7 @@ const SeekerPage: React.FC = () => {
                 <input
                   value={seekerSearch}
                   onChange={(e) => setSeekerSearch(e.target.value)}
-                  placeholder="Type to search…"
+                  placeholder="Type to search�"
                   className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <select
@@ -983,7 +1008,7 @@ const SeekerPage: React.FC = () => {
                 <input
                   value={subcontractorSearch}
                   onChange={(e) => setSubcontractorSearch(e.target.value)}
-                  placeholder="Type to search…"
+                  placeholder="Type to search�"
                   className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <select
@@ -1639,7 +1664,7 @@ const SeekerPage: React.FC = () => {
               <>
                 {badgesReturnTo && (
                   <button type="button" onClick={handleBadgesBack} className="btn">
-                    ← Back to Profile
+                    ? Back to Profile
                   </button>
                 )}
                 <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading badges?</div>}>
@@ -1700,7 +1725,7 @@ const SeekerPage: React.FC = () => {
           </div>
         </section>
 
-        {/* ✅ Compose pop-out (bottom-right) */}
+        {/* ? Compose pop-out (bottom-right) */}
         {composeDraft && (
           <ComposeMessagePopover
             seeker={currentSeeker ?? null}
@@ -3460,7 +3485,7 @@ const DashboardView: React.FC<{
                   className="h-9 w-9 rounded-full border border-slate-700 text-slate-200 hover:bg-slate-900 transition"
                   title="Close"
                 >
-                  ×
+                  �
                 </button>
               </div>
 
@@ -3487,7 +3512,7 @@ const DashboardView: React.FC<{
                             Scheduled
                           </div>
                           <div className="text-sm text-slate-50 mt-1">
-                            {new Date(accepted.startAt).toLocaleString()} •{" "}
+                            {new Date(accepted.startAt).toLocaleString()} �{" "}
                             {accepted.durationMinutes} minutes
                           </div>
                           <div className="text-[11px] text-emerald-200/80 mt-1">
@@ -3533,9 +3558,9 @@ const DashboardView: React.FC<{
                                       {new Date(p.startAt).toLocaleString()}
                                     </div>
                                     <div className="text-[11px] text-slate-500">
-                                      {p.durationMinutes}m • Proposed by{" "}
+                                      {p.durationMinutes}m � Proposed by{" "}
                                       {p.by === "SEEKER" ? "you" : "Retainer"}
-                                      {p.note ? ` • ${p.note}` : ""}
+                                      {p.note ? ` � ${p.note}` : ""}
                                     </div>
                                   </div>
                                   <button
@@ -4105,7 +4130,7 @@ const RetainerBucketPanel: React.FC<{
                           {match.overlapDays.length > 0 && (
                             <span className="text-slate-500">
                               {" "}
-                              · {formatDaysShort(match.overlapDays)}
+                              � {formatDaysShort(match.overlapDays)}
                             </span>
                           )}
                         </div>
@@ -4165,7 +4190,7 @@ const RetainerBucketPanel: React.FC<{
 };
 
 /* ------------------------------------------------------------------ */
-/* View Retainers – wheel                                             */
+/* View Retainers � wheel                                             */
 /* ------------------------------------------------------------------ */
 
 const ViewRetainersView: React.FC<{
@@ -4679,8 +4704,8 @@ const RetainerWheelCard: React.FC<{
   onClassify,
 }) => {
   const name = formatRetainerName(retainer);
-  const city = (retainer as any).city ?? "—";
-  const state = (retainer as any).state ?? "—";
+  const city = (retainer as any).city ?? "�";
+  const state = (retainer as any).state ?? "�";
   const photoUrl = getRetainerPhotoUrl(retainer);
 
   const verts: string[] = Array.isArray((retainer as any).deliveryVerticals)
@@ -4743,7 +4768,7 @@ const RetainerWheelCard: React.FC<{
         <div className="min-w-0">
           <div className="text-sm font-semibold text-slate-50 truncate">{name}</div>
           <div className="text-xs text-slate-400">
-            {city !== "—" || state !== "—" ? `${city}, ${state}` : "Location not set"}
+            {city !== "�" || state !== "�" ? `${city}, ${state}` : "Location not set"}
           </div>
         </div>
         <button
@@ -4815,7 +4840,7 @@ const RetainerWheelCard: React.FC<{
             {topBadges.map((b) => (
               <span
                 key={b.badge.id}
-                title={`${b.badge.title} · Level ${b.maxLevel}\n${b.badge.description}`}
+                title={`${b.badge.title} � Level ${b.maxLevel}\n${b.badge.description}`}
                 className="relative h-7 w-7 rounded-full border border-slate-700 bg-slate-950/40 text-slate-200 flex items-center justify-center"
               >
                 {badgeIconFor(b.badge.iconKey, "h-4 w-4")}
@@ -4828,8 +4853,8 @@ const RetainerWheelCard: React.FC<{
 
           {verts.length > 0 && (
             <div className="text-[10px] text-slate-500 truncate">
-              {verts.slice(0, 2).join(" · ")}
-              {verts.length > 2 ? ` · +${verts.length - 2}` : ""}
+              {verts.slice(0, 2).join(" � ")}
+              {verts.length > 2 ? ` � +${verts.length - 2}` : ""}
             </div>
           )}
         </div>
@@ -4999,7 +5024,7 @@ const ComposeMessagePopover: React.FC<{
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Example: Route A – night shift coverage"
+              placeholder="Example: Route A � night shift coverage"
             />
           </div>
 
@@ -5009,7 +5034,7 @@ const ComposeMessagePopover: React.FC<{
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-h-[80px]"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="Introduce yourself and what you’re looking for…"
+              placeholder="Introduce yourself and what you�re looking for�"
             />
           </div>
         </div>
@@ -5021,7 +5046,7 @@ const ComposeMessagePopover: React.FC<{
             disabled={sending}
             className="px-4 py-1.5 rounded-full text-xs font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {sending ? "Sending…" : "Send"}
+            {sending ? "Sending�" : "Send"}
           </button>
           <button
             type="button"
@@ -5363,7 +5388,7 @@ const ReadOnlyField: React.FC<{ label: string; children: React.ReactNode }> = ({
     <div className="space-y-1">
       <label className="text-xs font-medium text-slate-200">{label}</label>
       <div className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 min-h-[2.25rem] flex items-center">
-        {children ?? <span className="text-slate-500">—</span>}
+        {children ?? <span className="text-slate-500">�</span>}
       </div>
     </div>
   );
@@ -5778,7 +5803,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
             {isEdit ? "Edit Seeker Profile" : "Create Seeker Profile"}
           </h3>
           <p className="text-sm text-slate-400 mt-1">
-            {pages[safeIndex]?.label} · Scroll, use arrows, or click a page.
+            {pages[safeIndex]?.label} � Scroll, use arrows, or click a page.
           </p>
         </div>
 
@@ -5795,7 +5820,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
             ].join(" ")}
             title="Previous page"
           >
-            ←
+            ?
           </button>
           <span className="text-[11px] text-slate-400">
             {safeIndex + 1} / {pages.length}
@@ -5812,7 +5837,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
             ].join(" ")}
             title="Next page"
           >
-            →
+            ?
           </button>
         </div>
       </div>
@@ -6037,7 +6062,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
                 className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-h-[120px]"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Anything you want Retainers and Admin to know…"
+                placeholder="Anything you want Retainers and Admin to know�"
               />
             </div>
           </>
@@ -6592,9 +6617,9 @@ const RetainerWheelExpandedCard: React.FC<{
   onClassify,
 }) => {
   const name = formatRetainerName(retainer);
-  const city = (retainer as any).city ?? "—";
-  const state = (retainer as any).state ?? "—";
-  const zip = (retainer as any).zip ?? "—";
+  const city = (retainer as any).city ?? "�";
+  const state = (retainer as any).state ?? "�";
+  const zip = (retainer as any).zip ?? "�";
   const mission = (retainer as any).mission ?? (retainer as any).missionStatement ?? "";
   const photoUrl = getRetainerPhotoUrl(retainer);
 
@@ -6644,7 +6669,7 @@ const RetainerWheelExpandedCard: React.FC<{
     const max = typeof r.payMax === "number" ? r.payMax : null;
     const fmt = (n: number) =>
       n.toLocaleString(undefined, { style: "currency", currency: "USD" });
-    if (min != null && max != null) return `${model}${fmt(min)}–${fmt(max)}`;
+    if (min != null && max != null) return `${model}${fmt(min)}�${fmt(max)}`;
     if (min != null) return `${model}${fmt(min)}+`;
     if (max != null) return `${model}Up to ${fmt(max)}`;
     return model ? model.trim() : "Pay not listed";
@@ -6652,7 +6677,7 @@ const RetainerWheelExpandedCard: React.FC<{
 
   const routeScheduleLabel = (r: Route): string => {
     if (r.scheduleDays?.length && r.scheduleStart && r.scheduleEnd) {
-      return `${formatDaysShort(r.scheduleDays)} ${r.scheduleStart}–${r.scheduleEnd}`;
+      return `${formatDaysShort(r.scheduleDays)} ${r.scheduleStart}�${r.scheduleEnd}`;
     }
     return r.schedule || "Schedule not listed";
   };
@@ -6673,7 +6698,7 @@ const RetainerWheelExpandedCard: React.FC<{
           className="h-9 w-9 rounded-full border border-slate-700 text-slate-200 hover:bg-slate-900 transition"
           title="Close"
         >
-          ×
+          �
         </button>
       </div>
 
@@ -6718,20 +6743,20 @@ const RetainerWheelExpandedCard: React.FC<{
               <span className="font-semibold">{scheduleMatch.percent}% schedule match</span>
               {scheduleMatch.overlapDays.length > 0 && (
                 <span className="text-emerald-200/70">
-                  · {formatDaysShort(scheduleMatch.overlapDays)}
+                  � {formatDaysShort(scheduleMatch.overlapDays)}
                 </span>
               )}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/50 px-3 py-1 text-xs text-slate-400">
               {badgeIconFor("clock", "h-4 w-4")}
-              Schedule —
+              Schedule �
             </span>
           )}
 
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/50 px-3 py-1 text-xs text-slate-300">
             {badgeIconFor("route", "h-4 w-4")}
-            Routes: {typeof routeCount === "number" ? routeCount : "—"}
+            Routes: {typeof routeCount === "number" ? routeCount : "�"}
           </span>
         </div>
 
@@ -6739,13 +6764,13 @@ const RetainerWheelExpandedCard: React.FC<{
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/50 px-3 py-1 text-xs text-slate-200">
             {badgeIconFor("cash", "h-4 w-4")}
             <span className="font-semibold">
-              On‑time pay: {paymentOnTimePct == null ? "—" : `${paymentOnTimePct}%`}
+              On-time pay: {paymentOnTimePct == null ? "�" : `${paymentOnTimePct}%`}
             </span>
           </span>
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/50 px-3 py-1 text-xs text-slate-200">
             {badgeIconFor("check", "h-4 w-4")}
             <span className="font-semibold">
-              Pay accuracy: {paymentAccuracyPct == null ? "—" : `${paymentAccuracyPct}%`}
+              Pay accuracy: {paymentAccuracyPct == null ? "�" : `${paymentAccuracyPct}%`}
             </span>
           </span>
           {scheduleMatch && scheduleMatch.overlapMinutes > 0 && (
@@ -6777,7 +6802,7 @@ const RetainerWheelExpandedCard: React.FC<{
                       {r.title}
                     </div>
                     <div className="text-xs text-slate-400">
-                      {r.city && r.state ? `${r.city}, ${r.state}` : "—"}
+                      {r.city && r.state ? `${r.city}, ${r.state}` : "�"}
                     </div>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-300">
@@ -6821,7 +6846,7 @@ const RetainerWheelExpandedCard: React.FC<{
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-slate-300 whitespace-pre-wrap">
-                    {p.body.length > 180 ? `${p.body.slice(0, 180)}…` : p.body}
+                    {p.body.length > 180 ? `${p.body.slice(0, 180)}�` : p.body}
                   </div>
                 </div>
               ))}
@@ -6854,7 +6879,7 @@ const RetainerWheelExpandedCard: React.FC<{
               {topBadges.map((b) => (
                 <span
                   key={b.badge.id}
-                  title={`${b.badge.title} · Level ${b.maxLevel}\n${b.badge.description}`}
+                  title={`${b.badge.title} � Level ${b.maxLevel}\n${b.badge.description}`}
                   className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1.5 text-xs text-slate-100"
                 >
                   {badgeIconFor(b.badge.iconKey, "h-4 w-4")}
@@ -7396,7 +7421,7 @@ const SeekerRoutesView: React.FC<{
                     <div className="text-xs text-slate-400 mt-1">
                       {(route.city || route.state) && (
                         <span>
-                          {route.city ?? "—"}, {route.state ?? "—"} •{" "}
+                          {route.city ?? "�"}, {route.state ?? "�"} �{" "}
                         </span>
                       )}
                       <span>
@@ -7427,7 +7452,7 @@ const SeekerRoutesView: React.FC<{
                         : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
                     ].join(" ")}
                   >
-                    {interested ? "Interested ✓" : "Interested"}
+                    {interested ? "Interested ?" : "Interested"}
                   </button>
                 </div>
 
@@ -7451,7 +7476,7 @@ const SeekerRoutesView: React.FC<{
                   {(route.payMin != null || route.payMax != null) && (
                     <div>
                       <span className="text-slate-400">Pay:</span>{" "}
-                      {route.payMin ?? "—"}–{route.payMax ?? "—"}{" "}
+                      {route.payMin ?? "�"}�{route.payMax ?? "�"}{" "}
                       {route.payModel ? `(${route.payModel})` : ""}
                     </div>
                   )}

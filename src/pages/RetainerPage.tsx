@@ -189,6 +189,7 @@ import ProfileAvatar from "../components/ProfileAvatar";
 
 import { getStockImageUrl } from "../lib/stockImages";
 import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
+import { pullFromServer } from "../lib/serverSync";
 
 import {
 
@@ -210,7 +211,7 @@ import {
 
 import { badgeIconFor } from "../components/badgeIcons";
 
-import { clearPortalContext, clearSession, getSession, setPortalContext } from "../lib/session";
+import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
 
 import { getRetainerEntitlements } from "../lib/entitlements";
 
@@ -545,6 +546,32 @@ const RetainerPage: React.FC = () => {
     () => (sessionRetainerId ? retainers.find((r: any) => r.id === sessionRetainerId) : undefined),
     [retainers, sessionRetainerId]
   );
+
+  useEffect(() => {
+    if (!isSessionRetainer) return;
+    if (sessionRetainer) return;
+    const email = session?.email ? String(session.email).toLowerCase() : null;
+    const hydrate = async () => {
+      try {
+        await pullFromServer();
+      } catch {
+        // ignore
+      }
+      const refreshed = getRetainers();
+      setRetainers(refreshed);
+      let found = sessionRetainerId ? refreshed.find((r: any) => r.id === sessionRetainerId) : undefined;
+      if (!found && email) {
+        found = refreshed.find((r: any) => String((r as any).email ?? "").toLowerCase() === email);
+      }
+      if (found) {
+        setCurrentRetainerId(found.id);
+        persistCurrentRetainerId(found.id);
+        setSession({ role: "RETAINER", retainerId: found.id, email: email ?? undefined });
+      }
+    };
+    hydrate();
+  }, [isSessionRetainer, sessionRetainerId, sessionRetainer, session?.email]);
+
 
   useEffect(() => {
     if (!isSessionRetainer || !sessionRetainerId) return;

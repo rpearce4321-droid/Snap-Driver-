@@ -85,7 +85,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
 
       navigate(role === "SEEKER" ? "/seekers" : "/retainers");
       return;
-    } catch (err) {
+    } catch (err: any) {
       try {
         const account = authenticateAccount({ email: normEmail, password, role });
         const profileId = getAccountProfileId(account);
@@ -98,7 +98,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
           setSession({ role, retainerId: profileId, email: normEmail });
         }
         navigate(role === "SEEKER" ? "/seekers" : "/retainers");
-      } catch (localErr) {
+      } catch (localErr: any) {
         setError(localErr?.message || err?.response?.data?.error || "Unable to sign in.");
       }
     }
