@@ -49,7 +49,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
     setResetLink(null);
     const normEmail = email.trim().toLowerCase();
     try {
-      const server = await login({ email: normEmail, password });
+      await login({ email: normEmail, password });
       const resolved = await lookupProfile({ email: normEmail, role });
       if (role === "SEEKER") {
         window.localStorage.setItem("snapdriver_current_seeker_id", resolved.id);
@@ -65,7 +65,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
       }
       navigate(role === "SEEKER" ? "/seekers" : "/retainers");
       return;
-    } catch (err) {
+    } catch (err: any) {
       try {
         const account = authenticateAccount({ email: normEmail, password, role });
         const profileId = getAccountProfileId(account);
@@ -78,7 +78,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
           setSession({ role, retainerId: profileId, email: normEmail });
         }
         navigate(role === "SEEKER" ? "/seekers" : "/retainers");
-      } catch (localErr) {
+      } catch (localErr: any) {
         setError(localErr?.message || err?.response?.data?.error || "Unable to sign in.");
       }
     }
