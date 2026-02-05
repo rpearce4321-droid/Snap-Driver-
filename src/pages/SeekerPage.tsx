@@ -220,6 +220,7 @@ const SeekerPage: React.FC = () => {
   const session = useMemo(() => getSession(), []);
   const isSessionSeeker = session?.role === "SEEKER";
   const sessionSeekerId = isSessionSeeker ? session.seekerId ?? null : null;
+  const [isHydratingSession, setIsHydratingSession] = useState(() => isSessionSeeker && !!sessionSeekerId);
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
   const [isDesktop, setIsDesktop] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -369,14 +370,23 @@ const SeekerPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (!isSessionSeeker) return;
-    if (sessionSeeker) return;
+    if (!isSessionSeeker || !sessionSeekerId) {
+      setIsHydratingSession(false);
+      return;
+    }
+    if (sessionSeeker) {
+      setIsHydratingSession(false);
+      return;
+    }
+    setIsHydratingSession(true);
     const email = session?.email ? String(session.email).toLowerCase() : null;
     const hydrate = async () => {
       try {
         await pullFromServer();
       } catch {
         // ignore
+      } finally {
+        setIsHydratingSession(false);
       }
       const refreshed = getSeekers();
       setSeekers(refreshed);
@@ -850,6 +860,16 @@ const SeekerPage: React.FC = () => {
   const headerSubtitle = isSubcontractorView
     ? renderSubcontractorHeaderSubtitle(activeTab)
     : renderHeaderSubtitle(activeTab);
+
+  if (isSessionSeeker && isHydratingSession && sessionSeekerId && !sessionSeeker) {
+    return (
+      <ApprovalGate
+        title="Loading profile"
+        body="Syncing your Seeker profile from the server."
+        onBack={() => navigate("/")}
+      />
+    );
+  }
 
   const approvalGate: { title: string; body: string; status?: string } | null =
     isSessionSeeker

@@ -379,6 +379,7 @@ const RetainerPage: React.FC = () => {
   const session = useMemo(() => getSession(), []);
   const isSessionRetainer = session?.role === "RETAINER";
   const sessionRetainerId = isSessionRetainer ? session.retainerId ?? null : null;
+  const [isHydratingSession, setIsHydratingSession] = useState(() => isSessionRetainer && !!sessionRetainerId);
 
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
 
@@ -548,14 +549,23 @@ const RetainerPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (!isSessionRetainer) return;
-    if (sessionRetainer) return;
+    if (!isSessionRetainer || !sessionRetainerId) {
+      setIsHydratingSession(false);
+      return;
+    }
+    if (sessionRetainer) {
+      setIsHydratingSession(false);
+      return;
+    }
+    setIsHydratingSession(true);
     const email = session?.email ? String(session.email).toLowerCase() : null;
     const hydrate = async () => {
       try {
         await pullFromServer();
       } catch {
         // ignore
+      } finally {
+        setIsHydratingSession(false);
       }
       const refreshed = getRetainers();
       setRetainers(refreshed);
@@ -1380,6 +1390,16 @@ const RetainerPage: React.FC = () => {
     }
 
   }, [approvedSeekers]);
+
+  if (isSessionRetainer && isHydratingSession && sessionRetainerId && !sessionRetainer) {
+    return (
+      <ApprovalGate
+        title="Loading profile"
+        body="Syncing your Retainer profile from the server."
+        onBack={() => navigate("/")}
+      />
+    );
+  }
 
   const approvalGate: { title: string; body: string; status?: string } | null =
     isSessionRetainer
