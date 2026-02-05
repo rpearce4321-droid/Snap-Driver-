@@ -94,7 +94,7 @@ import {
 } from "../lib/badges";
 import { badgeIconFor } from "../components/badgeIcons";
 import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
-import { changePassword, resetPassword } from "../lib/api";
+import { changePassword, resetPassword, syncUpsert } from "../lib/api";
 import { getRetainerPosts, type RetainerPost } from "../lib/posts";
 import { getStockImageUrl } from "../lib/stockImages";
 import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
@@ -394,6 +394,14 @@ const SeekerPage: React.FC = () => {
       if (!found && email) {
         found = refreshed.find((s) => String((s as any).email ?? "").toLowerCase() === email);
       }
+      if (!found && currentSeeker) {
+        try {
+          await syncUpsert({ seekers: [currentSeeker] });
+        } catch {
+          // ignore
+        }
+        found = currentSeeker;
+      }
       if (found) {
         setCurrentSeekerId(found.id);
         persistCurrentSeekerId(found.id);
@@ -401,7 +409,7 @@ const SeekerPage: React.FC = () => {
       }
     };
     hydrate();
-  }, [isSessionSeeker, sessionSeekerId, sessionSeeker, session?.email]);
+  }, [isSessionSeeker, sessionSeekerId, sessionSeeker, session?.email, currentSeeker]);
   const subcontractors = useMemo(
     () => (currentSeeker ? currentSeeker.subcontractors ?? [] : []),
     [currentSeeker]

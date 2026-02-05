@@ -5,7 +5,7 @@ import { RetainerProfileForm } from "./RetainerPage";
 import { createAccount, getAccountByEmail } from "../lib/accounts";
 import { getRetainerById } from "../lib/data";
 import { setSession } from "../lib/session";
-import { register } from "../lib/api";
+import { register, syncUpsert } from "../lib/api";
 import { queueServerSync } from "../lib/serverSync";
 
 export default function SignupRetainerPage() {
@@ -63,6 +63,7 @@ export default function SignupRetainerPage() {
         retainerId: id,
       });
       await register({ email: finalEmail, password, role: "RETAINER" });
+      await syncUpsert({ retainers: [retainer] });
       window.localStorage.setItem("snapdriver_current_retainer_id", id);
       setSession({ role: "RETAINER", retainerId: id });
       queueServerSync();

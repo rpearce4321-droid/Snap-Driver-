@@ -5,7 +5,7 @@ import { SeekerProfileForm } from "./SeekerPage";
 import { createAccount, getAccountByEmail } from "../lib/accounts";
 import { getSeekerById } from "../lib/data";
 import { setSession } from "../lib/session";
-import { register } from "../lib/api";
+import { register, syncUpsert } from "../lib/api";
 import { queueServerSync } from "../lib/serverSync";
 
 export default function SignupSeekerPage() {
@@ -63,6 +63,7 @@ export default function SignupSeekerPage() {
         seekerId: id,
       });
       await register({ email: finalEmail, password, role: "SEEKER" });
+      await syncUpsert({ seekers: [{ ...seeker, email: finalEmail }] });
       window.localStorage.setItem("snapdriver_current_seeker_id", id);
       setSession({ role: "SEEKER", seekerId: id });
       queueServerSync();
