@@ -28,11 +28,15 @@
   - seekers/retainers CRUD (basic list + create)
 
 ## Admin portal: Server & Seed panel
-- Open Admin ? `Server & Seed`.
+- Open Admin > `Server & Seed`.
 - Create a seed batch (optional label).
+- Use **Include data sets** to choose what gets imported.
 - Click **Import Local Seed** to push current local demo data to D1.
 - Use **Purge Selected** or **Purge All** to remove seeded data.
-- Use **Magic Link Invites** to create account invite links.
+- **Danger Zone**:
+  - Type `WIPE ALL` and click **Wipe Server Data** to clear all D1 data.
+  - **Wipe Local Cache** clears browser data (optional auto-wipe after server wipe).
+- Use **Magic Link Invites** to create account invite links or reset links.
 
 ## Local seed export source
 - `src/lib/serverSeed.ts` exports local demo data from localStorage into a payload for `/api/seed/import`.
@@ -44,7 +48,5 @@
 
 ## Server sync
 - App auto-pulls server data on load if /api is reachable.
-- Admin ? Server & Seed: use Pull/Push + toggles for Server Sync and Seed Mode.
+- Admin > Server & Seed: use Pull/Push + toggles for Server Sync and Seed Mode.
 - Seed Mode marks pushes as seed data so they can be purged later.
-
-

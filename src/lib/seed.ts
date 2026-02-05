@@ -77,8 +77,8 @@ type ComprehensiveSeedOptions = {
   seekers?: number; // default 5
   /**
    * Of the 30 retainers:
-   * - 10 will have 2–5 users
-   * - 10 will have 6–15 users
+   * - 10 will have 25 users
+   * - 10 will have 615 users
    * - remaining will have 1 user
    */
   retainersSmallTeams?: number; // default 10
@@ -717,6 +717,11 @@ function wipeDemoLocalStorageComprehensive() {
   } catch {
     // ignore
   }
+}
+
+
+export function wipeLocalDataComprehensive() {
+  wipeDemoLocalStorageComprehensive();
 }
 
 /* ===== Main front-end seeder (localStorage) ===== */
@@ -1954,12 +1959,12 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
     ];
 
     const POST_BODIES = [
-      "Thanks for staying engaged. We’re prioritizing clear ETAs, proactive exception reporting, and consistent cutoff performance. If you have questions, message dispatch through your usual channel.",
-      "We have additional capacity coming online. If you’re available for steady coverage, mark Interested on posted routes and confirm your availability window.",
-      "Reminder: start-of-shift check-in is required. Please confirm you’ve reviewed load notes and parking instructions before departure.",
+      "Thanks for staying engaged. Were prioritizing clear ETAs, proactive exception reporting, and consistent cutoff performance. If you have questions, message dispatch through your usual channel.",
+      "We have additional capacity coming online. If youre available for steady coverage, mark Interested on posted routes and confirm your availability window.",
+      "Reminder: start-of-shift check-in is required. Please confirm youve reviewed load notes and parking instructions before departure.",
       "Safety first: report any access issues, unsafe locations, or customer escalations immediately. We will support you and document the incident properly.",
-      "We’re planning holiday coverage now. If you can cover weekends or extended shifts, reply with your preferred schedule so we can align assignments.",
-      "We value professional communication and reliability. If you’re looking for consistent work, keep your profile updated and watch for route postings.",
+      "Were planning holiday coverage now. If you can cover weekends or extended shifts, reply with your preferred schedule so we can align assignments.",
+      "We value professional communication and reliability. If youre looking for consistent work, keep your profile updated and watch for route postings.",
     ];
 
     const BROADCAST_SUBJECTS = [

@@ -13,9 +13,9 @@ import {
   type Seeker,
 } from "../lib/data";
 import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
-import { autoSeedComprehensive } from "../lib/seed";
+import { autoSeedComprehensive, wipeLocalDataComprehensive } from "../lib/seed";
 import { buildServerSeedPayload, getLocalSeedSummary } from "../lib/serverSeed";
-import { createSeedBatch, importSeedData, inviteUser, listSeedBatches, purgeSeedBatch, login, getSessionMe } from "../lib/api";
+import { createSeedBatch, importSeedData, inviteUser, listSeedBatches, purgeSeedBatch, resetPassword, wipeAllServerData, login, getSessionMe } from "../lib/api";
 import { getServerSyncStatus, pullFromServer, setSeedModeEnabled, setServerSyncEnabled, syncToServer } from "../lib/serverSync";
 import {
   getRetainerEntitlements,
@@ -87,7 +87,9 @@ type Panel =
   | "content:posts"
   | "system:badges"
   | "system:badgeScoring"
-  | "system:badgeAudit"  | "system:server"  | "messages:external"
+  | "system:badgeAudit"
+  | "system:server"
+  | "messages:external"
   | "messages:retainerStaff"
   | "messages:subcontractors";
 
@@ -1904,6 +1906,16 @@ const AdminServerPanel: React.FC = () => {
   const serverStatus = getServerSyncStatus();
   const [serverSyncEnabled, setServerSyncEnabledState] = useState(serverStatus.enabled);
   const [seedModeEnabled, setSeedModeEnabledState] = useState(serverStatus.seedMode);
+  const [seedIncludes, setSeedIncludes] = useState({
+    profiles: true,
+    links: true,
+    routes: true,
+    content: true,
+    badges: true,
+    reputation: true,
+  });
+  const [wipeConfirm, setWipeConfirm] = useState("");
+  const [wipeLocalAfterServer, setWipeLocalAfterServer] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
   const toggleServerSync = () => {
     const next = !serverSyncEnabled;
@@ -2005,6 +2017,34 @@ const AdminServerPanel: React.FC = () => {
     setSeedStatus(null);
     try {
       const payload = buildServerSeedPayload(targetBatchId);
+      if (!seedIncludes.profiles) {
+        payload.seekers = [];
+        payload.retainers = [];
+        payload.retainerUsers = [];
+        payload.subcontractors = [];
+      }
+      if (!seedIncludes.links) {
+        payload.links = [];
+        payload.conversations = [];
+        payload.messages = [];
+      }
+      if (!seedIncludes.routes) {
+        payload.routes = [];
+        payload.routeInterests = [];
+      }
+      if (!seedIncludes.content) {
+        payload.posts = [];
+        payload.broadcasts = [];
+      }
+      if (!seedIncludes.badges) {
+        payload.badgeDefinitions = [];
+        payload.badgeSelections = [];
+        payload.badgeCheckins = [];
+      }
+      if (!seedIncludes.reputation) {
+        payload.reputationScores = [];
+        payload.recordHallEntries = [];
+      }
       const res = await importSeedData(payload);
       setSeedStatus(`Imported ${res.inserted} rows into seed batch.`);
     } catch (err: any) {
@@ -2044,6 +2084,56 @@ const AdminServerPanel: React.FC = () => {
       setSeedStatus("Purged all seed batches.");
       setSelectedBatchId("");
       await refreshBatches();
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handleWipeServer = async () => {
+    if (wipeConfirm.trim() !== "WIPE ALL") {
+      setSeedError("Type WIPE ALL to confirm.");
+      return;
+    }
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      await wipeAllServerData({ confirm: wipeConfirm.trim() });
+      if (wipeLocalAfterServer) {
+        wipeLocalDataComprehensive();
+      }
+      setSeedStatus(wipeLocalAfterServer ? "Server + local data wiped." : "Server data wiped.");
+      setWipeConfirm("");
+      await refreshBatches();
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handleWipeLocal = () => {
+    const ok = window.confirm("This will erase all local browser data for SnapDriver. Continue?");
+    if (!ok) return;
+    wipeLocalDataComprehensive();
+    setSeedStatus("Local cache wiped.");
+  };
+
+  const handleResetPassword = async () => {
+    const email = inviteEmail.trim();
+    if (!email) {
+      setSeedError("Enter an email to reset.");
+      return;
+    }
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      const res = await resetPassword({ email });
+      setInviteLink(res.magicLink);
+      setSeedStatus(`Reset link created. Expires ${new Date(res.expiresAt).toLocaleString()}.`);
     } catch (err: any) {
       setSeedError(formatError(err));
     } finally {
@@ -2108,6 +2198,9 @@ const AdminServerPanel: React.FC = () => {
         <div className="flex flex-wrap gap-2">
           <button className="btn" onClick={handleInvite} disabled={seedBusy}>
             Create Invite Link
+          </button>
+          <button className="btn" onClick={handleResetPassword} disabled={seedBusy}>
+            Send Reset Link
           </button>
           {inviteLink && (
             <button className="btn" onClick={handleCopyInvite} disabled={seedBusy}>
@@ -2206,6 +2299,70 @@ const AdminServerPanel: React.FC = () => {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-xs uppercase tracking-wider text-white/60">Include data sets</div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {([
+              ["profiles", "Profiles + teams"],
+              ["links", "Links + messaging"],
+              ["routes", "Routes + interests"],
+              ["content", "Posts + broadcasts"],
+              ["badges", "Badges + check-ins"],
+              ["reputation", "Reputation + record hall"],
+            ] as const).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-xs text-white/70">
+                <input
+                  type="checkbox"
+                  checked={(seedIncludes as any)[key]}
+                  onChange={(e) =>
+                    setSeedIncludes((prev) => ({ ...prev, [key]: e.target.checked }))
+                  }
+                  className="h-4 w-4 rounded border-white/30 bg-white/10"
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4 space-y-3">
+          <div className="text-xs uppercase tracking-wider text-rose-200">Danger Zone</div>
+          <div className="text-sm text-rose-100">
+            Wipe all data from the server or clear all local browser data.
+          </div>
+          <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
+            <input
+              className="input w-full"
+              placeholder="Type WIPE ALL to confirm"
+              value={wipeConfirm}
+              onChange={(e) => setWipeConfirm(e.target.value)}
+            />
+            <button
+              className="btn border-rose-500/40 text-rose-100 bg-rose-500/15 hover:bg-rose-500/25"
+              onClick={handleWipeServer}
+              disabled={seedBusy || wipeConfirm.trim() !== "WIPE ALL"}
+            >
+              Wipe Server Data
+            </button>
+          </div>
+          <label className="flex items-center gap-2 text-xs text-rose-100">
+            <input
+              type="checkbox"
+              checked={wipeLocalAfterServer}
+              onChange={(e) => setWipeLocalAfterServer(e.target.checked)}
+              className="h-4 w-4 rounded border-rose-300/40 bg-rose-500/10"
+            />
+            Also wipe local cache after server wipe
+          </label>
+          <button
+            className="btn border-amber-500/40 text-amber-100 bg-amber-500/15 hover:bg-amber-500/25"
+            onClick={handleWipeLocal}
+            disabled={seedBusy}
+          >
+            Wipe Local Cache
+          </button>
         </div>
 
         {seedStatus && <div className="text-sm text-emerald-200">{seedStatus}</div>}
@@ -2770,6 +2927,7 @@ function formatSeekerName(s: Seeker): string {
 function formatRetainerName(r: Retainer): string {
   return r.companyName || (r as any).name || (r as any).ceoName || "Retainer";
 }
+
 
 
 

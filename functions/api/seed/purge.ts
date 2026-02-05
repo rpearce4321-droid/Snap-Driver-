@@ -1,9 +1,19 @@
 import { badRequest, json, requireDb, serverError } from "../_db";
+import { getCookie, loadSession } from "../_auth";
 
 type PurgeRequest = {
   batchId?: string;
   all?: boolean;
 };
+
+
+async function requireAdmin(request: Request, env: any) {
+  const token = getCookie(request, "sd_session");
+  if (!token) return null;
+  const session = await loadSession(env as any, token);
+  if (!session || session.role !== "ADMIN") return null;
+  return session;
+}
 
 const seedTables = [
   "record_hall_entries",
@@ -27,6 +37,8 @@ const seedTables = [
 
 export const onRequestPost: PagesFunction = async ({ request, env }) => {
   const db = requireDb(env as any);
+  const admin = await requireAdmin(request, env as any);
+  if (!admin) return json({ ok: false, error: "Unauthorized" }, { status: 401 });
   let payload: PurgeRequest = {};
   try {
     if (request.body) {

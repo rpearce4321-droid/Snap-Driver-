@@ -5,6 +5,7 @@ import { RetainerProfileForm } from "./RetainerPage";
 import { createAccount, getAccountByEmail } from "../lib/accounts";
 import { getRetainerById } from "../lib/data";
 import { setSession } from "../lib/session";
+import { register } from "../lib/api";
 import { queueServerSync } from "../lib/serverSync";
 
 export default function SignupRetainerPage() {
@@ -43,7 +44,7 @@ export default function SignupRetainerPage() {
     setStep("profile");
   };
 
-  const handleProfileSaved = (id?: string) => {
+  const handleProfileSaved = async (id?: string) => {
     if (!id) {
       setError("Profile saved, but no profile id was returned.");
       return;
@@ -61,6 +62,7 @@ export default function SignupRetainerPage() {
         password,
         retainerId: id,
       });
+      await register({ email: finalEmail, password, role: "RETAINER" });
       window.localStorage.setItem("snapdriver_current_retainer_id", id);
       setSession({ role: "RETAINER", retainerId: id });
       queueServerSync();

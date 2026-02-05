@@ -50,6 +50,12 @@ export async function purgeSeedBatch(payload: { batchId?: string; all?: boolean 
   return r.data as { ok: boolean; batchId: string | null };
 }
 
+
+export async function register(payload: { email: string; password: string; role: string }) {
+  const r = await api.post('/auth/register', payload);
+  return r.data as { ok: boolean; user: { id: string; email: string; role: string } };
+}
+
 export async function inviteUser(payload: { email: string; role: string }) {
   const r = await api.post('/auth/invite', payload);
   return r.data as { ok: boolean; magicLink: string; expiresAt: string };
@@ -82,6 +88,16 @@ export async function consumeReset(payload: { token: string; password: string })
 
 export async function consumeInvite(payload: { token: string; password: string }) {
   const r = await api.post('/auth/consume', payload);
+  return r.data as { ok: boolean };
+}
+
+export async function changePassword(payload: { currentPassword: string; newPassword: string }) {
+  const r = await api.post('/auth/change', payload);
+  return r.data as { ok: boolean };
+}
+
+export async function wipeAllServerData(payload: { confirm: string }) {
+  const r = await api.post('/seed/wipe', payload);
   return r.data as { ok: boolean };
 }
 

@@ -7,6 +7,7 @@ import {
   type AccountRole,
 } from "../lib/accounts";
 import { setSession } from "../lib/session";
+import { login, resetPassword } from "../lib/api";
 
 const DISPLAY_FONT = {
   fontFamily: '"Bebas Neue", "Oswald", "Arial Black", sans-serif',
@@ -38,9 +39,13 @@ const RoleCard: React.FC<RoleCardProps> = ({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetStatus, setResetStatus] = useState<string | null>(null);
+  const [resetLink, setResetLink] = useState<string | null>(null);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError(null);
+    setResetStatus(null);
+    setResetLink(null);
     try {
       const account = authenticateAccount({ email, password, role });
       const profileId = getAccountProfileId(account);
@@ -52,9 +57,41 @@ const RoleCard: React.FC<RoleCardProps> = ({
         window.localStorage.setItem("snapdriver_current_retainer_id", profileId);
         setSession({ role, retainerId: profileId });
       }
+      try {
+        await login({ email, password });
+      } catch {
+        // ignore server auth failures for local-only accounts
+      }
       navigate(role === "SEEKER" ? "/seekers" : "/retainers");
     } catch (err: any) {
       setError(err?.message || "Unable to sign in.");
+    }
+  };
+
+  const handleReset = async () => {
+    setError(null);
+    setResetStatus(null);
+    setResetLink(null);
+    if (!email.trim()) {
+      setError("Enter your email to reset.");
+      return;
+    }
+    try {
+      const res = await resetPassword({ email });
+      setResetLink(res.magicLink);
+      setResetStatus(`Reset link created. Expires ${new Date(res.expiresAt).toLocaleString()}.`);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || "Unable to create reset link.");
+    }
+  };
+
+  const handleCopyReset = async () => {
+    if (!resetLink) return;
+    try {
+      await navigator.clipboard.writeText(resetLink);
+      setResetStatus("Reset link copied.");
+    } catch {
+      setResetStatus("Reset link ready to copy.");
     }
   };
 
@@ -117,6 +154,25 @@ const RoleCard: React.FC<RoleCardProps> = ({
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <button
+                type="button"
+                onClick={handleReset}
+                className="hover:text-slate-200"
+              >
+                Forgot password?
+              </button>
+              {resetLink && (
+                <button
+                  type="button"
+                  onClick={handleCopyReset}
+                  className="hover:text-slate-200"
+                >
+                  Copy reset link
+                </button>
+              )}
+            </div>
+            {resetStatus && <div className="text-xs text-emerald-300">{resetStatus}</div>}
             {error && <div className="text-xs text-rose-300">{error}</div>}
             <button
               type="button"

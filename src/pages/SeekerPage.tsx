@@ -94,6 +94,7 @@ import {
 } from "../lib/badges";
 import { badgeIconFor } from "../components/badgeIcons";
 import { clearPortalContext, clearSession, getSession, setPortalContext } from "../lib/session";
+import { changePassword, resetPassword } from "../lib/api";
 import { getRetainerPosts, type RetainerPost } from "../lib/posts";
 import { getStockImageUrl } from "../lib/stockImages";
 import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
@@ -1783,6 +1784,137 @@ const SidebarButton: React.FC<{
         </span>
       )}
     </button>
+  );
+};
+
+const ChangePasswordPanel: React.FC<{ email?: string | null }> = ({ email }) => {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [resetLink, setResetLink] = useState<string | null>(null);
+
+  const handleChange = async () => {
+    setError(null);
+    setStatus(null);
+    if (!currentPassword || !newPassword) {
+      setError("Enter your current and new password.");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+    try {
+      await changePassword({ currentPassword, newPassword });
+      setStatus("Password updated.");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirm("");
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || "Unable to update password.");
+    }
+  };
+
+  const handleReset = async () => {
+    setError(null);
+    setStatus(null);
+    if (!email) {
+      setError("Add an email to your profile first.");
+      return;
+    }
+    try {
+      const res = await resetPassword({ email });
+      setResetLink(res.magicLink);
+      setStatus(`Reset link created. Expires ${new Date(res.expiresAt).toLocaleString()}.`);
+    } catch (err: any) {
+      setError(err?.response?.data?.error || err?.message || "Unable to create reset link.");
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!resetLink) return;
+    try {
+      await navigator.clipboard.writeText(resetLink);
+      setStatus("Reset link copied.");
+    } catch {
+      setStatus("Reset link ready to copy.");
+    }
+  };
+
+  return (
+    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+      <div>
+        <div className="text-xs uppercase tracking-wide text-slate-400">Password</div>
+        <div className="text-sm text-slate-300">Change your password or generate a reset link.</div>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <input
+          type={showPassword ? "text" : "password"}
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          placeholder="Current password"
+          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+        <input
+          type={showPassword ? "text" : "password"}
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="New password"
+          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+        <input
+          type={showPassword ? "text" : "password"}
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          placeholder="Confirm password"
+          className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={handleChange}
+          className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition"
+        >
+          Update password
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowPassword((prev) => !prev)}
+          className="px-3 py-1.5 rounded-full text-[11px] border border-slate-700 text-slate-200 hover:text-slate-50"
+        >
+          {showPassword ? "Hide" : "Show"}
+        </button>
+        <button
+          type="button"
+          onClick={handleReset}
+          className="px-3 py-1.5 rounded-full text-[11px] border border-amber-500/40 text-amber-100 bg-amber-500/10 hover:bg-amber-500/20"
+        >
+          Send reset link
+        </button>
+        {resetLink && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="px-3 py-1.5 rounded-full text-[11px] border border-slate-700 text-slate-200 hover:text-slate-50"
+          >
+            Copy reset link
+          </button>
+        )}
+      </div>
+      {status && <div className="text-xs text-emerald-200">{status}</div>}
+      {error && <div className="text-xs text-rose-300">{error}</div>}
+      {resetLink && (
+        <div className="text-[11px] text-slate-500 break-all">{resetLink}</div>
+      )}
+    </div>
   );
 };
 
@@ -3806,7 +3938,7 @@ const ActionView: React.FC<{
         )}
 
         {actionTab === "editProfile" && (
-          <>
+          <div className="space-y-4">
             {currentSeeker ? (
               <SeekerProfileForm
                 mode="edit"
@@ -3816,7 +3948,8 @@ const ActionView: React.FC<{
             ) : (
               <SeekerProfileForm mode="create" onSaved={onSeekerCreated} />
             )}
-          </>
+            <ChangePasswordPanel email={(currentSeeker as any)?.email ?? null} />
+          </div>
         )}
 
         {actionTab === "addSubcontractor" && (

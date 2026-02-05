@@ -10,6 +10,8 @@ import SeekerDetailPage from "./pages/SeekerDetailPage";
 import RetainerDetailPage from "./pages/RetainerDetailPage";
 import SignupSeekerPage from "./pages/SignupSeekerPage";
 import SignupRetainerPage from "./pages/SignupRetainerPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
+import SetPasswordPage from "./pages/SetPasswordPage";
 import { initServerSync, setSyncListener } from "./lib/serverSync";
 
 export default function App() {
@@ -39,6 +41,8 @@ export default function App() {
           <Route path="/retainers/:id" element={<RetainerDetailPage />} />
           <Route path="/signup/seeker" element={<SignupSeekerPage />} />
           <Route path="/signup/retainer" element={<SignupRetainerPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/set-password" element={<SetPasswordPage />} />
           <Route path="/badges" element={<BadgesCatalogPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
