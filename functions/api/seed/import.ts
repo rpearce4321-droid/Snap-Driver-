@@ -217,7 +217,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
   for (const item of payload.badgeDefinitions ?? []) {
     const id = item.id || crypto.randomUUID();
     push(
-      "INSERT INTO badge_definitions (id, role, title, icon_key, data_json, is_seed, seed_batch_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))",
+      "INSERT OR IGNORE INTO badge_definitions (id, role, title, icon_key, data_json, is_seed, seed_batch_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))",
       [
         id,
         (item.role || "SEEKER").toUpperCase(),
@@ -310,3 +310,4 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
 
   return json({ ok: true, inserted: inserts.length });
 };
+
