@@ -6,6 +6,7 @@ import {
   getAccountProfileId,
   type AccountRole,
 } from "../lib/accounts";
+import { getRetainers, getSeekers } from "../lib/data";
 import { setSession } from "../lib/session";
 import { pullFromServer } from "../lib/serverSync";
 import { login, resetPassword, lookupProfile } from "../lib/api";
@@ -50,22 +51,41 @@ const RoleCard: React.FC<RoleCardProps> = ({
     const normEmail = email.trim().toLowerCase();
     try {
       await login({ email: normEmail, password });
-      const resolved = await lookupProfile({ email: normEmail, role });
-      if (role === "SEEKER") {
-        window.localStorage.setItem("snapdriver_current_seeker_id", resolved.id);
-        setSession({ role, seekerId: resolved.id, email: normEmail });
-      } else {
-        window.localStorage.setItem("snapdriver_current_retainer_id", resolved.id);
-        setSession({ role, retainerId: resolved.id, email: normEmail });
-      }
       try {
         await pullFromServer();
       } catch {
         // ignore pull errors
       }
+
+      let resolvedId = null;
+      if (role === "SEEKER") {
+        const seeker = getSeekers().find((s) => String((s as any).email ?? "").toLowerCase() === normEmail);
+        resolvedId = seeker?.id ?? null;
+      } else {
+        const retainer = getRetainers().find((r) => String((r as any).email ?? "").toLowerCase() === normEmail);
+        resolvedId = retainer?.id ?? null;
+      }
+
+      if (!resolvedId) {
+        const resolved = await lookupProfile({ email: normEmail, role });
+        resolvedId = resolved.id ?? null;
+      }
+
+      if (!resolvedId) {
+        throw new Error("Account has no linked profile.");
+      }
+
+      if (role === "SEEKER") {
+        window.localStorage.setItem("snapdriver_current_seeker_id", resolvedId);
+        setSession({ role, seekerId: resolvedId, email: normEmail });
+      } else {
+        window.localStorage.setItem("snapdriver_current_retainer_id", resolvedId);
+        setSession({ role, retainerId: resolvedId, email: normEmail });
+      }
+
       navigate(role === "SEEKER" ? "/seekers" : "/retainers");
       return;
-    } catch (err: any) {
+    } catch (err) {
       try {
         const account = authenticateAccount({ email: normEmail, password, role });
         const profileId = getAccountProfileId(account);
@@ -78,7 +98,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
           setSession({ role, retainerId: profileId, email: normEmail });
         }
         navigate(role === "SEEKER" ? "/seekers" : "/retainers");
-      } catch (localErr: any) {
+      } catch (localErr) {
         setError(localErr?.message || err?.response?.data?.error || "Unable to sign in.");
       }
     }
