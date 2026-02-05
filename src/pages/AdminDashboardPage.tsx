@@ -1935,6 +1935,10 @@ const AdminServerPanel: React.FC = () => {
   const formatError = (err: any) =>
     err?.response?.data?.error || err?.message || "Request failed";
 
+  const refreshLocalSummary = () => {
+    setLocalSummary(getLocalSeedSummary());
+  };
+
   const refreshBatches = async () => {
     setSeedBusy(true);
     setSeedError(null);
