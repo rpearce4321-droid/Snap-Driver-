@@ -1405,18 +1405,11 @@ const RetainerPage: React.FC = () => {
   }, [approvedSeekers]);
 
   const approvalGate: { title: string; body: string; status?: string } | null =
-    isSessionRetainer
-      ? !sessionRetainerId
-        ? {
-            title: "Profile not linked",
-            body: "This account has no Retainer profile linked yet. Please contact Snap admin.",
-          }
-        : (effectiveRetainer as any).status !== "APPROVED"
-        ? {
-            ...getApprovalGateCopy("Retainer", (effectiveRetainer as any).status),
-            status: (effectiveRetainer as any).status,
-          }
-        : null
+    isSessionRetainer && effectiveRetainer && (effectiveRetainer as any).status !== "APPROVED"
+      ? {
+          ...getApprovalGateCopy("Retainer", (effectiveRetainer as any).status),
+          status: (effectiveRetainer as any).status,
+        }
       : null;
 
   if (approvalGate) {

@@ -883,18 +883,11 @@ const SeekerPage: React.FC = () => {
     : renderHeaderSubtitle(activeTab);
 
   const approvalGate: { title: string; body: string; status?: string } | null =
-    isSessionSeeker
-      ? !sessionSeekerId
-        ? {
-            title: "Profile not linked",
-            body: "This account has no Seeker profile linked yet. Please contact Snap admin.",
-          }
-        : effectiveSeeker?.status !== "APPROVED"
-        ? {
-            ...getApprovalGateCopy("Seeker", effectiveSeeker?.status),
-            status: effectiveSeeker?.status,
-          }
-        : null
+    isSessionSeeker && effectiveSeeker && effectiveSeeker.status !== "APPROVED"
+      ? {
+          ...getApprovalGateCopy("Seeker", effectiveSeeker.status),
+          status: effectiveSeeker.status,
+        }
       : null;
 
   if (approvalGate) {
