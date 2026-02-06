@@ -471,6 +471,10 @@ const SeekerPage: React.FC = () => {
       setRetainers(nextRetainers);
 
       setCurrentSeekerId((prev) => {
+        if (isSessionSeeker && sessionSeekerId) {
+          persistCurrentSeekerId(sessionSeekerId);
+          return sessionSeekerId;
+        }
         const resolved = resolveCurrentSeekerId(nextSeekers, prev);
         if (resolved) persistCurrentSeekerId(resolved);
         else persistCurrentSeekerId(null);
@@ -478,7 +482,7 @@ const SeekerPage: React.FC = () => {
       });
     });
     return unsub;
-  }, []);
+  }, [isSessionSeeker, sessionSeekerId]);
 
   useEffect(() => {
     if (!isSubcontractorView) return;
@@ -542,7 +546,7 @@ const SeekerPage: React.FC = () => {
   const refreshSeekersAndSession = () => {
     const updated = getSeekers();
     setSeekers(updated);
-    const newId = resolveCurrentSeekerId(updated, currentSeekerId);
+    const newId = isSessionSeeker && sessionSeekerId ? sessionSeekerId : resolveCurrentSeekerId(updated, currentSeekerId);
     setCurrentSeekerId(newId);
     if (newId) persistCurrentSeekerId(newId);
     else persistCurrentSeekerId(null);
