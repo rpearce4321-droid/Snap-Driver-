@@ -1,5 +1,5 @@
 import { syncPull, syncUpsert } from "./api";
-import { writeStore, setStoreListener } from "./storage";
+import { readStoreData, writeStore, setStoreListener } from "./storage";
 import { getSeekers, getRetainers, notifyDataUpdated } from "./data";
 import { getAllLinks } from "./linking";
 import { getAllConversations, getAllMessages } from "./messages";
@@ -23,6 +23,9 @@ import {
 
 const SERVER_SYNC_ENABLED_KEY = "snapdriver_server_sync_enabled";
 const SEED_MODE_KEY = "snapdriver_seed_mode";
+
+const CURRENT_SEEKER_KEY = "snapdriver_current_seeker_id";
+const CURRENT_RETAINER_KEY = "snapdriver_current_retainer_id";
 
 const KEY_SEEKERS = "demo_seekers_v2";
 const KEY_RETAINERS = "demo_retainers_v2";
@@ -357,6 +360,10 @@ export async function pullFromServer(): Promise<boolean> {
 
     const seekers = data.seekers ?? [];
     const retainers = data.retainers ?? [];
+    const previousSeekers = readStoreData<any[]>(KEY_SEEKERS) ?? [];
+    const previousRetainers = readStoreData<any[]>(KEY_RETAINERS) ?? [];
+    const currentSeekerId = typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_SEEKER_KEY) : null;
+    const currentRetainerId = typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_RETAINER_KEY) : null;
     const retainerUsers = data.retainerUsers ?? [];
     const subcontractors = data.subcontractors ?? [];
 
@@ -374,15 +381,28 @@ export async function pullFromServer(): Promise<boolean> {
       subsBySeeker.set(sub.seekerId, list);
     }
 
-    const nextRetainers = retainers.map((r: any) => ({
+    let nextRetainers = retainers.map((r: any) => ({
       ...r,
       users: retainerUsersByRetainer.get(r.id) ?? r.users,
     }));
-    const nextSeekers = seekers.map((s: any) => ({
+    let nextSeekers = seekers.map((s: any) => ({
       ...s,
       subcontractors: subsBySeeker.get(s.id) ?? s.subcontractors,
     }));
 
+
+    if (currentSeekerId && !nextSeekers.some((s: any) => s.id === currentSeekerId)) {
+      const fallbackSeeker = previousSeekers.find((s: any) => s.id === currentSeekerId);
+      if (fallbackSeeker) {
+        nextSeekers = [fallbackSeeker, ...nextSeekers];
+      }
+    }
+    if (currentRetainerId && !nextRetainers.some((r: any) => r.id === currentRetainerId)) {
+      const fallbackRetainer = previousRetainers.find((r: any) => r.id === currentRetainerId);
+      if (fallbackRetainer) {
+        nextRetainers = [fallbackRetainer, ...nextRetainers];
+      }
+    }
     writeStore(KEY_SEEKERS, 1, nextSeekers);
     writeStore(KEY_RETAINERS, 1, nextRetainers);
     writeStore(KEY_LINKS, 1, data.links ?? []);
