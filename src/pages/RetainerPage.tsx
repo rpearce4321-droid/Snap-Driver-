@@ -380,7 +380,6 @@ const RetainerPage: React.FC = () => {
   const isSessionRetainer = session?.role === "RETAINER";
   const sessionRetainerId = isSessionRetainer ? session.retainerId ?? null : null;
   const sessionEmail = session?.email ? String(session.email).toLowerCase() : null;
-  const [isHydratingSession, setIsHydratingSession] = useState(() => isSessionRetainer && !!sessionRetainerId);
 
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
 
@@ -560,14 +559,11 @@ const RetainerPage: React.FC = () => {
 
   useEffect(() => {
     if (!isSessionRetainer || !sessionRetainerId) {
-      setIsHydratingSession(false);
       return;
     }
     if (sessionRetainer) {
-      setIsHydratingSession(false);
       return;
     }
-    setIsHydratingSession(true);
     const email = session?.email ? String(session.email).toLowerCase() : null;
     const hydrate = async () => {
       try {
@@ -575,7 +571,6 @@ const RetainerPage: React.FC = () => {
       } catch {
         // ignore
       } finally {
-        setIsHydratingSession(false);
       }
       const refreshed = getRetainers();
       setRetainers(refreshed);
@@ -1409,16 +1404,6 @@ const RetainerPage: React.FC = () => {
 
   }, [approvedSeekers]);
 
-  if (isSessionRetainer && isHydratingSession && sessionRetainerId && !effectiveRetainer) {
-    return (
-      <ApprovalGate
-        title="Loading profile"
-        body="Syncing your Retainer profile from the server."
-        onBack={() => navigate("/")}
-      />
-    );
-  }
-
   const approvalGate: { title: string; body: string; status?: string } | null =
     isSessionRetainer
       ? !sessionRetainerId
@@ -1426,7 +1411,7 @@ const RetainerPage: React.FC = () => {
             title: "Profile not linked",
             body: "This account has no Retainer profile linked yet. Please contact Snap admin.",
           }
-        : !effectiveRetainer
+        : !effectiveRetainer && !currentRetainerId
         ? {
             title: "Profile not found",
             body: "We could not load your Retainer profile. It may have been cleared or created in a different browser.",

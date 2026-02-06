@@ -904,15 +904,15 @@ const SeekerPage: React.FC = () => {
             title: "Profile not linked",
             body: "This account has no Seeker profile linked yet. Please contact Snap admin.",
           }
-        : !effectiveSeeker
+        : !effectiveSeeker && !currentSeekerId
         ? {
             title: "Profile not found",
             body: "We could not load your Seeker profile. It may have been cleared or created in a different browser.",
           }
-        : effectiveSeeker.status !== "APPROVED"
+        : effectiveSeeker?.status !== "APPROVED"
         ? {
-            ...getApprovalGateCopy("Seeker", effectiveSeeker.status),
-            status: effectiveSeeker.status,
+            ...getApprovalGateCopy("Seeker", effectiveSeeker?.status),
+            status: effectiveSeeker?.status,
           }
         : null
       : null;
