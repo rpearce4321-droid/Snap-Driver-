@@ -38,14 +38,9 @@ import {
 
 import {
 
-
-
   createConversationWithFirstMessage,
 
   getConversationsForRetainer,
-
-
-
 
 } from "../lib/messages";
 
@@ -117,13 +112,11 @@ import {
 
 import {
 
-
   getRetainerPosts,
 
   updateRetainerPost,
 
   type RetainerPost,
-
 
   type RetainerPostStatus,
 
@@ -229,8 +222,6 @@ import {
 
 } from "../lib/schedule";
 
-
-
 // Derive types from data helpers
 
 type Retainer = ReturnType<typeof getRetainers>[number];
@@ -283,7 +274,6 @@ const ApprovalGate: React.FC<ApprovalGateProps> = ({
 
 function getApprovalGateCopy(roleLabel: string, status?: string) {
 
-
   switch (status) {
     case "PENDING":
       return {
@@ -313,9 +303,6 @@ function getApprovalGateCopy(roleLabel: string, status?: string) {
   }
 }
 
-
-
-
 type TabKey =
 
   | "dashboard"
@@ -331,8 +318,6 @@ type TabKey =
   | "messages"
 
   | "badges";
-
-
 
 type ActionTabKey =
 
@@ -352,23 +337,14 @@ type ActionTabKey =
 
 type SeekerBucketKey = "excellent" | "possible" | "notNow";
 
-
-
 const CURRENT_RETAINER_KEY = "snapdriver_current_retainer_id";
 const CURRENT_SEEKER_KEY = "snapdriver_current_seeker_id";
 
 const RETAINER_SEEKER_BUCKETS_KEY = "snapdriver_retainer_seeker_buckets";
 
-
-
 const retainerActiveUserKey = (retainerId: string) =>
 
   `snapdriver_retainer_active_user_${retainerId}`;
-
-const BACKDOOR_USERNAME = "Snapadmin01";
-const BACKDOOR_PASSWORD = "Rachel0407!";
-
-
 
 const RetainerPage: React.FC = () => {
 
@@ -413,10 +389,6 @@ const RetainerPage: React.FC = () => {
   };
 
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
-  const [backdoorUser, setBackdoorUser] = useState("");
-  const [backdoorPass, setBackdoorPass] = useState("");
-  const [backdoorUnlocked, setBackdoorUnlocked] = useState(false);
-  const [backdoorError, setBackdoorError] = useState<string | null>(null);
 
   const [noticeTick, setNoticeTick] = useState(0);
   const [linkTick] = useState(0);
@@ -433,23 +405,17 @@ const RetainerPage: React.FC = () => {
 
   }, []);
 
-
-
   useEffect(() => {
 
     setPortalContext("RETAINER");
 
   }, []);
 
-
-
   // All retainers + seekers
 
   const [retainers, setRetainers] = useState<Retainer[]>(() => getRetainers());
 
   const [seekers] = useState<Seeker[]>(() => getSeekers());
-
-
 
   const approvedSeekers = useMemo(
 
@@ -458,8 +424,6 @@ const RetainerPage: React.FC = () => {
     [seekers]
 
   );
-
-
 
   // Wheel + buckets for seekers
 
@@ -483,11 +447,7 @@ const RetainerPage: React.FC = () => {
 
   });
 
-
-
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-
 
   // Compose pop-out (message from dashboard)
 
@@ -496,8 +456,6 @@ const RetainerPage: React.FC = () => {
     null
 
   );
-
-
 
   const [selectedSeekerIds, setSelectedSeekerIds] = useState<Set<string>>(
 
@@ -510,8 +468,6 @@ const RetainerPage: React.FC = () => {
     null
 
   );
-
-
 
   // "Acting as" retainer id
 
@@ -526,8 +482,6 @@ const RetainerPage: React.FC = () => {
     return id;
 
   });
-
-
 
   const currentRetainer = useMemo(
 
@@ -555,7 +509,6 @@ const RetainerPage: React.FC = () => {
     const match = String((currentRetainer as any).email ?? "").toLowerCase();
     return match && match === sessionEmail ? currentRetainer : undefined;
   }, [isSessionRetainer, sessionRetainer, currentRetainer, sessionEmail]);
-
 
   useEffect(() => {
     if (!isSessionRetainer || !sessionRetainerId) {
@@ -595,7 +548,6 @@ const RetainerPage: React.FC = () => {
     syncUpsert({ retainers: [effectiveRetainer] }).catch(() => undefined);
   }, [effectiveRetainer, sessionRetainer, sessionEmail]);
 
-
   useEffect(() => {
     if (!isSessionRetainer || !sessionRetainerId) return;
     if (currentRetainerId !== sessionRetainerId) {
@@ -603,8 +555,6 @@ const RetainerPage: React.FC = () => {
       persistCurrentRetainerId(sessionRetainerId);
     }
   }, [isSessionRetainer, sessionRetainerId, currentRetainerId]);
-
-
 
   const retainerUsers = useMemo(
 
@@ -615,8 +565,6 @@ const RetainerPage: React.FC = () => {
   );
 
   const [currentRetainerUserId, setCurrentRetainerUserId] = useState<string | null>(null);
-
-
 
   useEffect(() => {
 
@@ -638,8 +586,6 @@ const RetainerPage: React.FC = () => {
 
   }, [currentRetainerId, retainerUsers]);
 
-
-
   const activeRetainerUser = useMemo(
 
     () =>
@@ -654,8 +600,6 @@ const RetainerPage: React.FC = () => {
 
   );
 
-
-
   const retainerUserLevel = activeRetainerUser?.level ?? 3;
 
   const retainerLevelLabels =
@@ -669,48 +613,6 @@ const RetainerPage: React.FC = () => {
   const canSendExternal = retainerUserLevel > 1;
 
   const canSendInternal = retainerUserLevel >= 1;
-
-
-
-  const selectableRetainers = useMemo(() => {
-    const base = retainers.filter((r: any) => r.status !== "DELETED");
-    if (isSessionRetainer && sessionRetainerId) {
-      return base.filter((r: any) => r.id === sessionRetainerId);
-    }
-    return base;
-  }, [retainers, isSessionRetainer, sessionRetainerId]);
-
-
-
-  const handleSelectRetainer = (id: string) => {
-    if (isSessionRetainer && sessionRetainerId && id !== sessionRetainerId) return;
-    setCurrentRetainerId(id);
-    persistCurrentRetainerId(id);
-  };
-
-
-
-  const handleSelectRetainerUser = (id: string) => {
-
-    if (!currentRetainerId || typeof window === "undefined") return;
-
-    const nextId = id || null;
-
-    if (nextId) {
-
-      window.localStorage.setItem(retainerActiveUserKey(currentRetainerId), nextId);
-
-    } else {
-
-      window.localStorage.removeItem(retainerActiveUserKey(currentRetainerId));
-
-    }
-
-    setCurrentRetainerUserId(nextId);
-
-  };
-
-
 
   const refreshRetainersAndSession = () => {
 
@@ -728,8 +630,6 @@ const RetainerPage: React.FC = () => {
 
   };
 
-
-
   const handleRetainerCreated = () => {
 
     refreshRetainersAndSession();
@@ -737,8 +637,6 @@ const RetainerPage: React.FC = () => {
     setActiveTab("dashboard");
 
   };
-
-
 
   const handleRetainerUpdated = () => {
 
@@ -748,25 +646,12 @@ const RetainerPage: React.FC = () => {
 
   };
 
-
-
   const openActionTab = (tab: ActionTabKey) => {
 
     setActionTab(tab);
 
     setActiveTab("action");
 
-  };
-
-  const handleUnlockBackdoor = () => {
-    setBackdoorError(null);
-    if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
-      setBackdoorUnlocked(true);
-      setBackdoorUser("");
-      setBackdoorPass("");
-      return;
-    }
-    setBackdoorError("Invalid backdoor credentials.");
   };
 
   useEffect(() => {
@@ -822,8 +707,6 @@ const RetainerPage: React.FC = () => {
 
   };
 
-
-
   const classifyLabel = (bucket: SeekerBucketKey): string => {
 
     switch (bucket) {
@@ -847,8 +730,6 @@ const RetainerPage: React.FC = () => {
     }
 
   };
-
-
 
   const persistBuckets = (buckets: {
 
@@ -884,8 +765,6 @@ const RetainerPage: React.FC = () => {
 
   };
 
-
-
   const handleClassifySeeker = (seeker: Seeker, bucket: SeekerBucketKey) => {
 
     if (!canEditPortal) return;
@@ -898,13 +777,9 @@ const RetainerPage: React.FC = () => {
 
     };
 
-
-
     // Remove from wheel
 
     setWheelSeekers((prev) => prev.filter((s: any) => (s as any).id !== (seeker as any).id));
-
-
 
     // Update buckets + persist
 
@@ -920,8 +795,6 @@ const RetainerPage: React.FC = () => {
 
       };
 
-
-
       if (bucket === "excellent") {
 
         next.excellent = addUnique(next.excellent, seeker);
@@ -936,15 +809,11 @@ const RetainerPage: React.FC = () => {
 
       }
 
-
-
       persistBuckets(next);
 
       return next;
 
     });
-
-
 
     const name = formatSeekerName(seeker);
 
@@ -953,8 +822,6 @@ const RetainerPage: React.FC = () => {
     setToastMessage(`${name} sent to "${label}" list`);
 
   };
-
-
 
   const handleReturnSeekerToWheel = (seeker: Seeker) => {
 
@@ -978,21 +845,15 @@ const RetainerPage: React.FC = () => {
 
     });
 
-
-
     setWheelSeekers((prev) =>
 
       prev.some((s: any) => (s as any).id === (seeker as any).id) ? prev : [...prev, seeker]
 
     );
 
-
-
     setToastMessage(`${formatSeekerName(seeker)} returned to wheel`);
 
   };
-
-
 
   useEffect(() => {
 
@@ -1020,8 +881,6 @@ const RetainerPage: React.FC = () => {
 
   }, [seekerBuckets.excellent, seekerBuckets.possible, seekerBuckets.notNow]);
 
-
-
   const toggleSelectedSeeker = (seekerId: string) => {
 
     setSelectedSeekerIds((prev) => {
@@ -1038,11 +897,7 @@ const RetainerPage: React.FC = () => {
 
   };
 
-
-
   const clearSelectedSeekers = () => setSelectedSeekerIds(new Set());
-
-
 
   const selectAllSeekersInLists = () => {
 
@@ -1062,8 +917,6 @@ const RetainerPage: React.FC = () => {
 
   };
 
-
-
   const selectedSeekersInLists = useMemo(() => {
 
     if (selectedSeekerIds.size === 0) return [];
@@ -1074,19 +927,13 @@ const RetainerPage: React.FC = () => {
 
   }, [seekerBuckets.excellent, seekerBuckets.possible, seekerBuckets.notNow, selectedSeekerIds]);
 
-
-
   const bulkReturnSelectedSeekersToWheel = () => {
 
     if (!canEditPortal) return;
 
     if (selectedSeekersInLists.length === 0) return;
 
-
-
     const selectedIds = new Set(selectedSeekersInLists.map((s: any) => String((s as any).id)));
-
-
 
     setSeekerBuckets((prev) => {
 
@@ -1106,8 +953,6 @@ const RetainerPage: React.FC = () => {
 
     });
 
-
-
     setWheelSeekers((prev) => {
 
       const existing = new Set(prev.map((s: any) => String((s as any).id)));
@@ -1117,8 +962,6 @@ const RetainerPage: React.FC = () => {
       return toAdd.length === 0 ? prev : [...prev, ...toAdd];
 
     });
-
-
 
     clearSelectedSeekers();
 
@@ -1134,8 +977,6 @@ const RetainerPage: React.FC = () => {
 
   };
 
-
-
   const bulkRequestLinksForSelectedSeekers = () => {
 
     if (!canEditPortal) return;
@@ -1143,8 +984,6 @@ const RetainerPage: React.FC = () => {
     if (!currentRetainerId) return;
 
     if (selectedSeekersInLists.length === 0) return;
-
-
 
     for (const s of selectedSeekersInLists as any[]) {
 
@@ -1160,8 +999,6 @@ const RetainerPage: React.FC = () => {
 
     }
 
-
-
     setToastMessage(
 
       selectedSeekersInLists.length === 1
@@ -1173,8 +1010,6 @@ const RetainerPage: React.FC = () => {
     );
 
   };
-
-
 
   const bulkMessageSelectedSeekers = () => {
 
@@ -1188,8 +1023,6 @@ const RetainerPage: React.FC = () => {
 
   };
 
-
-
   const handleRebucketById = (seekerId: string, targetBucket: SeekerBucketKey) => {
 
     if (!canEditPortal) return;
@@ -1197,8 +1030,6 @@ const RetainerPage: React.FC = () => {
     setSeekerBuckets((prev) => {
 
       let moving: Seeker | undefined;
-
-
 
       const removeFrom = (list: Seeker[]) => {
 
@@ -1218,25 +1049,17 @@ const RetainerPage: React.FC = () => {
 
       };
 
-
-
       let excellent = removeFrom(prev.excellent);
 
       let possible = removeFrom(prev.possible);
 
       let notNow = removeFrom(prev.notNow);
 
-
-
       if (!moving) return prev;
-
-
 
       const addUnique = (list: Seeker[], s: Seeker) =>
 
         list.some((x: any) => (x as any).id === (s as any).id) ? list : [...list, s];
-
-
 
       if (targetBucket === "excellent") {
 
@@ -1252,8 +1075,6 @@ const RetainerPage: React.FC = () => {
 
       }
 
-
-
       const next = { excellent, possible, notNow };
 
       persistBuckets(next);
@@ -1262,13 +1083,9 @@ const RetainerPage: React.FC = () => {
 
     });
 
-
-
     setToastMessage(`Profile moved to ${classifyLabel(targetBucket)} list`);
 
   };
-
-
 
   const handleMessageSeeker = (seeker: Seeker) => {
 
@@ -1288,8 +1105,6 @@ const RetainerPage: React.FC = () => {
 
   };
 
-
-
   // Auto-dismiss toast
 
   useEffect(() => {
@@ -1301,8 +1116,6 @@ const RetainerPage: React.FC = () => {
     return () => window.clearTimeout(id);
 
   }, [toastMessage]);
-
-
 
   // Rebuild buckets + wheel from localStorage on mount / when approvedSeekers changes
 
@@ -1318,8 +1131,6 @@ const RetainerPage: React.FC = () => {
 
     }
 
-
-
     if (typeof window === "undefined") {
 
       setWheelSeekers(approvedSeekers);
@@ -1327,8 +1138,6 @@ const RetainerPage: React.FC = () => {
       return;
 
     }
-
-
 
     try {
 
@@ -1342,8 +1151,6 @@ const RetainerPage: React.FC = () => {
 
       }
 
-
-
       const parsed = JSON.parse(raw) as {
 
         excellent?: string[];
@@ -1354,25 +1161,17 @@ const RetainerPage: React.FC = () => {
 
       };
 
-
-
       const byId = new Map<string, Seeker>(approvedSeekers.map((s: any) => [(s as any).id, s]));
-
-
 
       const mapIds = (ids?: string[]) =>
 
         (ids || []).map((id) => byId.get(id)).filter((s): s is Seeker => !!s);
-
-
 
       const excellent = mapIds(parsed.excellent);
 
       const possible = mapIds(parsed.possible);
 
       const notNow = mapIds(parsed.notNow);
-
-
 
       const bucketIds = new Set<string>([
 
@@ -1384,11 +1183,7 @@ const RetainerPage: React.FC = () => {
 
       ]);
 
-
-
       const wheel = approvedSeekers.filter((s: any) => !bucketIds.has((s as any).id));
-
-
 
       setSeekerBuckets({ excellent, possible, notNow });
 
@@ -1443,251 +1238,65 @@ const RetainerPage: React.FC = () => {
 
         </div>
 
-
-
         {currentRetainer ? (
-
           <div className="mb-6 rounded-2xl bg-slate-800/80 px-4 py-3">
-
             <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
-
               Your Company
-
             </div>
-
             <div className="font-semibold text-slate-50 truncate">
-
               {formatRetainerName(currentRetainer)}
-
             </div>
-
-            <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
-
+            <div className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-2">
               <span>
-
                 Status:{" "}
-
                 <span className="font-medium text-emerald-400">
-
                   {(currentRetainer as any).status}
-
                 </span>
-
               </span>
-
               {(() => {
-
                 const summary = getRetainerRatingSummary((currentRetainer as any).id);
-
                 if (!summary.count) return null;
-
                 return (
-
                   <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/60 px-2 py-0.5 text-[10px] text-amber-100">
-
                     * {summary.avg.toFixed(1)} ({summary.count})
-
                   </span>
-
                 );
-
               })()}
-
             </div>
-
             {currentRetainerId && (
-
               <div className="mt-2">
-
                 <Link
-
                   to={`/retainers/${currentRetainerId}`}
-
                   className="text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-
                 >
-
                   View profile
-
                 </Link>
-
               </div>
-
             )}
-
-
-
-
-            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
-              <div className="text-[10px] uppercase tracking-wide text-amber-300 mb-2">Backdoor access</div>
-              {backdoorUnlocked ? (
-                <div className="text-[11px] text-emerald-300">Unlocked for this tab.</div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={backdoorUser}
-                      onChange={(e) => setBackdoorUser(e.target.value)}
-                      placeholder="Username"
-                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <input
-                      value={backdoorPass}
-                      onChange={(e) => setBackdoorPass(e.target.value)}
-                      type="password"
-                      placeholder="Password"
-                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleUnlockBackdoor}
-                      className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 transition"
-                    >
-                      Unlock
-                    </button>
-                  </div>
-                  {backdoorError && (
-                    <div className="mt-2 text-[11px] text-rose-300">{backdoorError}</div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {backdoorUnlocked && selectableRetainers.length > 1 && (
-
-              <div className="mt-3">
-
-                <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-
-                  Acting as
-
-                </label>
-
-                <select
-
-                  className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-
-                  value={currentRetainerId ?? ""}
-
-                  onChange={(e) => handleSelectRetainer(e.target.value)}
-
-                >
-
-                  {selectableRetainers.map((r: any) => (
-
-                    <option key={r.id} value={r.id} className="bg-slate-900 text-slate-50">
-
-                      {formatRetainerName(r)}
-
-                      {r.status === "PENDING" ? " (Pending)" : ""}
-
-                    </option>
-
-                  ))}
-
-                </select>
-
-              </div>
-
-            )}
-
-
-
-            {backdoorUnlocked && (
-              <div className="mt-3">
-                <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                  Acting as user
-                </label>
-                <select
-                  className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                  value={currentRetainerUserId ?? ""}
-                  onChange={(e) => handleSelectRetainerUser(e.target.value)}
-                >
-
-                <option value="" className="bg-slate-900 text-slate-50">
-
-                  {retainerLevelLabels.level3} (default)
-
-                </option>
-
-                {retainerUsers.map((u) => (
-
-                  <option key={u.id} value={u.id} className="bg-slate-900 text-slate-50">
-
-                    {u.firstName} {u.lastName} ({retainerLevelLabels[`level${u.level}` as keyof typeof retainerLevelLabels] ?? `Level ${u.level}`})
-
-                  </option>
-
-                ))}
-
-              </select>
-
-              {activeRetainerUser && (
-
-                <div className="mt-1 text-[10px] text-slate-500">
-
-                  Level {activeRetainerUser.level}: {retainerLevelLabels[`level${activeRetainerUser.level}` as keyof typeof retainerLevelLabels] ?? `Level ${activeRetainerUser.level}`}
-
-                </div>
-
-              )}
-
-              {retainerUserLevel === 1 && (
-
-                <div className="mt-1 text-[10px] text-amber-300">View-only access</div>
-
-              )}
-
-            </div>
-          )}
-
           </div>
-
         ) : (
-
           <div className="mb-6 rounded-2xl bg-slate-800/80 px-4 py-3">
-
             <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
-
               Get started
-
             </div>
-
             <div className="text-sm text-slate-200">
-
               You&apos;re not currently acting as any Retainer. Use{" "}
-
               <button
-
                 type="button"
-
                 onClick={() => {
-
                   setActionTab("editProfile");
-
                   setActiveTab("action");
-
                 }}
-
                 className="font-semibold text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
-
               >
-
                 Edit Profile
-
               </button>{" "}
-
               to create a company profile.
-
             </div>
-
           </div>
-
         )}
 
-
-
-        <nav className="space-y-1 flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
+<nav className="space-y-1 flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
 
           <SidebarButton label="Dashboard" active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} />
 
@@ -1716,8 +1325,6 @@ const RetainerPage: React.FC = () => {
         </div>
 
       </aside>
-
-
 
       {/* Main content */}
 
@@ -1753,7 +1360,6 @@ const RetainerPage: React.FC = () => {
                 </button>
               </div>
             </div>
-
 
           </div>
         </div>
@@ -1823,93 +1429,8 @@ const RetainerPage: React.FC = () => {
                     No retainer selected yet.
                   </div>
                 )}
-
-                <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
-      
-            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
-              <div className="text-[10px] uppercase tracking-wide text-amber-300 mb-2">Backdoor access</div>
-              {backdoorUnlocked ? (
-                <div className="text-[11px] text-emerald-300">Unlocked for this tab.</div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={backdoorUser}
-                      onChange={(e) => setBackdoorUser(e.target.value)}
-                      placeholder="Username"
-                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <input
-                      value={backdoorPass}
-                      onChange={(e) => setBackdoorPass(e.target.value)}
-                      type="password"
-                      placeholder="Password"
-                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleUnlockBackdoor}
-                      className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 transition"
-                    >
-                      Unlock
-                    </button>
-                  </div>
-                  {backdoorError && (
-                    <div className="mt-2 text-[11px] text-rose-300">{backdoorError}</div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {backdoorUnlocked && selectableRetainers.length > 1 && (
-                    <div>
-                      <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                        Acting as
-                      </label>
-                      <select
-                        className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                        value={currentRetainerId ?? ""}
-                        onChange={(e) => handleSelectRetainer(e.target.value)}
-                      >
-                        {selectableRetainers.map((r: any) => (
-                          <option key={r.id} value={r.id} className="bg-slate-900 text-slate-50">
-                            {formatRetainerName(r)}
-                            {r.status === "PENDING" ? " (Pending)" : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                      Acting as user
-                    </label>
-                    <select
-                      className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                      value={currentRetainerUserId ?? ""}
-                      onChange={(e) => handleSelectRetainerUser(e.target.value)}
-                    >
-                      <option value="" className="bg-slate-900 text-slate-50">
-                        {retainerLevelLabels.level3} (default)
-                      </option>
-                      {retainerUsers.map((u) => (
-                        <option key={u.id} value={u.id} className="bg-slate-900 text-slate-50">
-                          {formatRetainerUserName(u)} ({retainerLevelLabels[`level${u.level}` as keyof RetainerUserLevelLabels]})
-                        </option>
-                      ))}
-                    </select>
-                    {activeRetainerUser && (
-                      <div className="mt-1 text-[10px] text-slate-500">
-                        Level {activeRetainerUser.level}: {retainerLevelLabels[`level${activeRetainerUser.level}` as keyof typeof retainerLevelLabels] ?? `Level ${activeRetainerUser.level}`}
-                      </div>
-                    )}
-                    {retainerUserLevel === 1 && (
-                      <div className="mt-1 text-[10px] text-amber-300">View-only access</div>
-                    )}
-                  </div>
-                </div>
               </div>
-              <nav className="space-y-2">
+<nav className="space-y-2">
                 <SidebarButton
                   label="Dashboard"
                   active={activeTab === "dashboard"}
@@ -2032,22 +1553,9 @@ const RetainerPage: React.FC = () => {
 
                 isDesktop={isDesktop}
 
-
-
-
-
-
-
-
-
-
-
-
                 onToast={(msg) => setToastMessage(msg)}
 
                 onOpenProfile={(s) => navigate(`/seekers/${(s as any).id}`)}
-
-
 
                 onMessage={handleMessageSeeker}
 
@@ -2066,8 +1574,6 @@ const RetainerPage: React.FC = () => {
               />
 
             )}
-
-
 
             {activeTab === "find" && (
 
@@ -2187,8 +1693,6 @@ const RetainerPage: React.FC = () => {
 
             )}
 
-
-
             {activeTab === "action" && (
 
               <ActionView
@@ -2307,8 +1811,6 @@ const RetainerPage: React.FC = () => {
 
             )}
 
-
-
             {activeTab === "linking" && (
 
               <RetainerLinkingView
@@ -2326,8 +1828,6 @@ const RetainerPage: React.FC = () => {
 
             )}
 
-
-
             {activeTab === "posts" && (
 
               <RetainerPostsView
@@ -2341,8 +1841,6 @@ const RetainerPage: React.FC = () => {
               />
 
             )}
-
-
 
             {activeTab === "messages" && (
 
@@ -2400,8 +1898,6 @@ const RetainerPage: React.FC = () => {
 
             )}
 
-
-
             {activeTab === "badges" && (
 
               <>
@@ -2427,13 +1923,9 @@ const RetainerPage: React.FC = () => {
 
             )}
 
-
-
           </div>
 
         </section>
-
-
 
         {composeTargetSeeker && currentRetainer && (
 
@@ -2448,8 +1940,6 @@ const RetainerPage: React.FC = () => {
           />
 
         )}
-
-
 
         {bulkComposeTargets && currentRetainer && (
 
@@ -2507,8 +1997,6 @@ const RetainerPage: React.FC = () => {
 
         )}
 
-
-
         {toastMessage && (
 
           <div className="fixed inset-x-0 bottom-4 flex justify-center z-50 pointer-events-none">
@@ -2531,12 +2019,7 @@ const RetainerPage: React.FC = () => {
 
 };
 
-
-
 export default RetainerPage;
-
-
-
 
 type RetainerFeedPanelProps = {
   retainerId: string | null;
@@ -2550,7 +2033,6 @@ type RetainerFeedPanelProps = {
   onGoToRoutes: () => void;
   className?: string;
 };
-
 
 const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
   retainerId,
@@ -2580,7 +2062,6 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
         .map((l) => l.seekerId)
     );
   }, [retainerId, linkTick]);
-
 
   const [feedTick, setFeedTick] = useState(0);
   const [feedFilter, setFeedFilter] = useState<"ALL" | "BROADCAST" | "ROUTE" | "UPDATE">(
@@ -3254,15 +2735,11 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
   );
 };
 
-
 /* ------------------------------------------------------------------ */
 
 /* Sidebar button                                                     */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 const SidebarButton: React.FC<{
 
@@ -3441,17 +2918,11 @@ const ChangePasswordPanel: React.FC<{ email?: string | null }> = ({ email }) => 
   );
 };
 
-
-
-
 /* ------------------------------------------------------------------ */
 
 /* Dashboard overview                                                 */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 const DashboardView: React.FC<{
 
@@ -3462,22 +2933,9 @@ const DashboardView: React.FC<{
   seekers: Seeker[];
   isDesktop: boolean;
 
-
-
-
-
-
-
-
-
-
-
-
   onToast: (message: string) => void;
 
   onOpenProfile: (s: Seeker) => void;
-
-
 
   onMessage: (s: Seeker) => void;
 
@@ -3502,22 +2960,9 @@ const DashboardView: React.FC<{
   seekers,
   isDesktop,
 
-
-
-
-
-
-
-
-
-
-
-
   onToast,
 
   onOpenProfile,
-
-
 
   onMessage,
 
@@ -3543,8 +2988,6 @@ const DashboardView: React.FC<{
 
   }, [retainerId]);
 
-
-
   const stats = useMemo(() => {
 
     if (!retainerId) {
@@ -3569,13 +3012,9 @@ const DashboardView: React.FC<{
 
     }
 
-
-
     const links = getLinksForRetainer(retainerId);
 
     const activeLinks = links.filter((l) => l.status === "ACTIVE").length;
-
-
 
     const unreadMessages = getConversationsForRetainer(retainerId).reduce(
 
@@ -3585,19 +3024,13 @@ const DashboardView: React.FC<{
 
     );
 
-
-
     const activeRoutes = retainerRoutes.filter((r) => r.status === "ACTIVE").length;
-
-
 
     const routeIds = new Set(retainerRoutes.map((r) => r.id));
 
     const routeInterests = getAllRouteInterests().filter((i) => routeIds.has(i.routeId))
 
       .length;
-
-
 
     const badgeApprovals = getPendingBadgeApprovalsForProfile({
 
@@ -3606,8 +3039,6 @@ const DashboardView: React.FC<{
       ownerId: retainerId,
 
     }).count;
-
-
 
     const now = Date.now();
 
@@ -3624,8 +3055,6 @@ const DashboardView: React.FC<{
       return Date.parse(proposal.startAt) > now ? sum + 1 : sum;
 
     }, 0);
-
-
 
     const approvalTotals = (() => {
 
@@ -3663,8 +3092,6 @@ const DashboardView: React.FC<{
 
     })();
 
-
-
     return {
 
       activeLinks,
@@ -3684,8 +3111,6 @@ const DashboardView: React.FC<{
     };
 
   }, [retainerId, retainerRoutes]);
-
-
 
   const [feedTick, setFeedTick] = useState(0);
 
@@ -3729,9 +3154,6 @@ const DashboardView: React.FC<{
     }
   }, [retainerId, feedItems]);
 
-
-
-
   const filteredFeedItems = useMemo(() => {
 
     if (feedFilter === "ALL") return feedItems;
@@ -3752,8 +3174,6 @@ const DashboardView: React.FC<{
 
   }, [feedFilter, feedItems]);
 
-
-
   const visibleFeedItems = useMemo(
 
     () => filteredFeedItems.slice(0, 12),
@@ -3761,8 +3181,6 @@ const DashboardView: React.FC<{
     [filteredFeedItems]
 
   );
-
-
 
   const fmtWhen = (iso: string) => {
 
@@ -3772,13 +3190,9 @@ const DashboardView: React.FC<{
 
   };
 
-
-
   const feedWhen = (it: FeedItem) =>
 
     it.kind === "BROADCAST" ? it.createdAt : (it as any).updatedAt;
-
-
 
   const feedTitle = (it: FeedItem) => {
 
@@ -3790,12 +3204,9 @@ const DashboardView: React.FC<{
 
   };
 
-
-
   const feedBadge = (it: FeedItem) =>
 
     it.kind === "POST" ? it.post.type : it.kind === "ROUTE" ? "ROUTE" : "BROADCAST";
-
 
   const feedKey = (it: FeedItem) => `${it.kind}:${it.id}`;
 
@@ -3813,8 +3224,6 @@ const DashboardView: React.FC<{
 
   };
 
-
-
   const renderFeedDetails = (it: FeedItem) => {
 
     if (it.kind === "POST") {
@@ -3830,8 +3239,6 @@ const DashboardView: React.FC<{
       );
 
     }
-
-
 
     if (it.kind === "ROUTE") {
 
@@ -3850,8 +3257,6 @@ const DashboardView: React.FC<{
             }${route.payMax != null ? `-$${route.payMax}` : ""}`
 
           : null;
-
-
 
       return (
 
@@ -3935,8 +3340,6 @@ const DashboardView: React.FC<{
 
     }
 
-
-
     return (
 
       <div className="text-sm text-slate-200 whitespace-pre-wrap">
@@ -3948,8 +3351,6 @@ const DashboardView: React.FC<{
     );
 
   };
-
-
 
   const renderRouteResponses = (route: Route) => {
 
@@ -3971,7 +3372,6 @@ const DashboardView: React.FC<{
 
     }
 
-
     const typeOrder: Array<{
 
       key: "INTERESTED" | "REQUEST_INFO" | "DIRECT_MESSAGE" | "NOT_INTERESTED";
@@ -3992,7 +3392,6 @@ const DashboardView: React.FC<{
 
     ];
 
-
     const reasonLabel = (code?: string) => {
 
       if (!code) return "No reason provided";
@@ -4003,7 +3402,6 @@ const DashboardView: React.FC<{
 
     };
 
-
     return (
 
       <div className="space-y-3">
@@ -4013,7 +3411,6 @@ const DashboardView: React.FC<{
           const list = grouped[group.key];
 
           if (!list || list.length === 0) return null;
-
 
           return (
 
@@ -4040,7 +3437,6 @@ const DashboardView: React.FC<{
                   const name = seeker ? formatSeekerName(seeker) : `Seeker (${resp.seekerId})`;
 
                   const canMessage = seeker && activeLinkSeekerIds.has(String(resp.seekerId));
-
 
                   return (
 
@@ -4308,9 +3704,6 @@ const DashboardView: React.FC<{
     );
   };
 
-
-
-
   const pctFromCounts = (yesCount: number, noCount: number) => {
 
     const total = yesCount + noCount;
@@ -4321,8 +3714,6 @@ const DashboardView: React.FC<{
 
   };
 
-
-
   const pctValue = (value: number | null) => {
 
     if (value == null || Number.isNaN(value)) return 0;
@@ -4330,8 +3721,6 @@ const DashboardView: React.FC<{
     return Math.max(0, Math.min(100, value));
 
   };
-
-
 
   const formatMemberSince = (value?: number | string | null) => {
 
@@ -4344,8 +3733,6 @@ const DashboardView: React.FC<{
     return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 
   };
-
-
 
   const activeBadges = useMemo(() => {
 
@@ -4363,16 +3750,11 @@ const DashboardView: React.FC<{
 
   }, [retainerId]);
 
-
-
   const retainerReputation = retainerId
 
     ? getReputationScoreForProfile({ ownerRole: "RETAINER", ownerId: retainerId })
 
     : null;
-
-
-
 
   const [scheduleLink, setScheduleLink] = useState<LinkingLink | null>(null);
 
@@ -4387,7 +3769,6 @@ const DashboardView: React.FC<{
   
   
 
-
   const [linkTick, setLinkTick] = useState(0);
 
   const pendingLinks = useMemo(() => {
@@ -4397,7 +3778,6 @@ const DashboardView: React.FC<{
     return getLinksForRetainer(retainerId).filter((l) => l.status === "PENDING");
 
   }, [retainerId, linkTick]);
-
 
   const activeLinkSeekerIds = useMemo(() => {
 
@@ -4415,9 +3795,6 @@ const DashboardView: React.FC<{
 
   }, [retainerId, linkTick]);
 
-
-
-
   const seekerById = useMemo(
 
     () => new Map<string, Seeker>(seekers.map((s) => [s.id, s])),
@@ -4426,8 +3803,6 @@ const DashboardView: React.FC<{
 
   );
 
-
-
   const retainerDisplayName = currentRetainer ? formatRetainerName(currentRetainer) : "Retainer";
 
   const retainerCompany = currentRetainer?.companyName || retainerDisplayName;
@@ -4435,8 +3810,6 @@ const DashboardView: React.FC<{
   const retainerUserName =
 
     (currentRetainer as any)?.name || (currentRetainer as any)?.ceoName || retainerDisplayName;
-
-
 
   const profileCard = (
     <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
@@ -4497,7 +3870,6 @@ const DashboardView: React.FC<{
       </div>
     </div>
   );
-
 
   return (
 
@@ -4638,8 +4010,6 @@ const DashboardView: React.FC<{
 
         </div>
 
-
-
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 flex-1">
 
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -4762,8 +4132,6 @@ const DashboardView: React.FC<{
 
           </div>
 
-
-
           {!retainerId ? (
 
             <div className="mt-3 text-xs text-slate-400">
@@ -4831,8 +4199,6 @@ const DashboardView: React.FC<{
                       ? getUnreadRouteResponseCount(retainerId, it.route.id)
 
                       : 0;
-
-
 
                   return (
 
@@ -5117,8 +4483,6 @@ const DashboardView: React.FC<{
 
           )}
 
-
-
           {filteredFeedItems.length > visibleFeedItems.length && (
 
             <div className="text-[11px] text-slate-500 mt-2">
@@ -5132,8 +4496,6 @@ const DashboardView: React.FC<{
         </div>
 
       </div>
-
-
 
       <aside className="hidden lg:flex lg:order-2 lg:sticky lg:top-6 lg:flex-col lg:gap-5 lg:space-y-0 lg:overflow-hidden min-h-0 lg:h-full w-full max-w-full">
         {profileCard}
@@ -5155,8 +4517,6 @@ const DashboardView: React.FC<{
               : "Select a Retainer profile to track progress."}
 
           </div>
-
-
 
           {!retainerId ? (
 
@@ -5187,8 +4547,6 @@ const DashboardView: React.FC<{
                 const total = progress.yesCount + progress.noCount;
 
                 const description = badge.description || badge.title;
-
-
 
                 return (
 
@@ -5276,12 +4634,6 @@ const DashboardView: React.FC<{
 
       </aside>
 
-
-
-
-
-
-
       {scheduleLink && retainerId && (
 
         <div className="fixed inset-0 z-50">
@@ -5340,8 +4692,6 @@ const DashboardView: React.FC<{
 
               </div>
 
-
-
               <div className="p-4 space-y-4">
 
                 {scheduleError && (
@@ -5353,8 +4703,6 @@ const DashboardView: React.FC<{
                   </div>
 
                 )}
-
-
 
                 {(() => {
 
@@ -5369,8 +4717,6 @@ const DashboardView: React.FC<{
                     scheduleLink.meetingAcceptedProposalId &&
 
                     proposals.find((p) => p.id === scheduleLink.meetingAcceptedProposalId);
-
-
 
                   return (
 
@@ -5399,8 +4745,6 @@ const DashboardView: React.FC<{
                             Proposed by {accepted.by === "RETAINER" ? "you" : "Seeker"}
 
                           </div>
-
-
 
                           <div className="mt-3">
 
@@ -5548,8 +4892,6 @@ const DashboardView: React.FC<{
 
                 })()}
 
-
-
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
 
                   <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -5625,8 +4967,6 @@ const DashboardView: React.FC<{
                     />
 
                   </label>
-
-
 
                   <div className="flex items-center justify-between gap-3">
 
@@ -5727,8 +5067,6 @@ const DashboardView: React.FC<{
 /* Action tab                                                         */
 
 /* ------------------------------------------------------------------ */
-
-
 
 const ActionView: React.FC<{
 
@@ -5877,8 +5215,6 @@ const ActionView: React.FC<{
 
   const selectedCount = selectedSeekerIds.size;
 
-
-
   const activeRoutes = useMemo(
 
     () => (retainerRoutes || []).filter((r) => r.status === "ACTIVE"),
@@ -5886,8 +5222,6 @@ const ActionView: React.FC<{
     [retainerRoutes]
 
   );
-
-
 
   const bucketSeekers = useMemo(
 
@@ -5897,15 +5231,11 @@ const ActionView: React.FC<{
 
   );
 
-
-
   const scheduleMatchBySeekerId = useMemo(() => {
 
     const map = new Map<string, ScheduleMatch>();
 
     if (activeRoutes.length === 0) return map;
-
-
 
     for (const s of bucketSeekers) {
 
@@ -5919,19 +5249,13 @@ const ActionView: React.FC<{
 
     }
 
-
-
     return map;
 
   }, [activeRoutes, bucketSeekers]);
 
-
-
   const getScheduleMatch = (seekerId: string): ScheduleMatch | undefined =>
 
     scheduleMatchBySeekerId.get(seekerId);
-
-
 
   const [scheduleTick, setScheduleTick] = useState(0);
 
@@ -5945,8 +5269,6 @@ const ActionView: React.FC<{
 
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
-
-
   const scheduleLinks = useMemo(
 
     () => (retainerId ? getLinksForRetainer(retainerId) : []),
@@ -5954,8 +5276,6 @@ const ActionView: React.FC<{
     [retainerId, scheduleTick]
 
   );
-
-
 
   const seekerById = useMemo(
 
@@ -5965,8 +5285,6 @@ const ActionView: React.FC<{
 
   );
 
-
-
   const scheduledLinks = useMemo(
 
     () => scheduleLinks.filter((link) => link.meetingAcceptedProposalId),
@@ -5974,8 +5292,6 @@ const ActionView: React.FC<{
     [scheduleLinks]
 
   );
-
-
 
   const pendingScheduleLinks = useMemo(
 
@@ -5985,15 +5301,11 @@ const ActionView: React.FC<{
 
   );
 
-
-
   const [level1Label, setLevel1Label] = useState(retainerLevelLabels.level1);
 
   const [level2Label, setLevel2Label] = useState(retainerLevelLabels.level2);
 
   const [level3Label, setLevel3Label] = useState(retainerLevelLabels.level3);
-
-
 
   useEffect(() => {
 
@@ -6004,8 +5316,6 @@ const ActionView: React.FC<{
     setLevel3Label(retainerLevelLabels.level3);
 
   }, [retainerLevelLabels]);
-
-
 
   const [newFirstName, setNewFirstName] = useState("");
 
@@ -6019,8 +5329,6 @@ const ActionView: React.FC<{
 
   const [newLevel, setNewLevel] = useState<RetainerUserLevel>(1);
 
-
-
   const handleOpenSchedule = (link: LinkingLink) => {
 
     setScheduleLink(link);
@@ -6032,8 +5340,6 @@ const ActionView: React.FC<{
     setProposalNote("");
 
   };
-
-
 
   const actionTabs: { key: ActionTabKey; label: string }[] = useMemo(
 
@@ -6059,8 +5365,6 @@ const ActionView: React.FC<{
 
   );
 
-
-
   const visibleTabKeys = useMemo(
 
     () => (visibleTabs && visibleTabs.length ? visibleTabs : actionTabs.map((tab) => tab.key)),
@@ -6069,8 +5373,6 @@ const ActionView: React.FC<{
 
   );
 
-
-
   const filteredTabs = useMemo(
 
     () => actionTabs.filter((tab) => visibleTabKeys.includes(tab.key)),
@@ -6078,8 +5380,6 @@ const ActionView: React.FC<{
     [actionTabs, visibleTabKeys]
 
   );
-
-
 
   useEffect(() => {
 
@@ -6090,8 +5390,6 @@ const ActionView: React.FC<{
     }
 
   }, [actionTab, filteredTabs, visibleTabKeys, onChangeTab]);
-
-
 
   const tabButtonClass = (isActive: boolean) =>
 
@@ -6107,8 +5405,6 @@ const ActionView: React.FC<{
 
     ].join(" ");
 
-
-
   const actionContentClass =
 
     actionTab === "wheel" || actionTab === "lists"
@@ -6116,8 +5412,6 @@ const ActionView: React.FC<{
       ? "flex-1 min-h-0 overflow-hidden flex flex-col"
 
       : "flex-1 min-h-0 overflow-y-auto pr-1";
-
-
 
   const hierarchyOwner: HierarchyItem = {
 
@@ -6128,8 +5422,6 @@ const ActionView: React.FC<{
     title: "Company",
 
   };
-
-
 
   const hierarchyItems: HierarchyItem[] = retainerUsers.map((u) => ({
 
@@ -6151,11 +5443,7 @@ const ActionView: React.FC<{
 
   }));
 
-
-
   const hierarchyNodes = (currentRetainer?.hierarchyNodes ?? []) as HierarchyNode[];
-
-
 
   const renderScheduleCard = (link: LinkingLink) => {
 
@@ -6176,8 +5464,6 @@ const ActionView: React.FC<{
       proposals.find((p) => p.id === link.meetingAcceptedProposalId);
 
     const nextProposal = proposals[0];
-
-
 
     return (
 
@@ -6271,8 +5557,6 @@ const ActionView: React.FC<{
 
   };
 
-
-
   return (
 
     <div className="flex flex-col gap-4 min-h-0">
@@ -6301,8 +5585,6 @@ const ActionView: React.FC<{
 
       </div>
 
-
-
       <div className={actionContentClass}>
 
         {actionTab === "wheel" && (
@@ -6328,8 +5610,6 @@ const ActionView: React.FC<{
 
       )}
 
-
-
       {actionTab === "lists" && (
 
         <div className="flex flex-col gap-6 min-h-0 flex-1 overflow-hidden">
@@ -6347,8 +5627,6 @@ const ActionView: React.FC<{
             </p>
 
           </div>
-
-
 
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-wrap items-center justify-between gap-3">
 
@@ -6450,8 +5728,6 @@ const ActionView: React.FC<{
 
           </div>
 
-
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0 grid-rows-1 h-full overflow-hidden">
 
             <SeekerBucketPanel
@@ -6544,8 +5820,6 @@ const ActionView: React.FC<{
 
       )}
 
-
-
       {actionTab === "routes" && (
 
         <RetainerRoutesView
@@ -6563,8 +5837,6 @@ const ActionView: React.FC<{
         />
 
       )}
-
-
 
       {actionTab === "schedule" && (
 
@@ -6603,8 +5875,6 @@ const ActionView: React.FC<{
             </div>
 
           </div>
-
-
 
           {!retainerId ? (
 
@@ -6662,8 +5932,6 @@ const ActionView: React.FC<{
 
               </div>
 
-
-
               <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
 
                 <div className="flex items-start justify-between gap-3">
@@ -6708,8 +5976,6 @@ const ActionView: React.FC<{
 
       )}
 
-
-
       {actionTab === "editProfile" && (
 
         <div className="space-y-4">
@@ -6731,8 +5997,6 @@ const ActionView: React.FC<{
         </div>
 
       )}
-
-
 
       {actionTab === "addUsers" && (
 
@@ -6759,8 +6023,6 @@ const ActionView: React.FC<{
             )}
 
           </div>
-
-
 
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
 
@@ -6843,8 +6105,6 @@ const ActionView: React.FC<{
             </button>
 
           </div>
-
-
 
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
 
@@ -6992,8 +6252,6 @@ const ActionView: React.FC<{
 
           </div>
 
-
-
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
 
             <div className="text-xs uppercase tracking-wide text-slate-400 mb-3">Current users</div>
@@ -7066,8 +6324,6 @@ const ActionView: React.FC<{
 
       )}
 
-
-
       {actionTab === "hierarchy" && (
 
         <div className="space-y-4">
@@ -7094,8 +6350,6 @@ const ActionView: React.FC<{
 
           </div>
 
-
-
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 min-h-[520px]">
             <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading hierarchy?</div>}>
               <LazyHierarchyCanvas
@@ -7113,8 +6367,6 @@ const ActionView: React.FC<{
         </div>
 
       )}
-
-
 
       {scheduleLink && retainerId && (
 
@@ -7174,8 +6426,6 @@ const ActionView: React.FC<{
 
               </div>
 
-
-
               <div className="p-4 space-y-4">
 
                 {scheduleError && (
@@ -7187,8 +6437,6 @@ const ActionView: React.FC<{
                   </div>
 
                 )}
-
-
 
                 {(() => {
 
@@ -7203,8 +6451,6 @@ const ActionView: React.FC<{
                     scheduleLink.meetingAcceptedProposalId &&
 
                     proposals.find((p) => p.id === scheduleLink.meetingAcceptedProposalId);
-
-
 
                   return (
 
@@ -7231,8 +6477,6 @@ const ActionView: React.FC<{
                             Proposed by {accepted.by === "RETAINER" ? "you" : "Seeker"}
 
                           </div>
-
-
 
                           <div className="mt-3">
 
@@ -7378,8 +6622,6 @@ const ActionView: React.FC<{
 
                 })()}
 
-
-
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
 
                   <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -7455,8 +6697,6 @@ const ActionView: React.FC<{
                     />
 
                   </label>
-
-
 
                   <div className="flex items-center justify-between gap-3">
 
@@ -7554,8 +6794,6 @@ const ActionView: React.FC<{
 
 };
 
-
-
 const SeekerBucketPanel: React.FC<{
 
   title: string;
@@ -7563,7 +6801,6 @@ const SeekerBucketPanel: React.FC<{
   color: "emerald" | "sky" | "rose";
 
   seekers: Seeker[];
-
 
   bucketKey: SeekerBucketKey;
 
@@ -7663,11 +6900,7 @@ const SeekerBucketPanel: React.FC<{
 
   };
 
-
-
   const c = colorMap[color];
-
-
 
   const handleDrop: React.DragEventHandler<HTMLDivElement> = (e) => {
 
@@ -7682,8 +6915,6 @@ const SeekerBucketPanel: React.FC<{
     onDropToBucket(id, bucketKey);
 
   };
-
-
 
   return (
 
@@ -7704,8 +6935,6 @@ const SeekerBucketPanel: React.FC<{
         </div>
 
       </div>
-
-
 
       <div
 
@@ -7847,8 +7076,6 @@ const SeekerBucketPanel: React.FC<{
 
                 </div>
 
-
-
                 <div className="mt-2 flex items-center justify-between gap-2">
 
                   <button
@@ -7872,8 +7099,6 @@ const SeekerBucketPanel: React.FC<{
                     Return to wheel
 
                   </button>
-
-
 
                   <button
 
@@ -7915,17 +7140,11 @@ const SeekerBucketPanel: React.FC<{
 
 };
 
-
-
-
 /* ------------------------------------------------------------------ */
 
 /* View Seekers - vertical wheel                                      */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 const ViewSeekersView: React.FC<{
   wheelSeekers: Seeker[];
@@ -7994,7 +7213,6 @@ const ViewSeekersView: React.FC<{
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   });
-
 
   const scheduleMatchBySeekerId = useMemo(() => {
     const map = new Map<string, ScheduleMatch>();
@@ -8129,7 +7347,6 @@ const ViewSeekersView: React.FC<{
             </div>
           )}
 
-
           {!currentSeeker && (
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full max-w-md">
               <div className="w-full max-w-md px-3 py-3 sm:px-4 sm:py-4 rounded-2xl border border-slate-700 bg-slate-900/70 text-slate-300 min-h-[220px] sm:min-h-[260px] flex items-center justify-center text-center">
@@ -8237,13 +7454,9 @@ const SeekerWheelCard: React.FC<{
 
   const state = s.state ?? "-";
 
-
-
   const verts: string[] = Array.isArray(s.deliveryVerticals) ? s.deliveryVerticals : [];
 
   const photoUrl = getSeekerPhotoUrl(seeker);
-
-
 
   const reputation = getReputationScoreForProfile({
 
@@ -8262,8 +7475,6 @@ const SeekerWheelCard: React.FC<{
     max: 4,
 
   });
-
-
 
   return (
 
@@ -8321,8 +7532,6 @@ const SeekerWheelCard: React.FC<{
 
           )}
 
-
-
           <div className="absolute top-2 right-2">
 
             <span className="inline-flex items-center rounded-full bg-emerald-500/15 border border-emerald-500/40 px-2 py-0.5 text-[10px] text-emerald-200">
@@ -8336,8 +7545,6 @@ const SeekerWheelCard: React.FC<{
         </div>
 
       </div>
-
-
 
       <div className="flex items-start justify-between gap-3">
 
@@ -8390,8 +7597,6 @@ const SeekerWheelCard: React.FC<{
         </button>
 
       </div>
-
-
 
       
       <div className="mt-2 space-y-2">
@@ -8463,8 +7668,6 @@ const SeekerWheelCard: React.FC<{
 
           </div>
 
-
-
           {verts.length > 0 && (
 
             <div className="text-[10px] text-slate-500 truncate">
@@ -8480,8 +7683,6 @@ const SeekerWheelCard: React.FC<{
         </div>
 
       )}
-
-
 
       {topBadges.length === 0 && verts.length > 0 && (
 
@@ -8514,8 +7715,6 @@ const SeekerWheelCard: React.FC<{
         </div>
 
       )}
-
-
 
       <div className="mt-3 flex items-center justify-between gap-2">
 
@@ -8603,17 +7802,11 @@ const SeekerWheelCard: React.FC<{
 
 };
 
-
-
-
 /* ------------------------------------------------------------------ */
 
 /* Compose pop-out from dashboard (Retainer -> Seeker)                */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 const ComposeMessagePopover: React.FC<{
 
@@ -8635,15 +7828,11 @@ const ComposeMessagePopover: React.FC<{
 
   const [success, setSuccess] = useState<string | null>(null);
 
-
-
   const handleSend = () => {
 
     setError(null);
 
     setSuccess(null);
-
-
 
     if (!subject.trim()) {
 
@@ -8660,8 +7849,6 @@ const ComposeMessagePopover: React.FC<{
       return;
 
     }
-
-
 
     try {
 
@@ -8701,8 +7888,6 @@ const ComposeMessagePopover: React.FC<{
 
   };
 
-
-
   return (
 
     <div className="fixed inset-0 z-40 flex items-end justify-end pointer-events-none">
@@ -8720,8 +7905,6 @@ const ComposeMessagePopover: React.FC<{
           </div>
 
         </div>
-
-
 
         <div className="px-4 py-3 space-y-3">
 
@@ -8745,8 +7928,6 @@ const ComposeMessagePopover: React.FC<{
 
           )}
 
-
-
           <div className="space-y-1">
 
             <label className="text-xs font-medium text-slate-200">Subject / Name for this conversation</label>
@@ -8764,8 +7945,6 @@ const ComposeMessagePopover: React.FC<{
             />
 
           </div>
-
-
 
           <div className="space-y-1">
 
@@ -8786,8 +7965,6 @@ const ComposeMessagePopover: React.FC<{
           </div>
 
         </div>
-
-
 
         <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between">
 
@@ -8831,12 +8008,7 @@ const ComposeMessagePopover: React.FC<{
 
 };
 
-
-
-
 /* ------------------------------------------------------------------ */
-
-
 
 const BulkComposeMessagePopover: React.FC<{
   count: number;
@@ -8915,20 +8087,15 @@ const BulkComposeMessagePopover: React.FC<{
   );
 };
 
-
 /* Messaging Center - Rails + Search + Persist selection              */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 const MessagingCenterView: React.FC<{
 
   currentRetainer?: Retainer;
 
   seekers: Seeker[];
-
 
   retainerUsers: RetainerUser[];
 
@@ -8962,8 +8129,6 @@ const MessagingCenterView: React.FC<{
 
   void canSendInternal;
 
-
-
   return (
 
     <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading messages?</div>}>
@@ -8974,20 +8139,13 @@ const MessagingCenterView: React.FC<{
 
 };
 
-
-
-
 /* ------------------------------------------------------------------ */
-
 
 /* ------------------------------------------------------------------ */
 
 /* Retainer profile form                                              */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 type RetainerProfileFormProps = {
 
@@ -9001,8 +8159,6 @@ type RetainerProfileFormProps = {
 
 };
 
-
-
 type RetainerProfileEditPageKey =
 
   | "core"
@@ -9012,8 +8168,6 @@ type RetainerProfileEditPageKey =
   | "preferences"
 
   | "photos";
-
-
 
 const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
@@ -9030,8 +8184,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
   const isEdit = mode === "edit";
 
   const [activePage, setActivePage] = useState<RetainerProfileEditPageKey>("core");
-
-
 
   const [companyName, setCompanyName] = useState((initial as any)?.companyName ?? "");
 
@@ -9098,15 +8250,11 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
   );
 
-
-
   const [error, setError] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
 
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-
-
 
   const pages: { key: RetainerProfileEditPageKey; label: string }[] = [
 
@@ -9120,8 +8268,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
   ];
 
-
-
   const currentIndex = pages.findIndex((p) => p.key === activePage);
 
   const safeIndex = currentIndex === -1 ? 0 : currentIndex;
@@ -9129,8 +8275,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
   const canGoPrev = safeIndex > 0;
 
   const canGoNext = safeIndex < pages.length - 1;
-
-
 
   const goToIndex = (index: number) => {
 
@@ -9140,8 +8284,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
   };
 
-
-
   const goPrev = () => {
 
     if (!canGoPrev) return;
@@ -9149,8 +8291,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     goToIndex(safeIndex - 1);
 
   };
-
-
 
   const goNext = () => {
 
@@ -9160,8 +8300,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
   };
 
-
-
   const handleWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
 
     if (e.deltaY > 0) goNext();
@@ -9169,8 +8307,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     else if (e.deltaY < 0) goPrev();
 
   };
-
-
 
   const toggleVertical = (v: string) => {
 
@@ -9181,8 +8317,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     );
 
   };
-
-
 
   const toggleTrait = (t: string) => {
 
@@ -9207,8 +8341,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     }
   };
 
-
-
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
 
     e.preventDefault();
@@ -9216,8 +8348,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     setError(null);
 
     setSuccessMsg(null);
-
-
 
     if (readOnly) return;
 
@@ -9229,13 +8359,9 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
     }
 
-
-
     try {
 
       setSubmitting(true);
-
-
 
       const payload: any = {
 
@@ -9273,8 +8399,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
         companyPhotoUrl: companyPhotoUrl.trim() || undefined,
 
       };
-
-
 
       if (isEdit) {
 
@@ -9318,8 +8442,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
   };
 
-
-
   return (
 
     <div
@@ -9347,8 +8469,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
           </p>
 
         </div>
-
-
 
         <div className="flex items-center gap-2 shrink-0">
 
@@ -9418,8 +8538,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
       </div>
 
-
-
       {readOnly && (
 
         <div className="text-xs text-amber-300">
@@ -9429,8 +8547,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
         </div>
 
       )}
-
-
 
       <div className="flex flex-wrap gap-2">
 
@@ -9472,8 +8588,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
       </div>
 
-
-
       <form onSubmit={handleSubmit} className="space-y-4">
 
         {error && (
@@ -9495,8 +8609,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
           </div>
 
         )}
-
-
 
         {activePage === "core" && (
 
@@ -9652,8 +8764,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
         )}
 
-
-
         {activePage === "company" && (
 
           <div className="space-y-4">
@@ -9682,8 +8792,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
               </div>
 
-
-
               <div className="space-y-1">
 
                 <label className="text-xs font-medium text-slate-200">Number of employees</label>
@@ -9708,8 +8816,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
             </div>
 
-
-
             <div className="space-y-1">
 
               <label className="text-xs font-medium text-slate-200">Mission statement</label>
@@ -9733,8 +8839,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
           </div>
 
         )}
-
-
 
         {activePage === "preferences" && (
 
@@ -9790,8 +8894,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
             </div>
 
-
-
             <div>
 
               <div className="text-xs font-medium text-slate-200">Desired traits</div>
@@ -9841,8 +8943,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
               </div>
 
             </div>
-
-
 
             <div className="space-y-1">
 
@@ -9911,8 +9011,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
         )}
 
-
-
         {activePage === "photos" && (
 
           <div className="space-y-4">
@@ -9964,8 +9062,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
               />
 
             </div>
-
-
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 space-y-3">
 
@@ -10019,8 +9115,6 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
         )}
 
-
-
         <div className="flex justify-end gap-3 pt-2">
 
           <button
@@ -10047,21 +9141,11 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
 };
 
-
-
 export { RetainerProfileForm };
-
-
-
-
-
-
 
 function updateRetainerInStorage(updated: any) {
 
   if (typeof window === "undefined" || !updated || !updated.id) return;
-
-
 
   try {
 
@@ -10073,13 +9157,9 @@ function updateRetainerInStorage(updated: any) {
 
       if (!key) continue;
 
-
-
       const raw = storage.getItem(key);
 
       if (!raw) continue;
-
-
 
       let parsed: unknown;
 
@@ -10092,8 +9172,6 @@ function updateRetainerInStorage(updated: any) {
         continue;
 
       }
-
-
 
       if (
         parsed &&
@@ -10123,8 +9201,6 @@ function updateRetainerInStorage(updated: any) {
 
       if (!Array.isArray(parsed)) continue;
 
-
-
       const idx = (parsed as any[]).findIndex(
 
         (item: any) =>
@@ -10138,8 +9214,6 @@ function updateRetainerInStorage(updated: any) {
       );
 
       if (idx === -1) continue;
-
-
 
       const next = [...(parsed as any[])];
 
@@ -10159,35 +9233,23 @@ function updateRetainerInStorage(updated: any) {
 
 }
 
-
-
-
 /* ------------------------------------------------------------------ */
 
 /* Helpers                                                            */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 function resolveCurrentRetainerId(retainers: Retainer[], prevId: string | null): string | null {
 
   if (!retainers || retainers.length === 0) return null;
 
-
-
   const findById = (id: string | null) =>
 
     id ? (retainers as any[]).find((r) => r.id === id) : undefined;
 
-
-
   const prev = findById(prevId);
 
   if (prev && prev.status !== "DELETED") return prev.id;
-
-
 
   let storedId: string | null = null;
 
@@ -10201,19 +9263,13 @@ function resolveCurrentRetainerId(retainers: Retainer[], prevId: string | null):
 
   if (stored && stored.status !== "DELETED") return stored.id;
 
-
-
   const nonDeleted = (retainers as any[]).find((r) => r.status !== "DELETED");
 
   if (nonDeleted) return nonDeleted.id;
 
-
-
   return null;
 
 }
-
-
 
 function persistCurrentRetainerId(id: string | null) {
 
@@ -10226,15 +9282,6 @@ function persistCurrentRetainerId(id: string | null) {
 }
 
 
-
-
-function formatRetainerUserName(user: RetainerUser): string {
-  const first = String(user.firstName ?? "").trim();
-  const last = String(user.lastName ?? "").trim();
-  const full = `${first} ${last}`.trim();
-  return full || "Retainer user";
-}
-
 function formatRetainerName(r: Retainer): string {
 
   const rr: any = r as any;
@@ -10242,8 +9289,6 @@ function formatRetainerName(r: Retainer): string {
   return rr.companyName || rr.name || rr.ceoName || "Retainer";
 
 }
-
-
 
 function formatSeekerName(s: Seeker): string {
 
@@ -10256,8 +9301,6 @@ function formatSeekerName(s: Seeker): string {
   return ss.name || "Seeker";
 
 }
-
-
 
 function getSeekerPhotoUrl(s: Seeker): string | undefined {
 
@@ -10280,8 +9323,6 @@ function getSeekerPhotoUrl(s: Seeker): string | undefined {
   );
 
 }
-
-
 
 function renderHeaderTitle(tab: TabKey): string {
 
@@ -10323,8 +9364,6 @@ function renderHeaderTitle(tab: TabKey): string {
 
 }
 
-
-
 function renderHeaderSubtitle(tab: TabKey): string {
 
   switch (tab) {
@@ -10365,24 +9404,17 @@ function renderHeaderSubtitle(tab: TabKey): string {
 
 }
 
-
-
-
 /* ------------------------------------------------------------------ */
 
 /* Linking (Retainer)                                                 */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 const RetainerLinkingView: React.FC<{
 
   retainerId: string | null;
 
   seekers: Seeker[];
-
 
   canEdit: boolean;
 
@@ -10396,9 +9428,6 @@ const RetainerLinkingView: React.FC<{
 
   const [refresh, setRefresh] = useState(0);
 
-
-
-
   const links = useMemo<LinkingLink[]>(
 
     () => (retainerId ? getLinksForRetainer(retainerId) : []),
@@ -10406,8 +9435,6 @@ const RetainerLinkingView: React.FC<{
     [retainerId, refresh]
 
   );
-
-
 
   const linkBySeekerId = useMemo(() => {
 
@@ -10419,8 +9446,6 @@ const RetainerLinkingView: React.FC<{
 
   }, [links]);
 
-
-
   const filteredSeekers = useMemo(() => {
 
     const needle = q.trim().toLowerCase();
@@ -10430,8 +9455,6 @@ const RetainerLinkingView: React.FC<{
     return seekers.filter((s) => formatSeekerName(s).toLowerCase().includes(needle));
 
   }, [q, seekers]);
-
-
 
   if (!retainerId) {
 
@@ -10447,8 +9470,6 @@ const RetainerLinkingView: React.FC<{
 
   }
 
-
-
   const ensureLink = (seekerId: string) => {
 
     const existing = linkBySeekerId.get(seekerId) ?? null;
@@ -10458,8 +9479,6 @@ const RetainerLinkingView: React.FC<{
     return requestLink({ seekerId, retainerId, by: "RETAINER" });
 
   };
-
-
 
   const statusBadge = (status: LinkingLink["status"] | "NONE") => {
 
@@ -10491,13 +9510,9 @@ const RetainerLinkingView: React.FC<{
 
   };
 
-
-
   const statusForSeeker = (seekerId: string) =>
 
     (linkBySeekerId.get(seekerId)?.status ?? "NONE") as LinkingLink["status"] | "NONE";
-
-
 
   const linkedSeekers = useMemo(
 
@@ -10507,8 +9522,6 @@ const RetainerLinkingView: React.FC<{
 
   );
 
-
-
   const pendingSeekers = useMemo(
 
     () => filteredSeekers.filter((s) => statusForSeeker(s.id) !== "ACTIVE"),
@@ -10516,8 +9529,6 @@ const RetainerLinkingView: React.FC<{
     [filteredSeekers, linkBySeekerId]
 
   );
-
-
 
   const renderSeekerCard = (s: Seeker) => {
 
@@ -10651,8 +9662,6 @@ const RetainerLinkingView: React.FC<{
 
           </div>
 
-
-
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full sm:w-auto">
 
             <Link
@@ -10682,8 +9691,6 @@ const RetainerLinkingView: React.FC<{
           </div>
 
         </div>
-
-
 
         {link ? (
 
@@ -10755,8 +9762,6 @@ const RetainerLinkingView: React.FC<{
 
             </div>
 
-
-
             <div className="grid gap-3 md:grid-cols-2">
 
               <label className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-200">
@@ -10823,8 +9828,6 @@ const RetainerLinkingView: React.FC<{
 
             </div>
 
-
-
             <div className="flex flex-wrap gap-2">
 
               {link.status === "PENDING" && (
@@ -10863,8 +9866,6 @@ const RetainerLinkingView: React.FC<{
 
               )}
 
-
-
               {link.status === "ACTIVE" && (
 
                 <button
@@ -10900,8 +9901,6 @@ const RetainerLinkingView: React.FC<{
                 </button>
 
               )}
-
-
 
               {(link.status === "REJECTED" || link.status === "DISABLED") && (
 
@@ -10953,8 +9952,6 @@ const RetainerLinkingView: React.FC<{
 
   };
 
-
-
   return (
 
     <div className="flex flex-col gap-4 min-h-0 flex-1">
@@ -10982,8 +9979,6 @@ const RetainerLinkingView: React.FC<{
         )}
 
       </div>
-
-
 
       <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
 
@@ -11024,8 +10019,6 @@ const RetainerLinkingView: React.FC<{
         </div>
 
       </div>
-
-
 
       {filteredSeekers.length === 0 ? (
 
@@ -11179,8 +10172,6 @@ const SeekerWheelExpandedCard: React.FC<{
 
   const photoUrl = getSeekerPhotoUrl(seeker);
 
-
-
   const reputation = getReputationScoreForProfile({ ownerRole: "SEEKER", ownerId: String(seeker.id) });
 
   const pctFromCounts = (yesCount: number, noCount: number) => {
@@ -11192,8 +10183,6 @@ const SeekerWheelExpandedCard: React.FC<{
     return Math.round((yesCount / total) * 100);
 
   };
-
-
 
   const noDroppedRoutes = getBadgeProgress(
 
@@ -11218,8 +10207,6 @@ const SeekerWheelExpandedCard: React.FC<{
   const noDroppedPct = pctFromCounts(noDroppedRoutes.yesCount, noDroppedRoutes.noCount);
 
   const quickResponsePct = pctFromCounts(quickResponse.yesCount, quickResponse.noCount);
-
-
 
   const availabilityLines = useMemo<string[]>(() => {
 
@@ -11255,8 +10242,6 @@ const SeekerWheelExpandedCard: React.FC<{
 
   }, [seeker]);
 
-
-
   const formatPay = (r: Route): string => {
 
     const model = r.payModel ? `${r.payModel}: ` : "";
@@ -11279,8 +10264,6 @@ const SeekerWheelExpandedCard: React.FC<{
 
   };
 
-
-
   const routeScheduleLabel = (r: Route): string => {
 
     if (r.scheduleDays?.length && r.scheduleStart && r.scheduleEnd) {
@@ -11293,8 +10276,6 @@ const SeekerWheelExpandedCard: React.FC<{
 
   };
 
-
-
   const topBadges = getBadgeSummaryForProfile({
 
     ownerRole: "SEEKER",
@@ -11304,8 +10285,6 @@ const SeekerWheelExpandedCard: React.FC<{
     max: 8,
 
   });
-
-
 
   return (
 
@@ -11333,8 +10312,6 @@ const SeekerWheelExpandedCard: React.FC<{
 
       </div>
 
-
-
       <div className="p-4 md:flex md:gap-4">
 
         <div className="w-full md:w-72 shrink-0">
@@ -11355,8 +10332,6 @@ const SeekerWheelExpandedCard: React.FC<{
 
         </div>
 
-
-
         <div className="mt-4 md:mt-0 flex-1 min-w-0 space-y-4">
 
           <div className="flex flex-wrap items-center gap-2">
@@ -11375,8 +10350,6 @@ const SeekerWheelExpandedCard: React.FC<{
 
           </div>
 
-
-
         <div className="flex flex-wrap items-center gap-2">
 
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs text-slate-100">
@@ -11392,8 +10365,6 @@ const SeekerWheelExpandedCard: React.FC<{
             {reputation.total > 0 && <span className="text-slate-400">({reputation.total})</span>}
 
           </span>
-
-
 
           {scheduleMatch && scheduleMatch.percent > 0 ? (
 
@@ -11428,8 +10399,6 @@ const SeekerWheelExpandedCard: React.FC<{
           )}
 
         </div>
-
-
 
         <div className="flex flex-wrap items-center gap-2">
 
@@ -11471,8 +10440,6 @@ const SeekerWheelExpandedCard: React.FC<{
 
         </div>
 
-
-
         {availabilityLines.length > 0 && (
 
           <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-4">
@@ -11502,8 +10469,6 @@ const SeekerWheelExpandedCard: React.FC<{
           </div>
 
         )}
-
-
 
         {activeRoutes.length > 0 && (
 
@@ -11593,8 +10558,6 @@ const SeekerWheelExpandedCard: React.FC<{
 
         )}
 
-
-
         {topBadges.length > 0 && (
 
           <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-4">
@@ -11634,8 +10597,6 @@ const SeekerWheelExpandedCard: React.FC<{
           </div>
 
         )}
-
-
 
         <div className="flex flex-wrap items-center gap-2 justify-between">
 
@@ -11678,8 +10639,6 @@ const SeekerWheelExpandedCard: React.FC<{
             </button>
 
           </div>
-
-
 
           <div className="flex flex-wrap items-center gap-2">
 
@@ -11739,17 +10698,11 @@ const SeekerWheelExpandedCard: React.FC<{
 
 };
 
-
-
-
 /* ------------------------------------------------------------------ */
 
 /* Posts (Retainer)                                                   */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 const RetainerPostsView: React.FC<{
 
@@ -11765,8 +10718,6 @@ const RetainerPostsView: React.FC<{
 
   const [showArchived, setShowArchived] = useState(false);
 
-
-
   const ent = useMemo(
 
     () => (retainer ? getRetainerEntitlements(retainer.id) : null),
@@ -11774,8 +10725,6 @@ const RetainerPostsView: React.FC<{
     [retainer?.id]
 
   );
-
-
 
   const posts = useMemo<RetainerPost[]>(() => {
 
@@ -11787,8 +10736,6 @@ const RetainerPostsView: React.FC<{
 
   }, [retainer?.id, refresh, showArchived]);
 
-
-
   const broadcasts = useMemo<RetainerBroadcast[]>(() => {
 
     if (!retainer) return [];
@@ -11799,13 +10746,9 @@ const RetainerPostsView: React.FC<{
 
   }, [retainer?.id, refresh, showArchived]);
 
-
-
   const monthKey = (d: Date) =>
 
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-
 
   const publicPostsUsedThisMonth = useMemo(() => {
 
@@ -11828,8 +10771,6 @@ const RetainerPostsView: React.FC<{
     }).length;
 
   }, [retainer?.id, refresh]);
-
-
 
   const broadcastsUsedThisMonth = useMemo(() => {
 
@@ -11861,8 +10802,6 @@ const RetainerPostsView: React.FC<{
 
   const [broadcastSendToInbox] = useState(true);
 
-
-
   if (!retainer) {
 
     return (
@@ -11877,8 +10816,6 @@ const RetainerPostsView: React.FC<{
 
   }
 
-
-
   const postBadge = (type: RetainerPostType) =>
 
     type === "AD"
@@ -11887,8 +10824,6 @@ const RetainerPostsView: React.FC<{
 
       : "bg-sky-500/10 border-sky-500/30 text-sky-200";
 
-
-
   const audienceBadge = (aud: "LINKED_ONLY" | "PUBLIC") =>
 
     aud === "PUBLIC"
@@ -11896,8 +10831,6 @@ const RetainerPostsView: React.FC<{
       ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-200"
 
       : "bg-white/5 border-white/10 text-white/70";
-
-
 
   const fmtWhen = (iso: string) => {
 
@@ -11922,8 +10855,6 @@ const RetainerPostsView: React.FC<{
         body: broadcastBody,
 
       });
-
-
 
       if (broadcastSendToInbox) {
 
@@ -11953,8 +10884,6 @@ const RetainerPostsView: React.FC<{
 
       }
 
-
-
       setBroadcastSubject("");
 
       setBroadcastBody("");
@@ -11972,8 +10901,6 @@ const RetainerPostsView: React.FC<{
     }
 
   };
-
-
 
   return (
 
@@ -12041,8 +10968,6 @@ const RetainerPostsView: React.FC<{
 
       </div>
 
-
-
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
 
         <label className="flex items-center gap-2 text-xs text-slate-300">
@@ -12077,8 +11002,6 @@ const RetainerPostsView: React.FC<{
 
       </div>
 
-
-
       <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
 
         <div className="flex items-center justify-between gap-3">
@@ -12096,8 +11019,6 @@ const RetainerPostsView: React.FC<{
           )}
 
         </div>
-
-
 
         <div className="grid gap-3 md:grid-cols-2">
 
@@ -12135,8 +11056,6 @@ const RetainerPostsView: React.FC<{
 
           </div>
 
-
-
           <div className="space-y-1">
 
             <label className="text-xs font-medium text-slate-200">
@@ -12163,8 +11082,6 @@ const RetainerPostsView: React.FC<{
 
         </div>
 
-
-
         <div className="space-y-1">
 
           <label className="text-xs font-medium text-slate-200">Body</label>
@@ -12184,8 +11101,6 @@ const RetainerPostsView: React.FC<{
           />
 
         </div>
-
-
 
         <div className="flex justify-end">
 
@@ -12208,8 +11123,6 @@ const RetainerPostsView: React.FC<{
         </div>
 
       </section>
-
-
 
       <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
 
@@ -12289,8 +11202,6 @@ const RetainerPostsView: React.FC<{
 
                 </div>
 
-
-
                 <div className="text-sm font-semibold text-slate-50">
 
                   {p.title}
@@ -12302,8 +11213,6 @@ const RetainerPostsView: React.FC<{
                   {p.body}
 
                 </div>
-
-
 
                 {canEdit && (
 
@@ -12346,8 +11255,6 @@ const RetainerPostsView: React.FC<{
         )}
 
       </section>
-
-
 
       <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
 
@@ -12417,8 +11324,6 @@ const RetainerPostsView: React.FC<{
 
                 </div>
 
-
-
                 <div className="text-sm font-semibold text-slate-50">
 
                   {b.subject}
@@ -12430,8 +11335,6 @@ const RetainerPostsView: React.FC<{
                   {b.body}
 
                 </div>
-
-
 
                 {canEdit && (
 
@@ -12481,27 +11384,19 @@ const RetainerPostsView: React.FC<{
 
 };
 
-
-
-
 /* ------------------------------------------------------------------ */
-
 
 /* ------------------------------------------------------------------ */
 
 /* Routes (Retainer)                                                  */
 
-
 /* ------------------------------------------------------------------ */
-
-
 
 const RetainerRoutesView: React.FC<{
 
   retainer?: Retainer;
 
   seekers: Seeker[];
-
 
   canEdit: boolean;
 
@@ -12525,8 +11420,6 @@ const RetainerRoutesView: React.FC<{
 
   >("basics");
 
-
-
   const ent = useMemo(
 
     () => (retainer ? getRetainerEntitlements(retainer.id) : null),
@@ -12534,8 +11427,6 @@ const RetainerRoutesView: React.FC<{
     [retainer?.id]
 
   );
-
-
 
   const routes = useMemo<Route[]>(
 
@@ -12545,8 +11436,6 @@ const RetainerRoutesView: React.FC<{
 
   );
 
-
-
   const seekerById = useMemo(
 
     () => new Map(seekers.map((s) => [s.id, s] as const)),
@@ -12555,7 +11444,6 @@ const RetainerRoutesView: React.FC<{
 
   );
 
-
   const routesById = useMemo(
 
     () => new Map(routes.map((r) => [r.id, r] as const)),
@@ -12563,7 +11451,6 @@ const RetainerRoutesView: React.FC<{
     [routes]
 
   );
-
 
   const [disputeNotes, setDisputeNotes] = useState<Record<string, string>>({});
 
@@ -12585,7 +11472,6 @@ const RetainerRoutesView: React.FC<{
 
   }, [retainer?.id, noticeTick]);
 
-
   const formatNoticeDate = (iso: string) => {
 
     const dt = new Date(iso);
@@ -12595,8 +11481,6 @@ const RetainerRoutesView: React.FC<{
     return dt.toLocaleDateString();
 
   };
-
-
 
   const [title, setTitle] = useState("");
 
@@ -12648,8 +11532,6 @@ const RetainerRoutesView: React.FC<{
 
   const [requirements, setRequirements] = useState("");
 
-
-
   const createSteps: Array<{ key: typeof createStep; label: string }> = [
 
     { key: "basics", label: "Basics" },
@@ -12664,15 +11546,11 @@ const RetainerRoutesView: React.FC<{
 
   ];
 
-
-
   const createIndex = createSteps.findIndex((s) => s.key === createStep);
 
   const canPrev = createIndex > 0;
 
   const canNext = createIndex < createSteps.length - 1;
-
-
 
   const goPrev = () => {
 
@@ -12682,8 +11560,6 @@ const RetainerRoutesView: React.FC<{
 
   };
 
-
-
   const goNext = () => {
 
     if (!canNext) return;
@@ -12691,8 +11567,6 @@ const RetainerRoutesView: React.FC<{
     setCreateStep(createSteps[createIndex + 1].key);
 
   };
-
-
 
   useEffect(() => {
 
@@ -12703,8 +11577,6 @@ const RetainerRoutesView: React.FC<{
     setState((retainer as any).state ?? "FL");
 
   }, [retainer?.id]);
-
-
 
   if (!retainer) {
 
@@ -12720,8 +11592,6 @@ const RetainerRoutesView: React.FC<{
 
   }
 
-
-
   const scheduleLabel =
 
     scheduleDays.length > 0
@@ -12733,8 +11603,6 @@ const RetainerRoutesView: React.FC<{
         }`
 
       : "";
-
-
 
   const paySummary = (() => {
 
@@ -12752,8 +11620,6 @@ const RetainerRoutesView: React.FC<{
 
   })();
 
-
-
   const handleCreateRoute = () => {
 
     try {
@@ -12767,8 +11633,6 @@ const RetainerRoutesView: React.FC<{
           : scheduleLabel
 
         : scheduleNotes.trim() || undefined;
-
-
 
       createRoute({
 
@@ -12844,8 +11708,6 @@ const RetainerRoutesView: React.FC<{
 
   };
 
-
-
   return (
 
     <div className="space-y-5">
@@ -12878,8 +11740,6 @@ const RetainerRoutesView: React.FC<{
 
       </div>
 
-
-
       <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
 
         <div className="flex items-center justify-between gap-3">
@@ -12911,8 +11771,6 @@ const RetainerRoutesView: React.FC<{
           )}
 
         </div>
-
-
 
         {showCreate && (
 
@@ -12957,8 +11815,6 @@ const RetainerRoutesView: React.FC<{
               })}
 
             </div>
-
-
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-4">
 
@@ -13017,8 +11873,6 @@ const RetainerRoutesView: React.FC<{
                     </div>
 
                   </div>
-
-
 
                   <div className="grid gap-3 md:grid-cols-3">
 
@@ -13096,8 +11950,6 @@ const RetainerRoutesView: React.FC<{
 
               )}
 
-
-
               {createStep === "schedule" && (
 
                 <div className="space-y-3">
@@ -13164,8 +12016,6 @@ const RetainerRoutesView: React.FC<{
 
                     </div>
 
-
-
                     <div className="grid gap-2 md:grid-cols-3">
 
                       <div className="space-y-1">
@@ -13230,8 +12080,6 @@ const RetainerRoutesView: React.FC<{
 
                     </div>
 
-
-
                     <div className="space-y-1">
 
                       <div className="text-[11px] text-slate-300">Notes (optional)</div>
@@ -13288,8 +12136,6 @@ const RetainerRoutesView: React.FC<{
 
               )}
 
-
-
               {createStep === "pay" && (
 
                 <div className="space-y-4">
@@ -13337,8 +12183,6 @@ const RetainerRoutesView: React.FC<{
                     </div>
 
                   </div>
-
-
 
                   <div className="grid gap-3 md:grid-cols-2">
 
@@ -13388,8 +12232,6 @@ const RetainerRoutesView: React.FC<{
 
               )}
 
-
-
               {createStep === "requirements" && (
 
                 <div className="space-y-1">
@@ -13411,8 +12253,6 @@ const RetainerRoutesView: React.FC<{
                 </div>
 
               )}
-
-
 
               {createStep === "review" && (
 
@@ -13441,8 +12281,6 @@ const RetainerRoutesView: React.FC<{
               )}
 
             </div>
-
-
 
             <div className="flex items-center justify-between">
 
@@ -13513,8 +12351,6 @@ const RetainerRoutesView: React.FC<{
         )}
 
       </section>
-
-
 
       
 
@@ -13848,8 +12684,6 @@ const RetainerRoutesView: React.FC<{
 
         </div>
 
-
-
         {showRoutes && (
 
           <>
@@ -13867,8 +12701,6 @@ const RetainerRoutesView: React.FC<{
                   const interests = getInterestsForRoute(route.id);
 
                   const isExpanded = expandedRouteId === route.id;
-
-
 
                   return (
 
@@ -13897,8 +12729,6 @@ const RetainerRoutesView: React.FC<{
                           </div>
 
                         </div>
-
-
 
                         <div className="flex items-center gap-2">
 
@@ -13940,8 +12770,6 @@ const RetainerRoutesView: React.FC<{
 
                           </select>
 
-
-
                           <button
 
                             type="button"
@@ -13967,8 +12795,6 @@ const RetainerRoutesView: React.FC<{
                         </div>
 
                       </div>
-
-
 
                       {isExpanded && (
 

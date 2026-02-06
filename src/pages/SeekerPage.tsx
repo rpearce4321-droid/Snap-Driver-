@@ -145,7 +145,6 @@ const ApprovalGate: React.FC<ApprovalGateProps> = ({
 
 function getApprovalGateCopy(roleLabel: string, status?: string) {
 
-
   switch (status) {
     case "PENDING":
       return {
@@ -174,7 +173,6 @@ function getApprovalGateCopy(roleLabel: string, status?: string) {
       };
   }
 }
-
 
 type TabKey =
   | "dashboard"
@@ -208,11 +206,6 @@ type ComposeDraft = {
 const CURRENT_SEEKER_KEY = "snapdriver_current_seeker_id";
 const CURRENT_RETAINER_KEY = "snapdriver_current_retainer_id";
 const SEEKER_RETAINER_BUCKETS_KEY = "snapdriver_seeker_retainer_buckets";
-const seekerSubcontractorKey = (seekerId: string) =>
-  `snapdriver_seeker_active_sub_${seekerId}`;
-
-const BACKDOOR_USERNAME = "Snapadmin01";
-const BACKDOOR_PASSWORD = "Rachel0407!";
 
 const SeekerPage: React.FC = () => {
   const navigate = useNavigate();
@@ -229,10 +222,6 @@ const SeekerPage: React.FC = () => {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
   const [linkTick, setLinkTick] = useState(0);
-  const [backdoorUser, setBackdoorUser] = useState("");
-  const [backdoorPass, setBackdoorPass] = useState("");
-  const [backdoorUnlocked, setBackdoorUnlocked] = useState(false);
-  const [backdoorError, setBackdoorError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -264,17 +253,6 @@ const SeekerPage: React.FC = () => {
   const openActionTab = (tab: ActionTabKey) => {
     setActionTab(tab);
     setActiveTab("action");
-  };
-
-  const handleUnlockBackdoor = () => {
-    setBackdoorError(null);
-    if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
-      setBackdoorUnlocked(true);
-      setBackdoorUser("");
-      setBackdoorPass("");
-      return;
-    }
-    setBackdoorError("Invalid backdoor credentials.");
   };
 
   useEffect(() => {
@@ -320,9 +298,6 @@ const SeekerPage: React.FC = () => {
     () => retainers.filter((r) => r.status === "APPROVED"),
     [retainers]
   );
-
-  const [seekerSearch, setSeekerSearch] = useState("");
-  const [subcontractorSearch, setSubcontractorSearch] = useState("");
 
   // Wheel + buckets for retainers
   const [wheelRetainers, setWheelRetainers] = useState<Retainer[]>([]);
@@ -377,7 +352,6 @@ const SeekerPage: React.FC = () => {
     return match && match === sessionEmail ? currentSeeker : undefined;
   }, [isSessionSeeker, sessionSeeker, currentSeeker, sessionEmail]);
 
-
   useEffect(() => {
     if (!isSessionSeeker || !sessionSeekerId) {
       return;
@@ -428,38 +402,9 @@ const SeekerPage: React.FC = () => {
     [currentSeeker]
   );
 
-  const filteredSubcontractors = useMemo(() => {
-    const q = subcontractorSearch.trim().toLowerCase();
-    if (!q) return subcontractors;
-    return subcontractors.filter((s) => {
-      const name = `${s.firstName ?? ""} ${s.lastName ?? ""}`.trim().toLowerCase();
-      const email = String(s.email ?? "").toLowerCase();
-      return name.includes(q) || email.includes(q);
-    });
-  }, [subcontractors, subcontractorSearch]);
+  const activeSubcontractor: Subcontractor | undefined = undefined;
 
-  const [currentSubcontractorId, setCurrentSubcontractorId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!currentSeekerId) {
-      setCurrentSubcontractorId(null);
-      return;
-    }
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(seekerSubcontractorKey(currentSeekerId));
-    const next = stored && subcontractors.some((s) => s.id === stored) ? stored : null;
-    setCurrentSubcontractorId(next);
-  }, [currentSeekerId, subcontractors]);
-
-  const activeSubcontractor = useMemo(
-    () =>
-      currentSubcontractorId
-        ? subcontractors.find((s) => s.id === currentSubcontractorId)
-        : undefined,
-    [currentSubcontractorId, subcontractors]
-  );
-
-  const isSubcontractorView = !!activeSubcontractor;
+  const isSubcontractorView = false;
 
   // Keep portal lists in sync with localStorage changes (incl. reseed)
   useEffect(() => {
@@ -499,49 +444,6 @@ const SeekerPage: React.FC = () => {
       persistCurrentSeekerId(sessionSeekerId);
     }
   }, [isSessionSeeker, sessionSeekerId, currentSeekerId]);
-
-  const selectableSeekers = useMemo(() => {
-    const base = seekers.filter((s) => s.status !== "DELETED");
-    if (isSessionSeeker && sessionSeekerId) {
-      return base.filter((s) => s.id === sessionSeekerId);
-    }
-    return base;
-  }, [seekers, isSessionSeeker, sessionSeekerId]);
-
-  const filteredSelectableSeekers = useMemo(() => {
-    const q = seekerSearch.trim().toLowerCase();
-    if (!q) return selectableSeekers;
-    return selectableSeekers.filter((s) => {
-      const name = `${(s as any).firstName ?? ""} ${(s as any).lastName ?? ""}`.trim().toLowerCase();
-      const company = String((s as any).companyName ?? "").toLowerCase();
-      const email = String((s as any).email ?? "").toLowerCase();
-      return name.includes(q) || company.includes(q) || email.includes(q);
-    });
-  }, [selectableSeekers, seekerSearch]);
-
-  const handleSelectSeeker = (id: string) => {
-    if (isSessionSeeker && sessionSeekerId && id !== sessionSeekerId) return;
-    setCurrentSeekerId(id);
-    persistCurrentSeekerId(id);
-  };
-
-  const handleSelectSubcontractor = (id: string) => {
-    if (!currentSeekerId || typeof window === "undefined") return;
-    const nextId = id || null;
-    if (nextId) {
-      window.localStorage.setItem(seekerSubcontractorKey(currentSeekerId), nextId);
-    } else {
-      window.localStorage.removeItem(seekerSubcontractorKey(currentSeekerId));
-    }
-    setCurrentSubcontractorId(nextId);
-    setActiveTab("editProfile");
-  };
-
-  const clearSubcontractorView = () => {
-    if (!currentSeekerId || typeof window === "undefined") return;
-    window.localStorage.removeItem(seekerSubcontractorKey(currentSeekerId));
-    setCurrentSubcontractorId(null);
-  };
 
   const refreshSeekersAndSession = () => {
     const updated = getSeekers();
@@ -878,7 +780,6 @@ const SeekerPage: React.FC = () => {
     }
   }, [approvedRetainers]);
 
-
   const headerTitle = isSubcontractorView
     ? renderSubcontractorHeaderTitle(activeTab)
     : renderHeaderTitle(activeTab);
@@ -942,141 +843,6 @@ const SeekerPage: React.FC = () => {
                 </Link>
               </div>
             )}
-
-
-            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
-              <div className="text-[10px] uppercase tracking-wide text-amber-300 mb-2">Backdoor access</div>
-              {backdoorUnlocked ? (
-                <div className="text-[11px] text-emerald-300">Unlocked for this tab.</div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={backdoorUser}
-                      onChange={(e) => setBackdoorUser(e.target.value)}
-                      placeholder="Username"
-                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <input
-                      value={backdoorPass}
-                      onChange={(e) => setBackdoorPass(e.target.value)}
-                      type="password"
-                      placeholder="Password"
-                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleUnlockBackdoor}
-                      className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 transition"
-                    >
-                      Unlock
-                    </button>
-                  </div>
-                  {backdoorError && (
-                    <div className="mt-2 text-[11px] text-rose-300">{backdoorError}</div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {backdoorUnlocked && selectableSeekers.length > 1 && (
-              <div className="mt-3">
-                <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                  Acting as
-                </label>
-                <input
-                  value={seekerSearch}
-                  onChange={(e) => setSeekerSearch(e.target.value)}
-                  placeholder="Type to search�"
-                  className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-                <select
-                  className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                  value={currentSeekerId ?? ""}
-                  onChange={(e) => handleSelectSeeker(e.target.value)}
-                >
-                  {filteredSelectableSeekers.map((s) => (
-                    <option
-                      key={s.id}
-                      value={s.id}
-                      className="bg-slate-900 text-slate-50"
-                    >
-                      {formatSeekerName(s)}
-                      {s.status === "PENDING" ? " (Pending)" : ""}
-                    </option>
-                  ))}
-                </select>
-                {seekerSearch.trim() && (
-                  <div className="mt-1 flex items-center justify-between">
-                    <div className="text-[10px] text-slate-500">
-                      Showing {filteredSelectableSeekers.length} of {selectableSeekers.length}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSeekerSearch("")}
-                      className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {backdoorUnlocked && currentSeeker && (
-              <div className="mt-3">
-                <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                  Acting as subcontractor
-                </label>
-                <input
-                  value={subcontractorSearch}
-                  onChange={(e) => setSubcontractorSearch(e.target.value)}
-                  placeholder="Type to search�"
-                  className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-                <select
-                  className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                  value={currentSubcontractorId ?? ""}
-                  onChange={(e) => handleSelectSubcontractor(e.target.value)}
-                >
-                  <option value="" className="bg-slate-900 text-slate-50">
-                    Main Seeker
-                  </option>
-                  {filteredSubcontractors.map((sub) => (
-                    <option
-                      key={sub.id}
-                      value={sub.id}
-                      className="bg-slate-900 text-slate-50"
-                    >
-                      {sub.firstName} {sub.lastName}
-                    </option>
-                  ))}
-                </select>
-                {subcontractorSearch.trim() && (
-                  <div className="mt-1 flex items-center justify-between">
-                    <div className="text-[10px] text-slate-500">
-                      Showing {filteredSubcontractors.length} of {subcontractors.length}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSubcontractorSearch("")}
-                      className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                )}
-                {isSubcontractorView && (
-                  <button
-                    type="button"
-                    onClick={clearSubcontractorView}
-                    className="mt-2 text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                  >
-                    Exit subcontractor view
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         ) : (
           <div className="mb-6 rounded-2xl bg-slate-800/80 px-4 py-3">
@@ -1097,7 +863,7 @@ const SeekerPage: React.FC = () => {
           </div>
         )}
 
-        <nav className="space-y-1 flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
+<nav className="space-y-1 flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
           {isSubcontractorView ? (
             <>
               <SidebarButton
@@ -1138,8 +904,7 @@ const SeekerPage: React.FC = () => {
               />
               <SidebarButton
                 label="Action"
-                active=
-{activeTab === "action"}
+                active={activeTab === "action"}
                 onClick={() => setActiveTab("action")}
               />
               <SidebarButton
@@ -1237,14 +1002,6 @@ const SeekerPage: React.FC = () => {
                       Status:{" "}
                       <span className="font-medium text-emerald-400">{currentSeeker.status}</span>
                     </div>
-                    {isSubcontractorView && activeSubcontractor ? (
-                      <div className="text-xs text-slate-400">
-                        Subcontractor:{" "}
-                        <span className="text-slate-200">
-                          {activeSubcontractor.firstName} {activeSubcontractor.lastName}
-                        </span>
-                      </div>
-                    ) : null}
                     {!isSubcontractorView && currentSeekerId && (
                       <div>
                         <Link
@@ -1274,147 +1031,8 @@ const SeekerPage: React.FC = () => {
                     </div>
                   </div>
                 )}
-
-                {(selectableSeekers.length > 1 || currentSeeker) && (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 space-y-3">
-        
-            <div className="mt-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-3">
-              <div className="text-[10px] uppercase tracking-wide text-amber-300 mb-2">Backdoor access</div>
-              {backdoorUnlocked ? (
-                <div className="text-[11px] text-emerald-300">Unlocked for this tab.</div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={backdoorUser}
-                      onChange={(e) => setBackdoorUser(e.target.value)}
-                      placeholder="Username"
-                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <input
-                      value={backdoorPass}
-                      onChange={(e) => setBackdoorPass(e.target.value)}
-                      type="password"
-                      placeholder="Password"
-                      className="flex-1 min-w-[120px] h-8 rounded-full border border-slate-700 bg-slate-950 px-2 text-[11px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleUnlockBackdoor}
-                      className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20 transition"
-                    >
-                      Unlock
-                    </button>
-                  </div>
-                  {backdoorError && (
-                    <div className="mt-2 text-[11px] text-rose-300">{backdoorError}</div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {backdoorUnlocked && selectableSeekers.length > 1 && (
-                      <div>
-                        <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                          Acting as
-                        </label>
-                        <input
-                          value={seekerSearch}
-                          onChange={(e) => setSeekerSearch(e.target.value)}
-                          placeholder="Type to search..."
-                          className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        />
-                        <select
-                          className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                          value={currentSeekerId ?? ""}
-                          onChange={(e) => handleSelectSeeker(e.target.value)}
-                        >
-                          {filteredSelectableSeekers.map((s) => (
-                            <option
-                              key={s.id}
-                              value={s.id}
-                              className="bg-slate-900 text-slate-50"
-                            >
-                              {formatSeekerName(s)}
-                              {s.status === "PENDING" ? " (Pending)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                        {seekerSearch.trim() && (
-                          <div className="mt-1 flex items-center justify-between">
-                            <div className="text-[10px] text-slate-500">
-                              Showing {filteredSelectableSeekers.length} of {selectableSeekers.length}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setSeekerSearch("")}
-                              className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                            >
-                              Clear
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {backdoorUnlocked && currentSeeker && (
-                      <div>
-                        <label className="block text-[10px] uppercase tracking-wide text-slate-400 mb-1">
-                          Acting as subcontractor
-                        </label>
-                        <input
-                          value={subcontractorSearch}
-                          onChange={(e) => setSubcontractorSearch(e.target.value)}
-                          placeholder="Type to search..."
-                          className="w-full h-9 mb-2 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                        />
-                        <select
-                          className="w-full h-9 rounded-xl border border-slate-700 bg-slate-900 px-2 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 whitespace-nowrap overflow-hidden text-ellipsis"
-                          value={currentSubcontractorId ?? ""}
-                          onChange={(e) => handleSelectSubcontractor(e.target.value)}
-                        >
-                          <option value="" className="bg-slate-900 text-slate-50">
-                            Main Seeker
-                          </option>
-                          {filteredSubcontractors.map((sub) => (
-                            <option
-                              key={sub.id}
-                              value={sub.id}
-                              className="bg-slate-900 text-slate-50"
-                            >
-                              {sub.firstName} {sub.lastName}
-                            </option>
-                          ))}
-                        </select>
-                        {subcontractorSearch.trim() && (
-                          <div className="mt-1 flex items-center justify-between">
-                            <div className="text-[10px] text-slate-500">
-                              Showing {filteredSubcontractors.length} of {subcontractors.length}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setSubcontractorSearch("")}
-                              className="text-[10px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                            >
-                              Clear
-                            </button>
-                          </div>
-                        )}
-                        {isSubcontractorView && (
-                          <button
-                            type="button"
-                            onClick={clearSubcontractorView}
-                            className="mt-2 text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                          >
-                            Exit subcontractor view
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
-              <nav className="space-y-2">
+<nav className="space-y-2">
                 {isSubcontractorView ? (
                   <>
                     <SidebarButton
@@ -1514,18 +1132,6 @@ const SeekerPage: React.FC = () => {
                   }}
                 />
               </div>
-              {isSubcontractorView && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearSubcontractorView();
-                    setIsMobileNavOpen(false);
-                  }}
-                  className="mt-4 w-full rounded-xl border border-slate-800 px-3 py-2 text-xs text-slate-200 hover:text-slate-50"
-                >
-                  Exit subcontractor view
-                </button>
-              )}
               </div>
           </div>
         )}
@@ -1969,7 +1575,6 @@ const ChangePasswordPanel: React.FC<{ email?: string | null }> = ({ email }) => 
 /* ------------------------------------------------------------------ */
 /* Dashboard overview                                                 */
 /* ------------------------------------------------------------------ */
-
 
 type SeekerFeedPanelProps = {
   seekerId: string | null;
@@ -2567,7 +2172,6 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
     </div>
   );
 };
-
 
 const DashboardView: React.FC<{
   seekerId: string | null;
@@ -4356,7 +3960,6 @@ const ViewRetainersView: React.FC<{
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
-
   const { scheduleMatchByRetainerId, routeCountByRetainerId } = (() => {
     const matches = new Map<string, ScheduleMatch>();
     const counts = new Map<string, number>();
@@ -4611,7 +4214,6 @@ const ViewRetainersView: React.FC<{
                   />
                 </div>
               )}
-
 
               {!currentRetainer && (
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full max-w-md">
@@ -5086,7 +4688,6 @@ const ComposeMessagePopover: React.FC<{
 
 /* ------------------------------------------------------------------ */
 
-
 const BulkComposeMessagePopover: React.FC<{
   count: number;
   onClose: () => void;
@@ -5163,7 +4764,6 @@ const BulkComposeMessagePopover: React.FC<{
     </div>
   );
 };
-
 
 /* Subcontractors tab                                                 */
 /* ------------------------------------------------------------------ */

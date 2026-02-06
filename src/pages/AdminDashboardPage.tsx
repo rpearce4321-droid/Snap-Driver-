@@ -103,9 +103,6 @@ const SECTION_DEFAULTS: Record<NavSectionKey, Panel> = {
   badges: "system:badges",
 };
 
-const BACKDOOR_USERNAME = "Snapadmin01";
-const BACKDOOR_PASSWORD = "Rachel0407!";
-
 const sectionForPanel = (value: Panel): NavSectionKey | null => {
   if (value === "createSeeker" || value.startsWith("seekers:")) return "seekers";
   if (value === "createRetainer" || value.startsWith("retainers:")) return "retainers";
@@ -197,7 +194,6 @@ function NavSectionHeader({
   );
 }
 
-
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
 
@@ -206,11 +202,6 @@ export default function AdminDashboardPage() {
   const [authPassword, setAuthPassword] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-
-  const [backdoorUser, setBackdoorUser] = useState("");
-  const [backdoorPass, setBackdoorPass] = useState("");
-  const [backdoorError, setBackdoorError] = useState<string | null>(null);
-  const [backdoorUnlocked, setBackdoorUnlocked] = useState(false);
 
   useEffect(() => {
     setPortalContext("ADMIN");
@@ -318,21 +309,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleUnlockBackdoor = () => {
-    setBackdoorError(null);
-    if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
-      setBackdoorUnlocked(true);
-      setBackdoorUser("");
-      setBackdoorPass("");
-      return;
-    }
-    setBackdoorError("Invalid backdoor credentials.");
-  };
-
-  const handleLockBackdoor = () => {
-    setBackdoorUnlocked(false);
-  };
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleResize = () => {
@@ -367,7 +343,6 @@ export default function AdminDashboardPage() {
     }
   };
 
-
   if (authStatus === "checking") {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
@@ -375,7 +350,6 @@ export default function AdminDashboardPage() {
       </div>
     );
   }
-
 
   if (authStatus === "unauth") {
     return (
@@ -391,96 +365,55 @@ export default function AdminDashboardPage() {
             </Link>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
-              <div>
-                <div className="text-xs uppercase tracking-[0.3em] text-slate-500">Admin</div>
-                <h1 className="text-2xl font-semibold text-slate-100">Admin Login</h1>
-                <p className="text-sm text-slate-400 mt-2">
-                  Sign in with an admin account to access the dashboard.
-                </p>
-              </div>
-              <div className="space-y-3">
-                <input
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  placeholder="Email"
-                  type="email"
-                  autoComplete="username"
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                />
-                <div className="relative">
-                  <input
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    type={showAuthPassword ? "text" : "password"}
-                    placeholder="Password"
-                    autoComplete="current-password"
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowAuthPassword((prev) => !prev)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-400 hover:text-slate-200"
-                    aria-label={showAuthPassword ? "Hide password" : "Show password"}
-                  >
-                    {showAuthPassword ? "Hide" : "Show"}
-                  </button>
-                </div>
-                {authError && <div className="text-xs text-rose-300">{authError}</div>}
-                <button
-                  type="button"
-                  onClick={handleAdminLogin}
-                  className="w-full rounded-full border border-emerald-500/40 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/30 transition"
-                >
-                  Sign in
-                </button>
-              </div>
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
+            <div>
+              <div className="text-xs uppercase tracking-[0.3em] text-slate-500">Admin</div>
+              <h1 className="text-2xl font-semibold text-slate-100">Admin Login</h1>
+              <p className="text-sm text-slate-400 mt-2">
+                Sign in with an admin account to access the dashboard.
+              </p>
             </div>
-
-            <div className="rounded-3xl border border-amber-500/20 bg-slate-900/60 p-6 space-y-4">
-              <div>
-                <div className="text-xs uppercase tracking-[0.3em] text-amber-300">Backdoor Access</div>
-                <p className="text-sm text-slate-400 mt-2">
-                  Temporary QA shortcut. Unlocking is per tab and resets on refresh.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 items-center">
+            <div className="space-y-3">
+              <input
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="Email"
+                type="email"
+                autoComplete="username"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              />
+              <div className="relative">
                 <input
-                  value={backdoorUser}
-                  onChange={(e) => setBackdoorUser(e.target.value)}
-                  placeholder="Username"
-                  className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
-                />
-                <input
-                  value={backdoorPass}
-                  onChange={(e) => setBackdoorPass(e.target.value)}
-                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  type={showAuthPassword ? "text" : "password"}
                   placeholder="Password"
-                  className="rounded-full border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  autoComplete="current-password"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 pr-14 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    handleUnlockBackdoor();
-                    if (backdoorUser.trim() === BACKDOOR_USERNAME && backdoorPass === BACKDOOR_PASSWORD) {
-                      setSession({ role: "ADMIN", adminId: "admin-backdoor" });
-                      setAuthStatus("authed");
-                    }
-                  }}
-                  className="rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition"
+                  onClick={() => setShowAuthPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-400 hover:text-slate-200"
+                  aria-label={showAuthPassword ? "Hide password" : "Show password"}
                 >
-                  Unlock
+                  {showAuthPassword ? "Hide" : "Show"}
                 </button>
               </div>
-              {backdoorError && <div className="text-xs text-rose-300">{backdoorError}</div>}
+              {authError && <div className="text-xs text-rose-300">{authError}</div>}
+              <button
+                type="button"
+                onClick={handleAdminLogin}
+                className="w-full rounded-full border border-emerald-500/40 bg-emerald-500/20 px-4 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-500/30 transition"
+              >
+                Sign in
+              </button>
             </div>
           </div>
         </div>
       </main>
     );
   }
-
 
   const panelTitle = (() => {
     if (panel === "dashboard") return "Dashboard";
@@ -962,63 +895,6 @@ export default function AdminDashboardPage() {
         >
           {panel === "dashboard" && (
             <div className="flex flex-col gap-4 h-full min-h-0">
-              <section className="surface p-4 border border-white/10 bg-white/5 rounded-2xl shrink-0">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-wide text-white/60">Backdoor access</div>
-                    <div className="text-sm text-white/80">Unlock temporary shortcuts for QA.</div>
-                  </div>
-                  {backdoorUnlocked ? (
-                    <div className="flex flex-wrap gap-2">
-                      <a
-                        className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
-                        href="/seekers"
-                      >
-                        Seeker backdoor
-                      </a>
-                      <a
-                        className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold text-white/80 hover:bg-white/10 transition"
-                        href="/retainers"
-                      >
-                        Retainer backdoor
-                      </a>
-                      <button
-                        type="button"
-                        onClick={handleLockBackdoor}
-                        className="rounded-full border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-100 hover:bg-rose-500/20 transition"
-                      >
-                        Lock backdoor
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <input
-                        value={backdoorUser}
-                        onChange={(e) => setBackdoorUser(e.target.value)}
-                        placeholder="Username"
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
-                      />
-                      <input
-                        value={backdoorPass}
-                        onChange={(e) => setBackdoorPass(e.target.value)}
-                        type="password"
-                        placeholder="Password"
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-amber-400/40"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleUnlockBackdoor}
-                        className="rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/25 transition"
-                      >
-                        Unlock
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {backdoorError && (
-                  <div className="mt-2 text-xs text-rose-200">{backdoorError}</div>
-                )}
-              </section>
 
               <div className="grid md:grid-cols-2 gap-6 flex-1 min-h-0 overflow-hidden">
                 <section className="surface p-5 hover:border-blue-500/30 transition flex flex-col min-h-0">
@@ -2946,19 +2822,4 @@ function formatSeekerName(s: Seeker): string {
 function formatRetainerName(r: Retainer): string {
   return r.companyName || (r as any).name || (r as any).ceoName || "Retainer";
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
