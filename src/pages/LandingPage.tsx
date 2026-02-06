@@ -8,7 +8,7 @@ import {
 } from "../lib/accounts";
 import { getRetainers, getSeekers } from "../lib/data";
 import { setSession } from "../lib/session";
-import { pullFromServer } from "../lib/serverSync";
+import { pullFromServer, pauseServerSync } from "../lib/serverSync";
 import { login, resetPassword, lookupProfile, register } from "../lib/api";
 
 const DISPLAY_FONT = {
@@ -54,6 +54,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
     const normEmail = rawEmail.toLowerCase();
     const pwd = passwordRef.current?.value ?? password;
     try {
+      pauseServerSync(4000);
       await login({ email: normEmail, password: pwd });
       try {
         await pullFromServer();
@@ -105,6 +106,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
             }
             try {
               await pullFromServer();
+              pauseServerSync(4000);
             } catch {
               // ignore pull errors
             }

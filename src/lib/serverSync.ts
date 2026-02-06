@@ -44,6 +44,7 @@ const KEY_BADGE_SCORE_HISTORY = "snapdriver_reputation_history_v1";
 let muted = false;
 let syncTimer: number | undefined;
 let syncInFlight = false;
+let syncCooldownUntil = 0;
 type SyncEvent = { type: "pull" | "push"; at: string };
 let syncListener: ((event: SyncEvent) => void) | null = null;
 
@@ -93,6 +94,10 @@ export function setServerSyncMuted(next: boolean): void {
   muted = next;
 }
 
+export function pauseServerSync(ms: number): void {
+  syncCooldownUntil = Date.now() + Math.max(0, ms);
+}
+
 function shouldSyncKey(key: string): boolean {
   return [
     KEY_SEEKERS,
@@ -114,6 +119,8 @@ function shouldSyncKey(key: string): boolean {
 export function queueServerSync(key?: string): void {
   if (typeof window === "undefined") return;
   if (muted) return;
+  if (syncInFlight) return;
+  if (Date.now() < syncCooldownUntil) return;
   if (!isServerSyncEnabled()) return;
   if (key && !shouldSyncKey(key)) return;
   if (syncTimer) window.clearTimeout(syncTimer);
@@ -270,6 +277,7 @@ export async function syncToServer(): Promise<void> {
       systemSettings,
     });
     notifySync({ type: "push", at: new Date().toISOString() });
+    syncCooldownUntil = Date.now() + 3000;
   } finally {
     syncInFlight = false;
   }
@@ -464,6 +472,7 @@ export async function pullFromServer(): Promise<boolean> {
     notifyDataUpdated();
 
     notifySync({ type: "pull", at: new Date().toISOString() });
+    syncCooldownUntil = Date.now() + 3000;
 
     setServerSyncMuted(false);
     return true;
