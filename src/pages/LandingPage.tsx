@@ -1,5 +1,5 @@
 // src/pages/LandingPage.tsx
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   authenticateAccount,
@@ -43,14 +43,18 @@ const RoleCard: React.FC<RoleCardProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [resetStatus, setResetStatus] = useState<string | null>(null);
   const [resetLink, setResetLink] = useState<string | null>(null);
+  const emailRef = useRef<HTMLInputElement | null>(null);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
 
   const handleLogin = async () => {
     setError(null);
     setResetStatus(null);
     setResetLink(null);
-    const normEmail = email.trim().toLowerCase();
+    const rawEmail = (emailRef.current?.value ?? email).trim();
+    const normEmail = rawEmail.toLowerCase();
+    const pwd = passwordRef.current?.value ?? password;
     try {
-      await login({ email: normEmail, password });
+      await login({ email: normEmail, password: pwd });
       try {
         await pullFromServer();
       } catch {
@@ -88,10 +92,10 @@ const RoleCard: React.FC<RoleCardProps> = ({
     } catch (err: any) {
       // If a profile exists but no user account was created yet, provision one now.
       try {
-        if (normEmail && password) {
+        if (normEmail && pwd) {
           const resolved = await lookupProfile({ email: normEmail, role });
           if (resolved?.id) {
-            await register({ email: normEmail, password, role });
+            await register({ email: normEmail, password: pwd, role });
             if (role === "SEEKER") {
               window.localStorage.setItem("snapdriver_current_seeker_id", resolved.id);
               setSession({ role, seekerId: resolved.id, email: normEmail });
@@ -112,7 +116,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
         // ignore register fallback
       }
       try {
-        const account = authenticateAccount({ email: normEmail, password, role });
+        const account = authenticateAccount({ email: normEmail, password: pwd, role });
         const profileId = getAccountProfileId(account);
         if (!profileId) throw new Error("Account has no linked profile.");
         if (role === "SEEKER") {
@@ -133,12 +137,13 @@ const RoleCard: React.FC<RoleCardProps> = ({
     setError(null);
     setResetStatus(null);
     setResetLink(null);
-    if (!email.trim()) {
+    const resetEmail = (emailRef.current?.value ?? email).trim();
+    if (!resetEmail) {
       setError("Enter your email to reset.");
       return;
     }
     try {
-      const res = await resetPassword({ email });
+      const res = await resetPassword({ email: resetEmail });
       setResetLink(res.magicLink);
       setResetStatus(`Reset link created. Expires ${new Date(res.expiresAt).toLocaleString()}.`);
     } catch (err: any) {
@@ -186,8 +191,9 @@ const RoleCard: React.FC<RoleCardProps> = ({
           <div className="text-xs uppercase tracking-wide text-slate-500">
             Sign in
           </div>
-          <div className="mt-3 space-y-3">
+          <form className="mt-3 space-y-3" onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
             <input
+              ref={emailRef}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
@@ -198,6 +204,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
             />
             <div className="relative">
               <input
+                ref={passwordRef}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 type={showPassword ? "text" : "password"}
@@ -236,13 +243,12 @@ const RoleCard: React.FC<RoleCardProps> = ({
             {resetStatus && <div className="text-xs text-emerald-300">{resetStatus}</div>}
             {error && <div className="text-xs text-rose-300">{error}</div>}
             <button
-              type="button"
-              onClick={handleLogin}
+              type="submit"
               className="w-full rounded-full border border-slate-600/60 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:bg-slate-800"
             >
               Sign in
             </button>
-          </div>
+          </form>
         </div>
       </div>
     </article>
