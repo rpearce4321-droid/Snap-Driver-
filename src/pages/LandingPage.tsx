@@ -9,7 +9,7 @@ import {
 import { getRetainers, getSeekers } from "../lib/data";
 import { setSession } from "../lib/session";
 import { pullFromServer } from "../lib/serverSync";
-import { login, resetPassword, lookupProfile } from "../lib/api";
+import { login, resetPassword, lookupProfile, register } from "../lib/api";
 
 const DISPLAY_FONT = {
   fontFamily: '"Bebas Neue", "Oswald", "Arial Black", sans-serif',
@@ -86,6 +86,31 @@ const RoleCard: React.FC<RoleCardProps> = ({
       navigate(role === "SEEKER" ? "/seekers" : "/retainers");
       return;
     } catch (err: any) {
+      // If a profile exists but no user account was created yet, provision one now.
+      try {
+        if (normEmail && password) {
+          const resolved = await lookupProfile({ email: normEmail, role });
+          if (resolved?.id) {
+            await register({ email: normEmail, password, role });
+            if (role === "SEEKER") {
+              window.localStorage.setItem("snapdriver_current_seeker_id", resolved.id);
+              setSession({ role, seekerId: resolved.id, email: normEmail });
+            } else {
+              window.localStorage.setItem("snapdriver_current_retainer_id", resolved.id);
+              setSession({ role, retainerId: resolved.id, email: normEmail });
+            }
+            try {
+              await pullFromServer();
+            } catch {
+              // ignore pull errors
+            }
+            navigate(role === "SEEKER" ? "/seekers" : "/retainers");
+            return;
+          }
+        }
+      } catch {
+        // ignore register fallback
+      }
       try {
         const account = authenticateAccount({ email: normEmail, password, role });
         const profileId = getAccountProfileId(account);
