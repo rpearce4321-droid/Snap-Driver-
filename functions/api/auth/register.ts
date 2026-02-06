@@ -18,8 +18,28 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
   if (password.length < 8) return badRequest("Password must be at least 8 characters");
   if (!['ADMIN', 'SEEKER', 'RETAINER'].includes(role)) return badRequest("Invalid role");
 
-  const existing = await db.prepare("SELECT id FROM users WHERE email = ?").bind(email).first<any>();
-  if (existing) return badRequest("An account already exists for that email");
+  const existing = await db.prepare("SELECT id, role, password_hash FROM users WHERE email = ?").bind(email).first<any>();
+  if (existing) {
+    if (existing.role && existing.role !== role) {
+      return badRequest("Account role mismatch");
+    }
+    if (existing.password_hash) {
+      return badRequest("An account already exists for that email");
+    }
+    const hash = await hashPassword(password);
+    await db
+      .prepare("UPDATE users SET password_hash = ?, role = COALESCE(role, ?), updated_at = datetime('now') WHERE id = ?")
+      .bind(hash, role, existing.id)
+      .run();
+
+    const session = await createSession(env as any, existing.id);
+    const cookie = sessionCookie(session.token, request.url.startsWith("https"));
+
+    return json(
+      { ok: true, user: { id: existing.id, email, role } },
+      { headers: { "Set-Cookie": cookie } }
+    );
+  }
 
   try {
     const id = crypto.randomUUID();
