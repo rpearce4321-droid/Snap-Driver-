@@ -221,7 +221,6 @@ const SeekerPage: React.FC = () => {
   const isSessionSeeker = session?.role === "SEEKER";
   const sessionSeekerId = isSessionSeeker ? session.seekerId ?? null : null;
   const sessionEmail = session?.email ? String(session.email).toLowerCase() : null;
-  const [isHydratingSession, setIsHydratingSession] = useState(() => isSessionSeeker && !!sessionSeekerId);
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
   const [isDesktop, setIsDesktop] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -381,14 +380,11 @@ const SeekerPage: React.FC = () => {
 
   useEffect(() => {
     if (!isSessionSeeker || !sessionSeekerId) {
-      setIsHydratingSession(false);
       return;
     }
     if (sessionSeeker) {
-      setIsHydratingSession(false);
       return;
     }
-    setIsHydratingSession(true);
     const email = session?.email ? String(session.email).toLowerCase() : null;
     const hydrate = async () => {
       try {
@@ -396,7 +392,6 @@ const SeekerPage: React.FC = () => {
       } catch {
         // ignore
       } finally {
-        setIsHydratingSession(false);
       }
       const refreshed = getSeekers();
       setSeekers(refreshed);
@@ -887,27 +882,12 @@ const SeekerPage: React.FC = () => {
     ? renderSubcontractorHeaderSubtitle(activeTab)
     : renderHeaderSubtitle(activeTab);
 
-  if (isSessionSeeker && isHydratingSession && sessionSeekerId && !sessionSeeker) {
-    return (
-      <ApprovalGate
-        title="Loading profile"
-        body="Syncing your Seeker profile from the server."
-        onBack={() => navigate("/")}
-      />
-    );
-  }
-
   const approvalGate: { title: string; body: string; status?: string } | null =
     isSessionSeeker
       ? !sessionSeekerId
         ? {
             title: "Profile not linked",
             body: "This account has no Seeker profile linked yet. Please contact Snap admin.",
-          }
-        : !effectiveSeeker && !currentSeekerId
-        ? {
-            title: "Profile not found",
-            body: "We could not load your Seeker profile. It may have been cleared or created in a different browser.",
           }
         : effectiveSeeker?.status !== "APPROVED"
         ? {

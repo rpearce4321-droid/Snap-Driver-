@@ -1411,11 +1411,6 @@ const RetainerPage: React.FC = () => {
             title: "Profile not linked",
             body: "This account has no Retainer profile linked yet. Please contact Snap admin.",
           }
-        : !effectiveRetainer && !currentRetainerId
-        ? {
-            title: "Profile not found",
-            body: "We could not load your Retainer profile. It may have been cleared or created in a different browser.",
-          }
         : (effectiveRetainer as any).status !== "APPROVED"
         ? {
             ...getApprovalGateCopy("Retainer", (effectiveRetainer as any).status),
