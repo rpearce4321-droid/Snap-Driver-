@@ -244,7 +244,7 @@ export function getSeekerEntitlements(seekerId: string): SeekerEntitlements {
   const existing = state.seekers[seekerId];
   if (!existing) return defaultSeekerEntitlements();
   const normalizedTier = normalizeSeekerTier(existing.tier);
-  const next = {
+  const next: SeekerEntitlements = {
     ...defaultSeekerEntitlements(),
     ...existing,
     scope: "SEEKER",

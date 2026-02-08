@@ -803,11 +803,6 @@ function normalizeStore(raw: any): BadgeStore {
   };
 }
 
-function getEffectiveCheckinValue(checkin: BadgeCheckin): BadgeCheckinValue | null {
-  if (checkin.status === "DISPUTED") return null;
-  if (checkin.overrideValue) return checkin.overrideValue;
-  return checkin.value;
-}
 
 function getRawCheckinUnits(checkin: BadgeCheckin): { yes: number; no: number } {
   const hasUnits = checkin.yesUnits != null || checkin.noUnits != null;

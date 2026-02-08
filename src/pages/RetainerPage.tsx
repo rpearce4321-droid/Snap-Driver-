@@ -371,7 +371,6 @@ const RetainerPage: React.FC = () => {
   const isSessionRetainer = session?.role === "RETAINER";
   const sessionRetainerId = isSessionRetainer ? session.retainerId ?? null : null;
   const sessionEmail = session?.email ? String(session.email).toLowerCase() : null;
-  const retainerHydratedRef = useRef(false);
   const retainerUpsertedRef = useRef(false);
 
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");

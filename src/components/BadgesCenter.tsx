@@ -48,6 +48,7 @@ import {
   type BadgeOwnerRole,
   type BadgeId,
   type BadgeCheckinValue,
+  type BadgeCadence,
 } from "../lib/badges";
 
 type Props = {
@@ -888,7 +889,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
     badgeId: BadgeId;
     targetId: string;
     value: BadgeCheckinValue;
-    cadence?: "WEEKLY" | "MONTHLY" | "ONCE";
+    cadence?: BadgeCadence;
     periodKey?: string;
   }) => {
     if (!ownerId || readOnly) return;

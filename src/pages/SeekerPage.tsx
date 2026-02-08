@@ -375,14 +375,6 @@ const SeekerPage: React.FC = () => {
     () => (currentSeekerId ? canSeekerLink(currentSeekerId) : { ok: false, reason: "Select a Seeker profile first." }),
     [currentSeekerId]
   );
-  const trialStatus = useMemo(
-    () => (currentSeekerId ? getSeekerTrialStatus(currentSeekerId) : { isTrial: false, isExpired: false, daysRemaining: null, endsAt: null }),
-    [currentSeekerId]
-  );
-  const scheduleDisabled = !linkAccess.ok;
-  const scheduleBlockReason =
-    linkAccess.reason || "Upgrade to schedule video calls.";
-
   const sessionSeeker = useMemo(
     () => (sessionSeekerId ? seekers.find((s) => s.id === sessionSeekerId) : undefined),
     [seekers, sessionSeekerId]
@@ -2358,6 +2350,24 @@ const DashboardView: React.FC<{
     () => new Map<string, Retainer>(retainers.map((r) => [r.id, r])),
     [retainers]
   );
+  const linkAccess = useMemo(
+    () =>
+      seekerId
+        ? canSeekerLink(seekerId)
+        : { ok: false, reason: "Select a Seeker profile first." },
+    [seekerId]
+  );
+  const trialStatus = useMemo(
+    () =>
+      seekerId
+        ? getSeekerTrialStatus(seekerId)
+        : { isTrial: false, isExpired: false, daysRemaining: null, endsAt: null },
+    [seekerId]
+  );
+  const scheduleDisabled = !linkAccess.ok;
+  const scheduleBlockReason =
+    linkAccess.reason || "Upgrade to schedule video calls.";
+
 
   const [feedTick, setFeedTick] = useState(0);
   const [feedFilter, setFeedFilter] = useState<"ALL" | "BROADCAST" | "ROUTE" | "UPDATE">(
@@ -3491,6 +3501,14 @@ const ActionView: React.FC<{
   onUpdateHierarchyNodes,
 }) => {
   const selectedCount = selectedRetainerIds.size;
+
+  const linkAccess = useMemo(
+    () =>
+      seekerId
+        ? canSeekerLink(seekerId)
+        : { ok: false, reason: "Select a Seeker profile first." },
+    [seekerId]
+  );
 
   const scheduleMatchByRetainerId = useMemo(() => {
     const map = new Map<string, ScheduleMatch>();
