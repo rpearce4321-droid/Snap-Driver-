@@ -6,7 +6,6 @@ export const RETAINER_STOCK_LOGOS = Array.from({ length: 8 }, (_, idx) => {
 });
 
 const RETAINER_TIER_FLAGS: Record<RetainerTier, { color: string; label: string }> = {
-  FREE: { color: "#94a3b8", label: "F" },
   STARTER: { color: "#38bdf8", label: "S" },
   GROWTH: { color: "#22c55e", label: "G" },
   ENTERPRISE: { color: "#f59e0b", label: "E" },
@@ -143,8 +142,8 @@ export function getRetainerTierAvatar(id?: string | null): string {
   const tier =
     id && String(id).trim()
       ? getRetainerEntitlements(String(id)).tier
-      : "FREE";
-  const flag = RETAINER_TIER_FLAGS[tier] || RETAINER_TIER_FLAGS.FREE;
+      : "STARTER";
+  const flag = RETAINER_TIER_FLAGS[tier] || RETAINER_TIER_FLAGS.STARTER;
 
   const bg = pick(
     [

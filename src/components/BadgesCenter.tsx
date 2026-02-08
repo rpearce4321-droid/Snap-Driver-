@@ -35,13 +35,12 @@ import {
   getReputationScoreForProfile,
   getReputationScoreHistory,
   getReputationScoreForProfileAtDate,
+  getBadgeSelectionCaps,
   REPUTATION_SCORE_WINDOW_DAYS,
   REPUTATION_SCORE_MIN,
   REPUTATION_SCORE_MAX,
   REPUTATION_PENALTY_K,
   grantSnapBadge,
-  MAX_ACTIVE_BADGES,
-  MAX_BACKGROUND_BADGES,
   setActiveBadges,
   setBackgroundBadges,
   submitWeeklyCheckin,
@@ -471,6 +470,10 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
 
   const myBadgeDefs = useMemo(() => getSelectableBadges(role), [role]);
   const backgroundOptions = useMemo(() => getBackgroundBadges(role), [role]);
+  const mandatoryBackgroundIds = useMemo(
+    () => backgroundOptions.filter((b) => b.isMandatory).map((b) => b.id),
+    [backgroundOptions]
+  );
   const selectedBackgroundIds = useMemo(
     () => (ownerId ? getSelectedBackgroundBadges(role, ownerId) : []),
     [ownerId, role, tick]
@@ -555,6 +558,11 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
     if (!ownerId) return { lockedUntil: null as string | null, isLocked: false };
     return getBackgroundLockStatus(role, ownerId);
   }, [ownerId, role, tick]);
+
+  const badgeCaps = useMemo(
+    () => (ownerId ? getBadgeSelectionCaps(role, ownerId) : { tier: 1, active: 1, background: 1 }),
+    [ownerId, role, tick]
+  );
 
   const myActiveBadgeIds = useMemo(
     () => (ownerId ? getActiveBadges(role, ownerId) : []),
@@ -810,7 +818,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
       setMyActive(myActiveBadgeIds.filter((x) => x !== badgeId));
       return;
     }
-    if (myActiveBadgeIds.length >= MAX_ACTIVE_BADGES) return;
+    if (myActiveBadgeIds.length >= badgeCaps.active) return;
     setMyActive([...myActiveBadgeIds, badgeId]);
   };
 
@@ -818,17 +826,18 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
 
   const toggleDraftBackground = (badgeId: BadgeId) => {
     if (!canEditBackground) return;
+    if (mandatoryBackgroundIds.includes(badgeId)) return;
     setDraftBackgroundIds((prev) => {
       const has = prev.includes(badgeId);
       if (has) return prev.filter((id) => id !== badgeId);
-      if (prev.length >= MAX_BACKGROUND_BADGES) return prev;
+      if (prev.length >= badgeCaps.background) return prev;
       return [...prev, badgeId];
     });
   };
 
   const saveBackgroundSelection = () => {
     if (!ownerId || !canEditBackground) return;
-    if (draftBackgroundIds.length !== MAX_BACKGROUND_BADGES) return;
+    if (draftBackgroundIds.length !== badgeCaps.background) return;
     setBackgroundBadges(role, ownerId, draftBackgroundIds);
     setEditingBackground(false);
     setTick((t) => t + 1);
@@ -980,7 +989,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
             <div>
               <div className="text-xs uppercase tracking-wide text-slate-400">Badge Home</div>
               <div className="text-sm text-slate-200 mt-1">
-                {ownerName} - {myActiveBadgeIds.length}/{MAX_ACTIVE_BADGES} foreground selected - {selectedBackgroundIds.length}/{MAX_BACKGROUND_BADGES} background set
+                {ownerName} - {myActiveBadgeIds.length}/{badgeCaps.active} foreground selected - {selectedBackgroundIds.length}/{badgeCaps.background} background set
               </div>
             </div>
 
@@ -1139,7 +1148,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                         Background Badges
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        {selectedBackgroundIds.length}/{MAX_BACKGROUND_BADGES} selected
+                        {selectedBackgroundIds.length}/{badgeCaps.background} selected
                       </div>
                     </div>
                     {backgroundLock.isLocked && backgroundLock.lockedUntil && (
@@ -1156,7 +1165,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                       </div>
                       {selectedBackgroundBadges.length === 0 ? (
                         <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-4 text-sm text-slate-400">
-                          Pick {MAX_BACKGROUND_BADGES} background badges to set expectations.
+                          Pick {badgeCaps.background} background badges to set expectations.
                         </div>
                       ) : (
                         <div className="grid gap-2">
@@ -1228,20 +1237,21 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                         <div className="space-y-2">
                           {backgroundOptions.map((b) => {
                             const selected = draftBackgroundIds.includes(b.id);
+                            const isMandatory = mandatoryBackgroundIds.includes(b.id);
                             const full =
-                              !selected && draftBackgroundIds.length >= MAX_BACKGROUND_BADGES;
+                              !selected && draftBackgroundIds.length >= badgeCaps.background;
                             return (
                               <button
                                 key={b.id}
                                 type="button"
-                                disabled={!canEditBackground || full}
+                                disabled={!canEditBackground || full || isMandatory}
                                 onClick={() => toggleDraftBackground(b.id)}
                                 className={[
                                   "w-full text-left rounded-2xl border p-3 transition",
                                   selected
                                     ? "border-emerald-500/60 bg-emerald-500/10"
                                     : "border-slate-800 bg-slate-950/40 hover:bg-slate-900/60",
-                                  !canEditBackground || full
+                                  !canEditBackground || full || isMandatory
                                     ? "opacity-60 cursor-not-allowed"
                                     : "",
                                 ].join(" " )}
@@ -1257,7 +1267,14 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                                     {iconFor(b.iconKey)}
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="text-sm font-semibold text-slate-100 truncate">{b.title}</div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <div className="text-sm font-semibold text-slate-100 truncate">{b.title}</div>
+                                      {isMandatory && (
+                                        <span className="text-[10px] uppercase tracking-wide text-amber-300">
+                                          Mandatory
+                                        </span>
+                                      )}
+                                    </div>
                                     <div className="text-xs text-slate-400 mt-0.5">{b.description}</div>
                                   </div>
                                 </div>
@@ -1274,7 +1291,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                             </button>
                             <button
                               type="button"
-                              disabled={!canEditBackground || draftBackgroundIds.length !== MAX_BACKGROUND_BADGES}
+                              disabled={!canEditBackground || draftBackgroundIds.length !== badgeCaps.background}
                               className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
                               onClick={saveBackgroundSelection}
                             >
@@ -1309,7 +1326,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                 </div>
 
                 <div className="text-[11px] text-slate-500">
-                  Select up to {MAX_ACTIVE_BADGES} optional badges to highlight.
+                  Select up to {badgeCaps.active} optional badges to highlight.
                 </div>
 
                 <div className="space-y-2">
@@ -1318,7 +1335,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                   </div>
                   {myActiveBadges.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/40 p-5 text-sm text-slate-400">
-                      No active badges selected yet. Pick up to {MAX_ACTIVE_BADGES} from
+                      No active badges selected yet. Pick up to {badgeCaps.active} from
                       the catalog below.
                     </div>
                   ) : (
@@ -1410,7 +1427,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                     <div className="space-y-2">
                       {myBadgeDefs.map((b) => {
                         const isActive = myActiveBadgeIds.includes(b.id);
-                        const isFull = !isActive && myActiveBadgeIds.length >= MAX_ACTIVE_BADGES;
+                        const isFull = !isActive && myActiveBadgeIds.length >= badgeCaps.active;
                         return (
                           <div
                             key={b.id}
@@ -1821,8 +1838,8 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                 <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
                   <div className="text-xs uppercase tracking-wide text-slate-400">Selection Process</div>
                   <ul className="mt-2 text-[11px] text-slate-400 space-y-1">
-                    <li>Select up to {MAX_ACTIVE_BADGES} foreground badges at a time.</li>
-                    <li>Choose {MAX_BACKGROUND_BADGES} background badges; locked for 12 months.</li>
+                    <li>Select up to {badgeCaps.active} foreground badges at a time.</li>
+                    <li>Choose {badgeCaps.background} background badges; locked for 12 months.</li>
                     <li>Check-ins are weekly or monthly based on badge cadence.</li>
                   </ul>
                 </div>

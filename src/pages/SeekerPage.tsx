@@ -36,10 +36,12 @@ import {
   setLinkApproved,
   setLinkStatus,
   setLinkVideoConfirmed,
+  isWorkingTogether,
   type Link as LinkingLink,
 } from "../lib/linking";
 import {
   getInterestsForSeeker,
+  getAllRoutes,
   getVisibleRoutesForSeeker,
   toggleInterest,
   type Route,
@@ -50,6 +52,7 @@ import {
   getRouteNoticesForSeeker,
   ROUTE_NOTICE_EVENT,
 } from "../lib/routeNotices";
+import { canSeekerLink, getSeekerTrialStatus } from "../lib/entitlements";
 import { getFeedForSeeker, type FeedItem } from "../lib/feed";
 import {
   recordRouteResponse,
@@ -76,6 +79,7 @@ import {
   type DayOfWeek,
   type WeeklyAvailability,
   formatDaysShort,
+  computeScheduleMatch,
   bestMatchForRoutes,
   type ScheduleMatch,
 } from "../lib/schedule";
@@ -91,7 +95,20 @@ import {
   getBadgeSummaryForProfile,
   getPendingBadgeApprovalsForProfile,
   getReputationScoreForProfile,
+  NEGATIVE_UNIT_MULTIPLIER,
+  REPUTATION_PENALTY_K,
+  REPUTATION_SCORE_MAX,
+  REPUTATION_SCORE_MIN,
 } from "../lib/badges";
+
+import {
+  autoApproveWorkUnitPeriod,
+  getAssignmentsForSeeker,
+  getPeriodsForAssignment,
+  respondToWorkUnitPeriod,
+  type RouteAssignment,
+  type WorkUnitPeriod,
+} from "../lib/workUnits";
 import { badgeIconFor } from "../components/badgeIcons";
 import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
 import { changePassword, resetPassword, syncUpsert } from "../lib/api";
@@ -118,7 +135,7 @@ const ApprovalGate: React.FC<ApprovalGateProps> = ({
   body,
   status,
   onBack,
-  backLabel = "Back to landing",
+  backLabel = "Back",
 }) => (
   <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-6">
     <div className="w-full max-w-xl rounded-3xl border border-slate-800 bg-slate-900/70 p-6 space-y-3">
@@ -142,6 +159,19 @@ const ApprovalGate: React.FC<ApprovalGateProps> = ({
     </div>
   </div>
 );
+
+const computeScoreFromCounts = (yesCount: number, noCount: number, levelMultiplier = 1) => {
+  const total = yesCount + noCount;
+  if (total <= 0) return null;
+  const yesRate = yesCount / total;
+  const noRate = noCount / total;
+  const baseScore =
+    REPUTATION_SCORE_MIN +
+    (REPUTATION_SCORE_MAX - REPUTATION_SCORE_MIN) * yesRate;
+  const penalty = baseScore * REPUTATION_PENALTY_K * noRate * levelMultiplier;
+  const raw = Math.round(baseScore - penalty);
+  return Math.max(REPUTATION_SCORE_MIN, Math.min(REPUTATION_SCORE_MAX, raw));
+};
 
 function getApprovalGateCopy(roleLabel: string, status?: string) {
 
@@ -214,6 +244,8 @@ const SeekerPage: React.FC = () => {
   const isSessionSeeker = session?.role === "SEEKER";
   const sessionSeekerId = isSessionSeeker ? session.seekerId ?? null : null;
   const sessionEmail = session?.email ? String(session.email).toLowerCase() : null;
+  const seekerHydratedRef = useRef(false);
+  const seekerUpsertedRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
   const [isDesktop, setIsDesktop] = useState(() => {
     if (typeof window === "undefined") return true;
@@ -339,6 +371,18 @@ const SeekerPage: React.FC = () => {
     [seekers, currentSeekerId]
   );
 
+  const linkAccess = useMemo(
+    () => (currentSeekerId ? canSeekerLink(currentSeekerId) : { ok: false, reason: "Select a Seeker profile first." }),
+    [currentSeekerId]
+  );
+  const trialStatus = useMemo(
+    () => (currentSeekerId ? getSeekerTrialStatus(currentSeekerId) : { isTrial: false, isExpired: false, daysRemaining: null, endsAt: null }),
+    [currentSeekerId]
+  );
+  const scheduleDisabled = !linkAccess.ok;
+  const scheduleBlockReason =
+    linkAccess.reason || "Upgrade to schedule video calls.";
+
   const sessionSeeker = useMemo(
     () => (sessionSeekerId ? seekers.find((s) => s.id === sessionSeekerId) : undefined),
     [seekers, sessionSeekerId]
@@ -359,6 +403,8 @@ const SeekerPage: React.FC = () => {
     if (sessionSeeker) {
       return;
     }
+    if (seekerHydratedRef.current) return;
+    seekerHydratedRef.current = true;
     const email = session?.email ? String(session.email).toLowerCase() : null;
     const hydrate = async () => {
       try {
@@ -392,6 +438,8 @@ const SeekerPage: React.FC = () => {
 
   useEffect(() => {
     if (!effectiveSeeker || sessionSeeker) return;
+    if (seekerUpsertedRef.current) return;
+    seekerUpsertedRef.current = true;
     setCurrentSeekerId(effectiveSeeker.id);
     persistCurrentSeekerId(effectiveSeeker.id);
     setSession({ role: "SEEKER", seekerId: effectiveSeeker.id, email: sessionEmail ?? undefined });
@@ -641,6 +689,10 @@ const SeekerPage: React.FC = () => {
     if (isSubcontractorView) return;
     if (!currentSeekerId) return;
     if (selectedRetainersInLists.length === 0) return;
+    if (!linkAccess.ok) {
+      setToastMessage(linkAccess.reason || "Upgrade to request links.");
+      return;
+    }
 
     for (const r of selectedRetainersInLists) {
       requestLink({ seekerId: currentSeekerId, retainerId: r.id, by: "SEEKER" });
@@ -655,6 +707,10 @@ const SeekerPage: React.FC = () => {
 
   const bulkMessageSelectedRetainers = () => {
     if (isSubcontractorView) return;
+    if (!linkAccess.ok) {
+      setToastMessage(linkAccess.reason || "Upgrade to message retainers.");
+      return;
+    }
     if (!currentSeekerId) {
       setToastMessage("Create or select a Seeker profile before sending messages.");
       return;
@@ -708,6 +764,10 @@ const SeekerPage: React.FC = () => {
 
   const handleMessageRetainer = (retainer: Retainer) => {
     if (isSubcontractorView) return;
+    if (!linkAccess.ok) {
+      setToastMessage(linkAccess.reason || "Upgrade to message retainers.");
+      return;
+    }
     setComposeDraft({ retainer });
   };
 
@@ -801,10 +861,38 @@ const SeekerPage: React.FC = () => {
         title={approvalGate.title}
         body={approvalGate.body}
         status={approvalGate.status}
-        onBack={() => navigate("/")}
+        onBack={() => navigate(-1)}
       />
     );
   }
+
+  const miniProfileCard = (
+    <button
+      type="button"
+      onClick={() => setActiveTab("dashboard")}
+      className="group flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-left hover:bg-slate-900/90 transition"
+      title="Go to dashboard"
+    >
+      <span className="h-10 w-10 rounded-xl overflow-hidden border border-slate-700 bg-slate-950/60 shrink-0">
+        <img
+          src={getStockImageUrl("SEEKER", currentSeekerId ?? undefined)}
+          alt=""
+          className="h-full w-full object-cover"
+        />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[10px] uppercase tracking-wide text-slate-500">
+          Dashboard
+        </span>
+        <span className="block text-sm font-semibold text-slate-100 truncate">
+          {currentSeeker ? formatSeekerName(currentSeeker) : "Seeker Portal"}
+        </span>
+        <span className="block text-[10px] text-slate-500">
+          Status: {currentSeeker?.status ?? "Not set"}
+        </span>
+      </span>
+    </button>
+  );
 
   return (
     <div
@@ -936,11 +1024,14 @@ const SeekerPage: React.FC = () => {
         <div className="lg:hidden border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                  Snap Driver
+              <div className="space-y-3">
+                {miniProfileCard}
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    Snap Driver
+                  </div>
+                  <div className="text-lg font-semibold text-slate-50">Seeker Portal</div>
                 </div>
-                <div className="text-lg font-semibold text-slate-50">Seeker Portal</div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
@@ -1137,10 +1228,13 @@ const SeekerPage: React.FC = () => {
         )}
 
         <header className="hidden lg:block px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
-          <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-slate-50">{headerTitle}</h2>
-              <p className="text-sm text-slate-400 mt-1">{headerSubtitle}</p>
+          <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              {miniProfileCard}
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-50">{headerTitle}</h2>
+                <p className="text-sm text-slate-400 mt-1">{headerSubtitle}</p>
+              </div>
             </div>
           </div>
         </header>
@@ -3117,6 +3211,15 @@ const DashboardView: React.FC<{
               </div>
 
               <div className="p-4 space-y-4">
+                {scheduleDisabled && (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+                    {trialStatus.isTrial
+                      ? trialStatus.isExpired
+                        ? "Trial ended. Upgrade to schedule video calls."
+                        : `Trial active. ${trialStatus.daysRemaining ?? 0} days left. Upgrade to schedule video calls.`
+                      : scheduleBlockReason}
+                  </div>
+                )}
                 {scheduleError && (
                   <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
                     {scheduleError}
@@ -3150,6 +3253,10 @@ const DashboardView: React.FC<{
                             <button
                               type="button"
                               onClick={() => {
+                                if (scheduleDisabled) {
+                                  onToast(scheduleBlockReason);
+                                  return;
+                                }
                                 const next = clearLinkMeetingSchedule({
                                   seekerId,
                                   retainerId: scheduleLink.retainerId,
@@ -3158,7 +3265,8 @@ const DashboardView: React.FC<{
                                 setLinkTick((x) => x + 1);
                                 onToast("Scheduled call cleared.");
                               }}
-                              className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                              className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                              disabled={scheduleDisabled}
                             >
                               Clear schedule
                             </button>
@@ -3193,6 +3301,10 @@ const DashboardView: React.FC<{
                                   <button
                                     type="button"
                                     onClick={() => {
+                                      if (scheduleDisabled) {
+                                        onToast(scheduleBlockReason);
+                                        return;
+                                      }
                                       const next = acceptLinkMeetingProposal({
                                         seekerId,
                                         retainerId: scheduleLink.retainerId,
@@ -3202,7 +3314,8 @@ const DashboardView: React.FC<{
                                       setLinkTick((x) => x + 1);
                                       onToast("Video call time confirmed.");
                                     }}
-                                    className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition whitespace-nowrap"
+                                    className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+                                    disabled={scheduleDisabled}
                                   >
                                     Accept
                                   </button>
@@ -3227,6 +3340,7 @@ const DashboardView: React.FC<{
                         type="datetime-local"
                         value={proposalAt}
                         onChange={(e) => setProposalAt(e.target.value)}
+                        disabled={scheduleDisabled}
                         className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       />
                     </label>
@@ -3237,6 +3351,7 @@ const DashboardView: React.FC<{
                       <select
                         value={proposalDuration}
                         onChange={(e) => setProposalDuration(Number(e.target.value) || 20)}
+                        disabled={scheduleDisabled}
                         className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       >
                         <option value={10}>10 minutes</option>
@@ -3250,6 +3365,7 @@ const DashboardView: React.FC<{
                     <input
                       value={proposalNote}
                       onChange={(e) => setProposalNote(e.target.value)}
+                      disabled={scheduleDisabled}
                       className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       placeholder="Example: Quick intro + route fit"
                     />
@@ -3259,6 +3375,10 @@ const DashboardView: React.FC<{
                     <button
                       type="button"
                       onClick={() => {
+                        if (scheduleDisabled) {
+                          onToast(scheduleBlockReason);
+                          return;
+                        }
                         setScheduleError(null);
                         if (!proposalAt) {
                           setScheduleError("Pick a start time first.");
@@ -3283,12 +3403,13 @@ const DashboardView: React.FC<{
                         setLinkTick((x) => x + 1);
                         onToast("Proposed a video call time.");
                       }}
-                      className="px-4 py-2 rounded-full text-sm font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition"
+                      className="px-4 py-2 rounded-full text-sm font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                      disabled={scheduleDisabled}
                     >
                       Add proposal
                     </button>
                     <div className="text-[11px] text-slate-500">
-                      Times use your local timezone.
+                      Times use the timezone set above.
                     </div>
                   </div>
                 </div>
@@ -3503,18 +3624,30 @@ const ActionView: React.FC<{
                 <button
                   type="button"
                   onClick={onBulkMessageSelected}
-                  disabled={selectedCount === 0 || !seekerId}
+                  disabled={selectedCount === 0 || !seekerId || !linkAccess.ok}
                   className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                  title={!seekerId ? "Select a Seeker profile first" : "Send one message to all selected"}
+                  title={
+                    !seekerId
+                      ? "Select a Seeker profile first"
+                      : !linkAccess.ok
+                        ? (linkAccess.reason || "Upgrade to message retainers.")
+                        : "Send one message to all selected"
+                  }
                 >
                   Message all
                 </button>
                 <button
                   type="button"
                   onClick={onBulkRequestLinkSelected}
-                  disabled={selectedCount === 0 || !seekerId}
+                  disabled={selectedCount === 0 || !seekerId || !linkAccess.ok}
                   className="px-3 py-1.5 rounded-full text-[11px] bg-sky-500/15 border border-sky-500/40 text-sky-100 hover:bg-sky-500/20 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                  title={!seekerId ? "Select a Seeker profile first" : "Request links for all selected"}
+                  title={
+                    !seekerId
+                      ? "Select a Seeker profile first"
+                      : !linkAccess.ok
+                        ? (linkAccess.reason || "Upgrade to request links.")
+                        : "Request links for all selected"
+                  }
                 >
                   Request to link
                 </button>
@@ -5256,7 +5389,8 @@ type SeekerProfileEditPageKey =
   | "core"
   | "insuranceVerticals"
   | "vehicleNotes"
-  | "photos";
+  | "photos"
+  | "workHistory";
 
 export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
   mode,
@@ -5303,6 +5437,97 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  const workHistoryAssignments = useMemo(
+    () => (initial?.id ? getAssignmentsForSeeker(initial.id) : []),
+    [initial?.id]
+  );
+  const retainerById = useMemo(
+    () => new Map(getRetainers().map((retainer) => [retainer.id, retainer] as const)),
+    []
+  );
+  const routeById = useMemo(
+    () => new Map(getAllRoutes().map((route) => [route.id, route] as const)),
+    []
+  );
+
+  const workHistory = useMemo(() => {
+    if (!workHistoryAssignments.length) return [];
+    return workHistoryAssignments.map((assignment) => {
+      const periods = getPeriodsForAssignment(assignment.id).filter(
+        (period) => period.status === "CONFIRMED" || period.status === "AUTO_APPROVED"
+      );
+      const retainer = retainerById.get(assignment.retainerId);
+      const route = routeById.get(assignment.routeId);
+
+      const issuedUnits = periods.reduce((sum, period) => {
+        const completed = period.completedUnits ?? 0;
+        const missed = period.missedUnits ?? 0;
+        if (assignment.assignmentType === "ON_DEMAND") {
+          const accepted = period.acceptedUnits ?? completed + missed;
+          return sum + accepted;
+        }
+        const expected = period.expectedUnits ?? assignment.expectedUnitsPerPeriod ?? completed + missed;
+        return sum + expected;
+      }, 0);
+
+      const completedUnits = periods.reduce((sum, period) => sum + (period.completedUnits ?? 0), 0);
+      const missedUnits = periods.reduce((sum, period) => sum + (period.missedUnits ?? 0), 0);
+
+      const actualScore = computeScoreFromCounts(
+        completedUnits,
+        missedUnits * NEGATIVE_UNIT_MULTIPLIER,
+        1
+      );
+      const possibleScore = computeScoreFromCounts(issuedUnits, 0, 1);
+
+      return {
+        assignment,
+        retainerName: retainer?.companyName ?? "Retainer",
+        routeTitle: route?.title ?? "Route",
+        issuedUnits,
+        completedUnits,
+        missedUnits,
+        actualScoreIncrease:
+          actualScore != null ? Math.max(0, actualScore - REPUTATION_SCORE_MIN) : null,
+        possibleScoreIncrease:
+          possibleScore != null ? Math.max(0, possibleScore - REPUTATION_SCORE_MIN) : null,
+      };
+    });
+  }, [workHistoryAssignments, retainerById, routeById]);
+
+  const workHistoryTotals = useMemo(() => {
+    if (!workHistory.length) {
+      return {
+        issuedUnits: 0,
+        completedUnits: 0,
+        missedUnits: 0,
+        actualScoreIncrease: null as number | null,
+        possibleScoreIncrease: null as number | null,
+      };
+    }
+    const issuedUnits = workHistory.reduce((sum, entry) => sum + entry.issuedUnits, 0);
+    const completedUnits = workHistory.reduce((sum, entry) => sum + entry.completedUnits, 0);
+    const missedUnits = workHistory.reduce((sum, entry) => sum + entry.missedUnits, 0);
+    const actualScore = computeScoreFromCounts(
+      completedUnits,
+      missedUnits * NEGATIVE_UNIT_MULTIPLIER,
+      1
+    );
+    const possibleScore = computeScoreFromCounts(issuedUnits, 0, 1);
+    return {
+      issuedUnits,
+      completedUnits,
+      missedUnits,
+      actualScoreIncrease:
+        actualScore != null ? Math.max(0, actualScore - REPUTATION_SCORE_MIN) : null,
+      possibleScoreIncrease:
+        possibleScore != null ? Math.max(0, possibleScore - REPUTATION_SCORE_MIN) : null,
+    };
+  }, [workHistory]);
+
+  const formatScoreIncrease = (value: number | null) =>
+    value == null ? "-" : `+${Math.round(value)}`;
+
   const toggleVertical = (v: string) => {
     setSelectedVerticals((prev) =>
       prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]
@@ -5314,6 +5539,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     { key: "insuranceVerticals", label: "Profile 2: Insurance & Verticals" },
     { key: "vehicleNotes", label: "Profile 3: Vehicle & Notes" },
     { key: "photos", label: "Profile 4: Photos" },
+    { key: "workHistory", label: "Profile 5: Work History" },
   ];
 
   const currentIndex = pages.findIndex((p) => p.key === activePage);
@@ -5762,6 +5988,104 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {activePage === "workHistory" && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+              <div className="text-sm font-semibold text-slate-100">Work history</div>
+              <div className="text-xs text-slate-400 mt-1">
+                Read-only view derived from approved work-unit periods.
+              </div>
+            </div>
+
+            {workHistory.length === 0 ? (
+              <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 text-sm text-slate-300">
+                No work history recorded yet.
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-3 md:grid-cols-5">
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">Issued units</div>
+                    <div className="text-lg font-semibold text-slate-50">
+                      {workHistoryTotals.issuedUnits}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-emerald-200/80">Completed</div>
+                    <div className="text-lg font-semibold text-emerald-100">
+                      {workHistoryTotals.completedUnits}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-rose-200/80">Missed</div>
+                    <div className="text-lg font-semibold text-rose-100">
+                      {workHistoryTotals.missedUnits}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-sky-500/40 bg-sky-500/10 p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-sky-200/80">Possible score</div>
+                    <div className="text-lg font-semibold text-sky-100">
+                      {formatScoreIncrease(workHistoryTotals.possibleScoreIncrease)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
+                    <div className="text-[11px] uppercase tracking-wide text-emerald-200/80">Actual score</div>
+                    <div className="text-lg font-semibold text-emerald-100">
+                      {formatScoreIncrease(workHistoryTotals.actualScoreIncrease)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/40 overflow-x-auto">
+                  <div className="min-w-[980px]">
+                    <div className="grid grid-cols-[160px_1fr_120px_120px_90px_90px_90px_120px_120px] gap-0 border-b border-slate-800 px-4 py-2 text-[11px] text-slate-400">
+                      <div>Retainer</div>
+                      <div>Route</div>
+                      <div>Start</div>
+                      <div>End</div>
+                      <div>Issued</div>
+                      <div>Done</div>
+                      <div>Missed</div>
+                      <div>Possible +</div>
+                      <div>Actual +</div>
+                    </div>
+                    <div className="divide-y divide-slate-800">
+                      {workHistory.map((entry) => {
+                        const startDate = entry.assignment.startDate
+                          ? new Date(entry.assignment.startDate).toLocaleDateString()
+                          : "-";
+                        let endLabel = "Active";
+                        if (entry.assignment.status === "PAUSED") endLabel = "Paused";
+                        if (entry.assignment.status === "ENDED") {
+                          endLabel = entry.assignment.updatedAt
+                            ? new Date(entry.assignment.updatedAt).toLocaleDateString()
+                            : "Ended";
+                        }
+                        return (
+                          <div
+                            key={entry.assignment.id}
+                            className="grid grid-cols-[160px_1fr_120px_120px_90px_90px_90px_120px_120px] gap-0 px-4 py-2 text-xs text-slate-200"
+                          >
+                            <div className="truncate">{entry.retainerName}</div>
+                            <div className="truncate">{entry.routeTitle}</div>
+                            <div>{startDate}</div>
+                            <div>{endLabel}</div>
+                            <div>{entry.issuedUnits}</div>
+                            <div>{entry.completedUnits}</div>
+                            <div className="text-rose-200">{entry.missedUnits}</div>
+                            <div>{formatScoreIncrease(entry.possibleScoreIncrease)}</div>
+                            <div>{formatScoreIncrease(entry.actualScoreIncrease)}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -6581,6 +6905,14 @@ const SeekerLinkingView: React.FC<{
 }> = ({ seekerId, retainers, onToast, onMessage }) => {
   const [q, setQ] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const linkAccess = useMemo(
+    () => (seekerId ? canSeekerLink(seekerId) : { ok: false, reason: "Select a Seeker profile first." }),
+    [seekerId]
+  );
+  const trialStatus = useMemo(
+    () => (seekerId ? getSeekerTrialStatus(seekerId) : { isTrial: false, isExpired: false, daysRemaining: null, endsAt: null }),
+    [seekerId]
+  );
 
   const links = useMemo<LinkingLink[]>(
     () => (seekerId ? getLinksForSeeker(seekerId) : []),
@@ -6610,7 +6942,16 @@ const SeekerLinkingView: React.FC<{
   const ensureLink = (retainerId: string) => {
     const existing = linkByRetainerId.get(retainerId) ?? null;
     if (existing) return existing;
-    return requestLink({ seekerId, retainerId, by: "SEEKER" });
+    if (!linkAccess.ok) {
+      onToast(linkAccess.reason || "Upgrade to request links.");
+      return null;
+    }
+    try {
+      return requestLink({ seekerId, retainerId, by: "SEEKER" });
+    } catch (err: any) {
+      onToast(err?.message || "Unable to request link.");
+      return null;
+    }
   };
 
   const statusBadge = (status: LinkingLink["status"] | "NONE") => {
@@ -6645,6 +6986,7 @@ const SeekerLinkingView: React.FC<{
   const renderRetainerCard = (r: Retainer) => {
     const link = linkByRetainerId.get(r.id) ?? null;
     const status = link?.status ?? ("NONE" as const);
+    const linkDisabled = !linkAccess.ok;
     const retainerName = r.companyName || "Retainer";
     const pendingParts =
       link && status === "PENDING"
@@ -6704,7 +7046,14 @@ const SeekerLinkingView: React.FC<{
             <button
               type="button"
               className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
-              onClick={() => onMessage(r)}
+              disabled={linkDisabled}
+              onClick={() => {
+                if (linkDisabled) {
+                  onToast(linkAccess.reason || "Upgrade to message retainers.");
+                  return;
+                }
+                onMessage(r);
+              }}
             >
               Direct message
             </button>
@@ -6719,7 +7068,12 @@ const SeekerLinkingView: React.FC<{
                 <input
                   type="checkbox"
                   checked={link.videoConfirmedBySeeker}
+                  disabled={linkDisabled}
                   onChange={(e) => {
+                    if (linkDisabled) {
+                      onToast(linkAccess.reason || "Upgrade to request links.");
+                      return;
+                    }
                     ensureLink(r.id);
                     const updated = setLinkVideoConfirmed({
                       seekerId,
@@ -6752,7 +7106,12 @@ const SeekerLinkingView: React.FC<{
                 <input
                   type="checkbox"
                   checked={link.approvedBySeeker}
+                  disabled={linkDisabled}
                   onChange={(e) => {
+                    if (linkDisabled) {
+                      onToast(linkAccess.reason || "Upgrade to request links.");
+                      return;
+                    }
                     ensureLink(r.id);
                     const updated = setLinkApproved({
                       seekerId,
@@ -6784,7 +7143,12 @@ const SeekerLinkingView: React.FC<{
                 <button
                   type="button"
                   className="px-3 py-2 rounded-xl text-xs bg-rose-500/15 border border-rose-500/40 text-rose-100 hover:bg-rose-500/20 transition"
+                  disabled={linkDisabled}
                   onClick={() => {
+                    if (linkDisabled) {
+                      onToast(linkAccess.reason || "Upgrade to request links.");
+                      return;
+                    }
                     setLinkStatus({
                       seekerId,
                       retainerId: r.id,
@@ -6802,7 +7166,12 @@ const SeekerLinkingView: React.FC<{
                 <button
                   type="button"
                   className="px-3 py-2 rounded-xl text-xs bg-amber-500/15 border border-amber-500/40 text-amber-100 hover:bg-amber-500/20 transition"
+                  disabled={linkDisabled}
                   onClick={() => {
+                    if (linkDisabled) {
+                      onToast(linkAccess.reason || "Upgrade to request links.");
+                      return;
+                    }
                     setLinkStatus({
                       seekerId,
                       retainerId: r.id,
@@ -6820,7 +7189,12 @@ const SeekerLinkingView: React.FC<{
                 <button
                   type="button"
                   className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                  disabled={linkDisabled}
                   onClick={() => {
+                    if (linkDisabled) {
+                      onToast(linkAccess.reason || "Upgrade to request links.");
+                      return;
+                    }
                     resetLink(r.id, seekerId);
                     requestLink({ seekerId, retainerId: r.id, by: "SEEKER" });
                     onToast("Started a new link request");
@@ -6834,7 +7208,9 @@ const SeekerLinkingView: React.FC<{
           </div>
         ) : (
           <div className="text-xs text-slate-400">
-            No link record yet. Request a link to begin.
+            {linkAccess.ok
+              ? "No link record yet. Request a link to begin."
+              : "Upgrade to request links and unlock connections."}
           </div>
         )}
       </div>
@@ -6850,6 +7226,15 @@ const SeekerLinkingView: React.FC<{
           approve the link.
         </p>
       </div>
+      {!linkAccess.ok && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+          {trialStatus.isTrial
+            ? trialStatus.isExpired
+              ? "Trial ended. Upgrade to request links and unlock connections."
+              : `Trial active. ${trialStatus.daysRemaining ?? 0} days left. Upgrade to request links and unlock connections.`
+            : linkAccess.reason || "Upgrade to request links and unlock connections."}
+        </div>
+      )}
 
       <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
         <div className="text-sm text-slate-300">
@@ -6932,6 +7317,9 @@ const SeekerRoutesView: React.FC<{
   const [noticeDraftRouteId, setNoticeDraftRouteId] = useState<string | null>(null);
   const [noticeEndDate, setNoticeEndDate] = useState("");
   const [noticeTick, setNoticeTick] = useState(0);
+  const [disputePeriodId, setDisputePeriodId] = useState<string | null>(null);
+  const [disputeNotes, setDisputeNotes] = useState<Record<string, string>>({});
+  const [routeSort, setRouteSort] = useState<"recent" | "match">("recent");
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -6945,6 +7333,19 @@ const SeekerRoutesView: React.FC<{
     [seekerId, refresh]
   );
 
+  const currentSeeker = useMemo(
+    () =>
+      seekerId
+        ? getSeekers().find((s) => String(s.id) === String(seekerId)) ?? null
+        : null,
+    [seekerId, refresh]
+  );
+
+  const routesById = useMemo(
+    () => new Map(routes.map((route) => [route.id, route] as const)),
+    [routes]
+  );
+
   const interestSet = useMemo(() => {
     if (!seekerId) return new Set<string>();
     const list = getInterestsForSeeker(seekerId);
@@ -6956,10 +7357,91 @@ const SeekerRoutesView: React.FC<{
     [retainers]
   );
 
+  const routeScheduleMatchById = useMemo(() => {
+    const map = new Map<string, ScheduleMatch>();
+    const availability = (currentSeeker as any)?.availability as WeeklyAvailability | undefined;
+    if (!availability?.blocks?.length) return map;
+    routes.forEach((route) => {
+      if (!route.scheduleDays?.length || !route.scheduleStart || !route.scheduleEnd) return;
+      const match = computeScheduleMatch({
+        availability,
+        routeSchedule: {
+          days: route.scheduleDays,
+          start: route.scheduleStart,
+          end: route.scheduleEnd,
+          timezone: route.scheduleTimezone,
+        },
+      });
+      if (match.percent > 0) map.set(route.id, match);
+    });
+    return map;
+  }, [routes, currentSeeker]);
+
+  const sortedRoutes = useMemo(() => {
+    const items = [...routes];
+    if (routeSort === "match") {
+      items.sort((a, b) => {
+        const aMatch = routeScheduleMatchById.get(a.id)?.percent ?? 0;
+        const bMatch = routeScheduleMatchById.get(b.id)?.percent ?? 0;
+        if (bMatch !== aMatch) return bMatch - aMatch;
+        const aTime = Date.parse(a.updatedAt || a.createdAt || "") || 0;
+        const bTime = Date.parse(b.updatedAt || b.createdAt || "") || 0;
+        return bTime - aTime;
+      });
+    } else {
+      items.sort((a, b) => {
+        const aTime = Date.parse(a.updatedAt || a.createdAt || "") || 0;
+        const bTime = Date.parse(b.updatedAt || b.createdAt || "") || 0;
+        return bTime - aTime;
+      });
+    }
+    return items;
+  }, [routes, routeSort, routeScheduleMatchById]);
+
+  const assignments = useMemo<RouteAssignment[]>(
+    () => (seekerId ? getAssignmentsForSeeker(seekerId) : []),
+    [seekerId, refresh]
+  );
+
+  const pendingPeriods = useMemo(() => {
+    if (!seekerId) return [];
+    const items: Array<{
+      assignment: RouteAssignment;
+      period: WorkUnitPeriod;
+    }> = [];
+    assignments.forEach((assignment) => {
+      const periods = getPeriodsForAssignment(assignment.id);
+      periods.forEach((period) => {
+        if (period.status === "PENDING" || period.status === "DISPUTED") {
+          items.push({ assignment, period });
+        }
+      });
+    });
+    return items.sort(
+      (a, b) => Date.parse(b.period.updatedAt) - Date.parse(a.period.updatedAt)
+    );
+  }, [assignments, seekerId]);
+
   const routeNotices = useMemo(
     () => (seekerId ? getRouteNoticesForSeeker(seekerId) : []),
     [seekerId, noticeTick]
   );
+
+  useEffect(() => {
+    if (!seekerId) return;
+    let changed = false;
+    pendingPeriods.forEach(({ period }) => {
+      if (period.status !== "PENDING") return;
+      const closesAt = period.windowClosesAt
+        ? Date.parse(period.windowClosesAt)
+        : 0;
+      if (closesAt && Date.now() >= closesAt) {
+        autoApproveWorkUnitPeriod(period.id);
+        changed = true;
+      }
+    });
+    if (changed) setRefresh((n) => n + 1);
+  }, [pendingPeriods, seekerId]);
 
   const toInputDate = (iso: string) => {
     const dt = new Date(iso);
@@ -7007,17 +7489,237 @@ const SeekerRoutesView: React.FC<{
         </p>
       </div>
 
-      {routes.length === 0 ? (
+      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-100">Work units</div>
+            <div className="text-xs text-slate-400">
+              Confirm work-unit submissions within 48 hours. Neutral gives no
+              points.
+            </div>
+          </div>
+          <div className="text-xs text-slate-400">
+            {pendingPeriods.length} pending
+          </div>
+        </div>
+        {pendingPeriods.length === 0 ? (
+          <div className="text-xs text-slate-500">No pending confirmations.</div>
+        ) : (
+          <div className="space-y-3">
+            {pendingPeriods.map(({ assignment, period }) => {
+              const route = routesById.get(assignment.routeId);
+              const retainer = retainerById.get(assignment.retainerId);
+              const retainerName = retainer?.companyName ?? "Retainer";
+              const routeTitle = route?.title ?? "Route";
+              const expectedUnits =
+                assignment.assignmentType === "DEDICATED"
+                  ? assignment.expectedUnitsPerPeriod ?? period.expectedUnits
+                  : undefined;
+              const acceptedUnits =
+                assignment.assignmentType === "ON_DEMAND"
+                  ? period.acceptedUnits
+                  : undefined;
+              const windowLabel = period.windowClosesAt
+                ? new Date(period.windowClosesAt).toLocaleString()
+                : "-";
+              const windowClosed = period.windowClosesAt
+                ? Date.now() >= Date.parse(period.windowClosesAt)
+                : false;
+              const link = seekerId
+                ? getLink(seekerId, assignment.retainerId)
+                : null;
+              const canScore = isWorkingTogether(link);
+              const canRespond =
+                canScore && period.status === "PENDING" && !windowClosed;
+              return (
+                <div
+                  key={period.id}
+                  className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 space-y-2"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                        {retainerName}
+                      </div>
+                      <div className="text-sm font-semibold text-slate-100">
+                        {routeTitle}
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      {period.status}
+                    </div>
+                  </div>
+                  <div className="grid gap-1 text-[11px] text-slate-400">
+                    <div>
+                      Cadence: {assignment.cadence} | Period: {period.periodKey}
+                    </div>
+                    <div>Window closes: {windowLabel}</div>
+                    {assignment.assignmentType === "DEDICATED" ? (
+                      <div>
+                        Expected: {expectedUnits ?? "-"} | Completed:{" "}
+                        {period.completedUnits ?? "-"} | Missed:{" "}
+                        {period.missedUnits ?? "-"}
+                      </div>
+                    ) : (
+                      <div>
+                        Accepted: {acceptedUnits ?? "-"} | Completed:{" "}
+                        {period.completedUnits ?? "-"} | Missed:{" "}
+                        {period.missedUnits ?? "-"}
+                      </div>
+                    )}
+                  </div>
+
+                  {!canScore && (
+                    <div className="text-[11px] text-amber-300">
+                      Enable Working Together on the link for scoring to apply.
+                    </div>
+                  )}
+
+                  {period.status === "DISPUTED" && (
+                    <div className="text-[11px] text-rose-300">
+                      Dispute filed. Admin review pending.
+                    </div>
+                  )}
+
+                  {period.status === "PENDING" && windowClosed && (
+                    <div className="text-[11px] text-slate-500">
+                      Window closed. Auto-approval is pending.
+                    </div>
+                  )}
+
+                  {period.status === "PENDING" && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        disabled={!canRespond}
+                        onClick={() => {
+                          try {
+                            respondToWorkUnitPeriod({
+                              periodId: period.id,
+                              response: "CONFIRM",
+                            });
+                            onToast("Confirmed work units");
+                            setRefresh((n) => n + 1);
+                          } catch (err: any) {
+                            onToast(err?.message || "Could not confirm work units");
+                          }
+                        }}
+                      >
+                        Confirm
+                      </button>
+                      <button
+                        type="button"
+                        className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        disabled={!canRespond}
+                        onClick={() => {
+                          try {
+                            respondToWorkUnitPeriod({
+                              periodId: period.id,
+                              response: "NEUTRAL",
+                            });
+                            onToast("Marked neutral");
+                            setRefresh((n) => n + 1);
+                          } catch (err: any) {
+                            onToast(err?.message || "Could not mark neutral");
+                          }
+                        }}
+                      >
+                        Neutral
+                      </button>
+                      <button
+                        type="button"
+                        className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-rose-500/15 border border-rose-500/40 text-rose-100 hover:bg-rose-500/20 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                        disabled={!canRespond}
+                        onClick={() => setDisputePeriodId(period.id)}
+                      >
+                        Dispute
+                      </button>
+                    </div>
+                  )}
+
+                  {disputePeriodId === period.id && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={disputeNotes[period.id] ?? ""}
+                        onChange={(e) =>
+                          setDisputeNotes((prev) => ({
+                            ...prev,
+                            [period.id]: e.target.value,
+                          }))
+                        }
+                        placeholder="Dispute reason"
+                        className="flex-1 min-w-[200px] rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100"
+                      />
+                      <button
+                        type="button"
+                        className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-rose-500/20 border border-rose-500/50 text-rose-100 hover:bg-rose-500/25 transition"
+                        onClick={() => {
+                          try {
+                            respondToWorkUnitPeriod({
+                              periodId: period.id,
+                              response: "DISPUTE",
+                              disputeNote: disputeNotes[period.id],
+                            });
+                            onToast("Dispute submitted");
+                            setDisputePeriodId(null);
+                            setRefresh((n) => n + 1);
+                          } catch (err: any) {
+                            onToast(err?.message || "Could not submit dispute");
+                          }
+                        }}
+                      >
+                        Submit dispute
+                      </button>
+                      <button
+                        type="button"
+                        className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                        onClick={() => setDisputePeriodId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="text-sm text-slate-300">
+          {sortedRoutes.length} routes available
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-slate-400">Sort by</label>
+          <select
+            className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-200"
+            value={routeSort}
+            onChange={(e) => setRouteSort(e.target.value as "recent" | "match")}
+          >
+            <option value="recent" className="bg-slate-950 text-slate-100">
+              Newest
+            </option>
+            <option value="match" className="bg-slate-950 text-slate-100">
+              Schedule match
+            </option>
+          </select>
+        </div>
+      </div>
+
+      {sortedRoutes.length === 0 ? (
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
           No routes are visible yet.
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {routes.map((route) => {
+          {sortedRoutes.map((route) => {
             const retainer = retainerById.get(route.retainerId);
             const retainerName = retainer?.companyName ?? "Retainer";
             const interested = interestSet.has(route.id);
             const isDedicated = route.commitmentType === "DEDICATED";
+            const scheduleMatch = routeScheduleMatchById.get(route.id);
             const activeNotice = routeNotices.find(
               (notice) => notice.routeId === route.id && notice.status === "ACTIVE"
             );
@@ -7090,6 +7792,19 @@ const SeekerRoutesView: React.FC<{
                     <div>
                       <span className="text-slate-400">Schedule:</span>{" "}
                       {route.schedule}
+                      {route.scheduleTimezone ? ` (${route.scheduleTimezone})` : ""}
+                    </div>
+                  )}
+                  {scheduleMatch && scheduleMatch.percent > 0 && (
+                    <div className="text-emerald-200">
+                      <span className="text-slate-400">Schedule match:</span>{" "}
+                      <span className="font-semibold">{scheduleMatch.percent}%</span>
+                      {scheduleMatch.overlapDays.length > 0 && (
+                        <span className="text-emerald-200/70">
+                          {" "}
+                          - {formatDaysShort(scheduleMatch.overlapDays)}
+                        </span>
+                      )}
                     </div>
                   )}
                   <div>

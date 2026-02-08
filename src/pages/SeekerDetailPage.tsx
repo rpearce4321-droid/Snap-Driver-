@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { Seeker, Status } from "../lib/data";
 import {
   getSeekerById,
+  getRetainerById,
   purgeSeeker,
   restoreSeekerToPending,
   setSeekerStatusGuarded,
@@ -17,6 +18,12 @@ import { clearPortalContext, clearSession, getPortalContext, getSession } from "
 import HierarchyCanvas from "../components/HierarchyCanvas";
 import { getBadgeSummaryForProfile, getReputationScoreForProfile } from "../lib/badges";
 import {
+  NEGATIVE_UNIT_MULTIPLIER,
+  REPUTATION_PENALTY_K,
+  REPUTATION_SCORE_MAX,
+  REPUTATION_SCORE_MIN,
+} from "../lib/badges";
+import {
   getActiveBadExitSummaryForSeeker,
   getActiveNoticeSummaryForSeeker,
   ROUTE_NOTICE_EVENT,
@@ -24,6 +31,8 @@ import {
 
 import { badgeIconFor } from "../components/badgeIcons";
 import { getStockImageUrl } from "../lib/stockImages";
+import { getAllRoutes } from "../lib/routes";
+import { getAssignmentsForSeeker, getWorkUnitPeriods } from "../lib/workUnits";
 
 type ProfileTabKey =
   | "overview"
@@ -58,6 +67,19 @@ function normalizeWeeklyAvailability(raw: any): WeeklyAvailability | null {
   };
 }
 
+function computeScoreFromCounts(yesCount: number, noCount: number, levelMultiplier = 1) {
+  const total = yesCount + noCount;
+  if (total <= 0) return null;
+  const yesRate = yesCount / total;
+  const noRate = noCount / total;
+  const baseScore =
+    REPUTATION_SCORE_MIN +
+    (REPUTATION_SCORE_MAX - REPUTATION_SCORE_MIN) * yesRate;
+  const penalty = baseScore * REPUTATION_PENALTY_K * noRate * levelMultiplier;
+  const raw = Math.round(baseScore - penalty);
+  return Math.max(REPUTATION_SCORE_MIN, Math.min(REPUTATION_SCORE_MAX, raw));
+}
+
 export default function SeekerDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -82,6 +104,93 @@ export default function SeekerDetailPage() {
     () => (id ? getSeekerById(id) : undefined),
     [id]
   );
+
+  const assignments = useMemo(
+    () => (seeker ? getAssignmentsForSeeker(seeker.id) : []),
+    [seeker?.id]
+  );
+  const workPeriods = useMemo(() => getWorkUnitPeriods(), []);
+  const routes = useMemo(() => getAllRoutes(), []);
+  const routeById = useMemo(
+    () => new Map(routes.map((route) => [route.id, route] as const)),
+    [routes]
+  );
+
+  const workHistory = useMemo(() => {
+    if (!assignments.length) return [];
+    const relevantPeriods = workPeriods.filter(
+      (period) => period.status === "CONFIRMED" || period.status === "AUTO_APPROVED"
+    );
+    return assignments.map((assignment) => {
+      const periods = relevantPeriods.filter((period) => period.assignmentId === assignment.id);
+      const route = routeById.get(assignment.routeId);
+      const retainer = getRetainerById(assignment.retainerId);
+
+      const issuedUnits = periods.reduce((sum, period) => {
+        const completed = period.completedUnits ?? 0;
+        const missed = period.missedUnits ?? 0;
+        if (assignment.assignmentType === "ON_DEMAND") {
+          const accepted = period.acceptedUnits ?? completed + missed;
+          return sum + accepted;
+        }
+        const expected = period.expectedUnits ?? assignment.expectedUnitsPerPeriod ?? completed + missed;
+        return sum + expected;
+      }, 0);
+
+      const completedUnits = periods.reduce((sum, period) => sum + (period.completedUnits ?? 0), 0);
+      const missedUnits = periods.reduce((sum, period) => sum + (period.missedUnits ?? 0), 0);
+
+      const yesCount = completedUnits;
+      const noCount = missedUnits * NEGATIVE_UNIT_MULTIPLIER;
+      const actualScore = computeScoreFromCounts(yesCount, noCount, 1);
+      const possibleScore = computeScoreFromCounts(issuedUnits, 0, 1);
+
+      return {
+        assignment,
+        routeTitle: route?.title ?? "Route",
+        retainerName: retainer?.companyName ?? "Retainer",
+        issuedUnits,
+        completedUnits,
+        missedUnits,
+        actualScoreIncrease:
+          actualScore != null ? Math.max(0, actualScore - REPUTATION_SCORE_MIN) : null,
+        possibleScoreIncrease:
+          possibleScore != null ? Math.max(0, possibleScore - REPUTATION_SCORE_MIN) : null,
+      };
+    });
+  }, [assignments, workPeriods, routeById]);
+
+  const workHistoryTotals = useMemo(() => {
+    if (!workHistory.length) {
+      return {
+        issuedUnits: 0,
+        completedUnits: 0,
+        missedUnits: 0,
+        actualScoreIncrease: null as number | null,
+        possibleScoreIncrease: null as number | null,
+      };
+    }
+    const issuedUnits = workHistory.reduce((sum, entry) => sum + entry.issuedUnits, 0);
+    const completedUnits = workHistory.reduce((sum, entry) => sum + entry.completedUnits, 0);
+    const missedUnits = workHistory.reduce((sum, entry) => sum + entry.missedUnits, 0);
+
+    const actualScore = computeScoreFromCounts(
+      completedUnits,
+      missedUnits * NEGATIVE_UNIT_MULTIPLIER,
+      1
+    );
+    const possibleScore = computeScoreFromCounts(issuedUnits, 0, 1);
+
+    return {
+      issuedUnits,
+      completedUnits,
+      missedUnits,
+      actualScoreIncrease:
+        actualScore != null ? Math.max(0, actualScore - REPUTATION_SCORE_MIN) : null,
+      possibleScoreIncrease:
+        possibleScore != null ? Math.max(0, possibleScore - REPUTATION_SCORE_MIN) : null,
+    };
+  }, [workHistory]);
 
   const fallbackSeekerId =
     typeof window !== "undefined"
@@ -652,17 +761,117 @@ export default function SeekerDetailPage() {
                 actionDisabled={requestDisabled}
               />
             ) : (
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-                <div className="text-xs uppercase tracking-wide text-slate-400">
-                  Work History
+              <div className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                      Work Units Issued
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-50">
+                      {workHistoryTotals.issuedUnits}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-wide text-emerald-200">
+                      Completed Units
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-emerald-50">
+                      {workHistoryTotals.completedUnits}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-wide text-rose-200">
+                      Missed Units
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-rose-50">
+                      {workHistoryTotals.missedUnits}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                      Possible Score Increase
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-slate-50">
+                      {workHistoryTotals.possibleScoreIncrease != null
+                        ? `+${Math.round(workHistoryTotals.possibleScoreIncrease)}`
+                        : "-"}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-4">
+                    <div className="text-[11px] uppercase tracking-wide text-blue-200">
+                      Actual Score Increase
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-blue-50">
+                      {workHistoryTotals.actualScoreIncrease != null
+                        ? `+${Math.round(workHistoryTotals.actualScoreIncrease)}`
+                        : "-"}
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-2 text-sm text-slate-300">
-                  {(seeker as any).workHistory ? (
-                    <div className="whitespace-pre-wrap text-slate-100">
-                      {String((seeker as any).workHistory)}
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">
+                    Work History
+                  </div>
+                  {workHistory.length === 0 ? (
+                    <div className="mt-3 text-sm text-slate-300">
+                      No work history has been recorded yet.
                     </div>
                   ) : (
-                    <div>No work history has been added yet.</div>
+                    <div className="mt-3 overflow-x-auto">
+                      <table className="w-full text-sm text-slate-200">
+                        <thead className="text-[11px] uppercase text-slate-500">
+                          <tr className="border-b border-slate-800">
+                            <th className="py-2 text-left">Retainer</th>
+                            <th className="py-2 text-left">Route</th>
+                            <th className="py-2 text-left">Start</th>
+                            <th className="py-2 text-left">End</th>
+                            <th className="py-2 text-left">Issued</th>
+                            <th className="py-2 text-left">Completed</th>
+                            <th className="py-2 text-left">Missed</th>
+                            <th className="py-2 text-left">Possible +</th>
+                            <th className="py-2 text-left">Actual +</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {workHistory.map((entry) => {
+                            const startDate = entry.assignment.startDate
+                              ? new Date(entry.assignment.startDate).toLocaleDateString()
+                              : "-";
+                            const endDate =
+                              entry.assignment.status === "ENDED"
+                                ? new Date(entry.assignment.updatedAt).toLocaleDateString()
+                                : entry.assignment.status === "PAUSED"
+                                ? "Paused"
+                                : "Active";
+                            return (
+                              <tr
+                                key={entry.assignment.id}
+                                className="border-b border-slate-900/60"
+                              >
+                                <td className="py-2">{entry.retainerName}</td>
+                                <td className="py-2">{entry.routeTitle}</td>
+                                <td className="py-2">{startDate}</td>
+                                <td className="py-2">{endDate}</td>
+                                <td className="py-2">{entry.issuedUnits}</td>
+                                <td className="py-2 text-emerald-200">{entry.completedUnits}</td>
+                                <td className="py-2 text-rose-200">{entry.missedUnits}</td>
+                                <td className="py-2">
+                                  {entry.possibleScoreIncrease != null
+                                    ? `+${Math.round(entry.possibleScoreIncrease)}`
+                                    : "-"}
+                                </td>
+                                <td className="py-2">
+                                  {entry.actualScoreIncrease != null
+                                    ? `+${Math.round(entry.actualScoreIncrease)}`
+                                    : "-"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               </div>

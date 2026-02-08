@@ -22,6 +22,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
 
   const ok = await verifyPassword(password, user.password_hash);
   if (!ok) return badRequest("Invalid credentials");
+  if (user.status && user.status !== "ACTIVE") return badRequest("Account is not active");
 
   const session = await createSession(env as any, user.id);
   const cookie = sessionCookie(session.token, request.url.startsWith("https"));

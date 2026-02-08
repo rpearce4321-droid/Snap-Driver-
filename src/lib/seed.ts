@@ -23,7 +23,7 @@ import {
 } from "./messages";
 import { addRetainerStaffMessage } from "./retainerStaffMessages";
 import { addSubcontractorMessage } from "./subcontractorMessages";
-import { setRetainerTier, setSeekerTier } from "./entitlements";
+import { getSeekerEntitlements, setRetainerTier, setSeekerTier } from "./entitlements";
 import {
   requestLink,
   setLinkApproved,
@@ -953,7 +953,22 @@ export function autoSeed(opts: SeedOptions = {}): void {
     const allSeekers = getSeekers().filter((s: any) => s.status !== "DELETED");
     const allRetainers = getRetainers().filter((r: any) => r.status !== "DELETED");
 
+    const pickSeedSeekerTier = (idx: number): "TRIAL" | "STARTER" | "GROWTH" | "ELITE" => {
+      if (idx === 0) return "STARTER";
+      const roll = randomInt(1, 100);
+      if (roll <= 45) return "TRIAL";
+      if (roll <= 70) return "STARTER";
+      if (roll <= 90) return "GROWTH";
+      return "ELITE";
+    };
 
+    allRetainers.forEach((r: any) => {
+      setRetainerTier(String(r.id), "STARTER");
+    });
+
+    allSeekers.forEach((s: any, idx: number) => {
+      setSeekerTier(String(s.id), pickSeedSeekerTier(idx));
+    });
 
     for (const s of allSeekers) {
       const seekerId = String((s as any).id);
@@ -1004,7 +1019,9 @@ export function autoSeed(opts: SeedOptions = {}): void {
       return true;
     };
 
-    const seekerIds = allSeekers.map((s: any) => String((s as any).id));
+    const seekerIds = allSeekers
+      .filter((s: any) => getSeekerEntitlements(String((s as any).id)).tier !== "TRIAL")
+      .map((s: any) => String((s as any).id));
     const retainerIds = allRetainers.map((r: any) => String((r as any).id));
 
     let retainerIdx = 0;
@@ -1756,16 +1773,20 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
       return next;
     };
 
-    const pickRetainerTier = (): "FREE" | "STARTER" | "GROWTH" | "ENTERPRISE" => {
+    const pickRetainerTier = (): "STARTER" | "GROWTH" | "ENTERPRISE" => {
       const roll = randomInt(1, 100);
-      if (roll <= 40) return "FREE";
-      if (roll <= 70) return "STARTER";
-      if (roll <= 90) return "GROWTH";
+      if (roll <= 55) return "STARTER";
+      if (roll <= 85) return "GROWTH";
       return "ENTERPRISE";
     };
 
-    const pickSeekerTier = (): "FREE" | "PRO" =>
-      randomInt(1, 100) <= 70 ? "FREE" : "PRO";
+    const pickSeekerTier = (): "TRIAL" | "STARTER" | "GROWTH" | "ELITE" => {
+      const roll = randomInt(1, 100);
+      if (roll <= 35) return "TRIAL";
+      if (roll <= 70) return "STARTER";
+      if (roll <= 90) return "GROWTH";
+      return "ELITE";
+    };
 
     approvedRetainers.forEach((r: any) => {
       setRetainerTier(String(r.id), pickRetainerTier());
@@ -1802,8 +1823,12 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
       return true;
     };
 
-    if (approvedSeekers.length > 0 && approvedRetainers.length > 0) {
-      const shuffledSeekers = shuffle(approvedSeekers);
+    const paidSeekers = approvedSeekers.filter(
+      (s: any) => getSeekerEntitlements(String(s.id)).tier !== "TRIAL"
+    );
+
+    if (paidSeekers.length > 0 && approvedRetainers.length > 0) {
+      const shuffledSeekers = shuffle(paidSeekers);
       const shuffledRetainers = shuffle(approvedRetainers);
 
       const multiSeekerCount = Math.round(approvedSeekers.length * 0.2);

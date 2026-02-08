@@ -13,6 +13,10 @@ The platform is **marketing + recruiting + social media** for the 1099 delivery 
 
 Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
 
+## Production Posture
+- This is a **full production release**, not a demo. Every core feature must work on release.
+- Local environment is the **staging** path for testing small changes before pushing to production.
+
 
 ## Core Terms
 - **Portal**: which UI the user is operating in (`ADMIN`, `SEEKER`, `RETAINER`). This is separate from stored auth/session.
@@ -38,13 +42,58 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
 
 ## Badge System (Trust Tokens) - Decisions
 - Badges are **global per profile** (Seeker/Retainer), not per-link.
-- Badge progress is **points/instances-based** (YES adds value, NO reduces value).
+- Badge progress is **points/instances-based** (YES adds value, NO reduces value with 3x impact).
 - Badge verification is **linked-only** and requires an additional relationship toggle:
   - Link must be `ACTIVE`.
   - Both parties must enable **Working Together** on that link.
-- Not submitting a weekly check-in is **neutral** (reminders will be added later).
-- Each profile can select up to **4 active badges** at a time.
-- Badge levels should **never decrease** once achieved (clamp points so max level never drops).
+- Auto-approval after cadence close: **48 hours** to submit neutral or negative; if no action, it **defaults to YES**.
+- Neutral check-in = **no points** and **no level change** (must be explicitly submitted).
+- Negative check-in triggers a **7-day dispute window**; Admin resolves.
+- Badge levels **can decrease**; negative outcomes are intended to feel like **one step forward, three steps back**.
+- Badge selection caps are tiered:
+  - Tier 1: **1 foreground + 1 background**
+  - Tier 2: **2 foreground + 2 background**
+  - Tier 3: **4 foreground + 4 background**
+- Background badges require **at least 1 mandatory selection** and are locked for **12 months**.
+- Mandatory **Snap badges**:
+  - **Profile Integrity** (granted when full profile completion criteria are met; revoked if profile becomes incomplete).
+  - **Operational Disclosure** (granted when non-sensitive operating details are provided).
+  - Existing onboarding Snap badge remains mandatory.
+- **Work Completion** is a mandatory **BACKGROUND** badge, fed by work-unit completion (see below).
+- Mandatory badge selection should contribute to **base score** so score movement cannot be avoided.
+
+## Reputation Score Model (Production)
+- Score range is **200-900** (credit-score style).
+- **Lifetime level** reflects full history; **displayed score** emphasizes the trailing 6 months.
+- Base score is issued **on admin approval** once profile completion criteria are met.
+- Base score weight should equal **6 months at 700** and should **decay** if profile becomes incomplete.
+- If there is **no scoring activity for ~90 days**, displayed score begins to **decay**.
+- 800+ scores require **12 months in good standing**:
+  - No unresolved disputes in the last 90 days.
+  - No active bad-exit penalties.
+  - Minimum weekly check-ins in the last 6 months.
+  - Admin-approved and not suspended.
+- Scoring must incorporate **route completion** so points are tied to actual work.
+
+## Route Completion + Scoring Eligibility
+- Linking alone is not enough for badge approvals.
+- Retainer must create a Route and **lock in** a Seeker with a **start date**.
+- A locked route should create a **work history** entry for the Seeker.
+- Points are awarded only for **completed work**, not just a locked schedule.
+- Cadence end points create a **pending score** until the 48-hour check-in window closes.
+- Work completion is measured in **work units** (counts only; no route-ops detail):
+  - **Dedicated** routes: work units are scheduled **days or shifts** per period.
+  - **On-demand** routes: work units are **accepted jobs** per period.
+  - Only **accepted** work can be marked missed; no penalty for unaccepted offers.
+- Retainer submits completed/missed counts; Seeker can confirm or dispute within 48 hours.
+  - Both parties are blind to each other's input during the window.
+- Work Completion badge cadence defaults to the **retainer pay-cycle frequency** (weekly/biweekly/monthly).
+- See `docs/work-units-spec.md` for the minimal data model and lifecycle.
+
+## Base Score + Profile Completion
+- Profile completion requires: all form fields filled, at least one of each checkbox group selected, profile photo + vehicle photo uploaded.
+- Add a mobile option to capture photos directly from the camera.
+- Base score should **decay** if required profile fields or media are removed.
 
 ## Guiding Principles (Safety & Non-Destructive Delivery)
 - **Context discipline**: `docs/CONTEXT.md` is the source of truth; update it when decisions change to prevent drift.
@@ -56,6 +105,35 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
 - **Performance at scale**: default to paging/lazy-loading and stable indexes/maps; avoid O(n) recompute on every render.
 - **Seed/reset is deterministic**: reseeds overwrite/clear prior demo data and reset session/portal context to prevent mixed datasets.
 - **Pre-mortems**: for each major feature, capture likely failure modes + mitigations in the roadmap before building.
+
+## Implementation Reality (Current Code)
+- **Frontend**: React + Vite, local-first. All core domain data stored in localStorage with `schemaVersion` envelopes (`src/lib/storage.ts`).
+- **Portals**: session stored in localStorage; portal context stored per-tab in `sessionStorage` (`snapdriver_portal_context_v1`).
+- **Core stores (local-first)**:
+  - Seekers: `demo_seekers_v2`; Retainers: `demo_retainers_v2`.
+  - Links: `snapdriver_links_v1`; Conversations: `snapdriver_conversations_v1`; Messages: `snapdriver_messages_v1`.
+  - Routes: `snapdriver_routes_v1`; Interests: `snapdriver_route_interests_v1`.
+  - Work units: `snapdriver_route_assignments_v1`; `snapdriver_work_unit_periods_v1`.
+  - Posts: `snapdriver_retainer_posts_v1`; Broadcasts: `snapdriver_retainer_broadcasts_v1`.
+  - Badges: `snapdriver_badges_v2`; Badge rules: `snapdriver_badge_rules_v1`; Score settings: `snapdriver_badge_scoring_v1`; Score history: `snapdriver_reputation_history_v1`.
+  - Entitlements: `snapdriver_entitlements_v1`; Ratings: `snapdriver_retainer_ratings_v1`.
+- **Linking**: state machine in `src/lib/linking.ts` (PENDING/ACTIVE/REJECTED/DISABLED). Link becomes ACTIVE only when both video confirmations + approvals are true.
+- **Feed**: Seeker feed merges Posts + Broadcasts + Routes; linked-only items require ACTIVE link (`src/lib/feed.ts`).
+- **Routes**: structured route object with schedule fields + commitment type (DEDICATED/FLEX). Public routes are tier-gated (`src/lib/routes.ts`).
+- **Entitlements** (local-first defaults in `src/lib/entitlements.ts`):
+  - Retainers: STARTER/GROWTH/ENTERPRISE (no free tier); gates public posts/broadcasts and active route counts.
+  - Seekers: TRIAL (3 months, view-only) + STARTER/GROWTH/ELITE; trial can browse but cannot link/message or connect.
+- **Badges** (local-first in `src/lib/badges.ts`):
+  - Global per profile; max 4 active + 4 background; background badges lock for 12 months.
+  - Check-ins require ACTIVE link + Working Together.
+  - PRS: 200-900, 90-day window, k=0.56, level multipliers default [0.85, 0.95, 1.0, 1.1, 1.25].
+  - **Current implementation recomputes levels from yes/no counts; levels can decrease** (see conflict below).
+- **Route Notices**: bad-exit penalties for dedicated routes (15/25/35% for 30/60/90 days), with suspension/blacklist logic (`src/lib/routeNotices.ts`).
+- **Server sync**: `/api/sync/pull` and `/api/sync/upsert` (Cloudflare Pages Functions + D1). Sync flags: `snapdriver_server_sync_enabled`, `snapdriver_seed_mode`. Seeded rows are marked with `__seed` for purge.
+
+## Alignment Tasks
+- Update `docs/badges-spec.md` and `docs/decision-log.md` to reflect new production badge policies.
+- Align `src/lib/badges.ts` to the 3x negative impact, auto-approval YES, and tiered badge caps.
 
 ## Rating / Tiers Fairness (Draft Policy Options)
 - Core guardrails: keep underlying scores intact; avoid pay-to-win; prevent ?upgrade, earn, downgrade, keep the boost.?

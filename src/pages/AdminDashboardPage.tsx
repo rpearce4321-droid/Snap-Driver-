@@ -15,7 +15,21 @@ import {
 import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
 import { autoSeedComprehensive, wipeLocalDataComprehensive } from "../lib/seed";
 import { buildServerSeedPayload, getLocalSeedSummary } from "../lib/serverSeed";
-import { createSeedBatch, importSeedData, inviteUser, listSeedBatches, purgeSeedBatch, resetPassword, wipeAllServerData, login, getSessionMe } from "../lib/api";
+import {
+  createSeedBatch,
+  importSeedData,
+  inviteUser,
+  listSeedBatches,
+  purgeSeedBatch,
+  resetPassword,
+  wipeAllServerData,
+  login,
+  getSessionMe,
+  register,
+  getAdminUsers,
+  setUserPassword,
+  setUserStatus,
+} from "../lib/api";
 import { getServerSyncStatus, pullFromServer, setSeedModeEnabled, setServerSyncEnabled, syncToServer } from "../lib/serverSync";
 import {
   getRetainerEntitlements,
@@ -62,6 +76,13 @@ import {
   type BadgeLevelRule,
   type BadgeOwnerRole,
 } from "../lib/badges";
+import {
+  getRouteAssignments,
+  getWorkUnitPeriods,
+  resolveDisputedWorkUnitPeriod,
+  type RouteAssignment,
+  type WorkUnitPeriod,
+} from "../lib/workUnits";
 import { badgeIconFor } from "../components/badgeIcons";
 
 import AdminExternalMessageTraffic from "../components/AdminExternalMessageTraffic";
@@ -75,6 +96,9 @@ type Panel =
   | "dashboard"
   | "createSeeker"
   | "createRetainer"
+  | "users:admins"
+  | "users:seekers"
+  | "users:retainers"
   | "seekers:pending"
   | "seekers:approved"
   | "seekers:rejected"
@@ -88,16 +112,18 @@ type Panel =
   | "system:badges"
   | "system:badgeScoring"
   | "system:badgeAudit"
+  | "system:workUnits"
   | "system:server"
   | "messages:external"
   | "messages:retainerStaff"
   | "messages:subcontractors";
 
-type NavSectionKey = "seekers" | "retainers" | "messaging" | "content" | "badges";
+type NavSectionKey = "seekers" | "retainers" | "users" | "messaging" | "content" | "badges";
 
 const SECTION_DEFAULTS: Record<NavSectionKey, Panel> = {
   seekers: "seekers:pending",
   retainers: "retainers:pending",
+  users: "users:admins",
   messaging: "messages:external",
   content: "routes",
   badges: "system:badges",
@@ -106,6 +132,7 @@ const SECTION_DEFAULTS: Record<NavSectionKey, Panel> = {
 const sectionForPanel = (value: Panel): NavSectionKey | null => {
   if (value === "createSeeker" || value.startsWith("seekers:")) return "seekers";
   if (value === "createRetainer" || value.startsWith("retainers:")) return "retainers";
+  if (value.startsWith("users:")) return "users";
   if (value.startsWith("messages:")) return "messaging";
   if (value === "routes" || value === "content:posts") return "content";
   if (value.startsWith("system:")) return "badges";
@@ -118,14 +145,73 @@ type KPIProps = {
   onClick?: () => void;
 };
 
+const LOCAL_ADMIN_KEY = "snapdriver_local_admin_v1";
+
+type LocalAdminRecord = {
+  email: string;
+  passwordHash: string;
+  createdAt: string;
+};
+
+type AdminUserRole = "ADMIN" | "SEEKER" | "RETAINER";
+type AdminUser = {
+  id: string;
+  email: string;
+  role: AdminUserRole;
+  status: string;
+  statusNote?: string | null;
+  statusUpdatedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  passwordSet: boolean;
+  source?: "server" | "local";
+};
+
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+async function hashLocalPassword(password: string): Promise<string> {
+  if (typeof crypto === "undefined" || !crypto.subtle) {
+    return password;
+  }
+  const data = new TextEncoder().encode(password);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+function loadLocalAdmin(): LocalAdminRecord | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(LOCAL_ADMIN_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as LocalAdminRecord;
+    if (!parsed?.email || !parsed?.passwordHash) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalAdmin(record: LocalAdminRecord) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(LOCAL_ADMIN_KEY, JSON.stringify(record));
+}
+
 const RETAINER_TIER_OPTIONS: RetainerTier[] = [
-  "FREE",
   "STARTER",
   "GROWTH",
   "ENTERPRISE",
 ];
 
-const SEEKER_TIER_OPTIONS: SeekerTier[] = ["FREE", "PRO"];
+const SEEKER_TIER_OPTIONS: SeekerTier[] = [
+  "TRIAL",
+  "STARTER",
+  "GROWTH",
+  "ELITE",
+];
 
 function KPI({ label, value, onClick }: KPIProps) {
   return (
@@ -202,6 +288,15 @@ export default function AdminDashboardPage() {
   const [authPassword, setAuthPassword] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const isLocalHost =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname.endsWith(".local"));
+  const canBootstrapAdmin =
+    Boolean(import.meta.env?.DEV) ||
+    import.meta.env?.VITE_ENABLE_ADMIN_BOOTSTRAP === "true" ||
+    isLocalHost;
 
   useEffect(() => {
     setPortalContext("ADMIN");
@@ -293,6 +388,53 @@ export default function AdminDashboardPage() {
 
   const [panel, setPanel] = useState<Panel>("dashboard");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const showServerPanel = import.meta.env.VITE_ENABLE_SERVER_PANEL === "true";
+
+  useEffect(() => {
+    if (!showServerPanel && panel === "system:server") {
+      setPanel("dashboard");
+    }
+  }, [panel, showServerPanel]);
+
+  const tryLocalAdminLogin = async () => {
+    if (!isLocalHost) return false;
+    const record = loadLocalAdmin();
+    if (!record) return false;
+    const email = normalizeEmail(authEmail);
+    if (!email || normalizeEmail(record.email) !== email) return false;
+    const hash = await hashLocalPassword(authPassword);
+    if (hash !== record.passwordHash) return false;
+    setSession({ role: "ADMIN", adminId: "local-admin", email });
+    setAuthStatus("authed");
+    setAuthPassword("");
+    setAuthError(null);
+    return true;
+  };
+
+  const createLocalAdmin = async () => {
+    if (!isLocalHost) return false;
+    const email = normalizeEmail(authEmail);
+    const password = authPassword;
+    if (!email || !password) {
+      setAuthError("Email and password are required.");
+      return false;
+    }
+    if (password.length < 8) {
+      setAuthError("Password must be at least 8 characters.");
+      return false;
+    }
+    const hash = await hashLocalPassword(password);
+    saveLocalAdmin({
+      email,
+      passwordHash: hash,
+      createdAt: new Date().toISOString(),
+    });
+    setSession({ role: "ADMIN", adminId: "local-admin", email });
+    setAuthStatus("authed");
+    setAuthPassword("");
+    setAuthError(null);
+    return true;
+  };
 
   const handleAdminLogin = async () => {
     setAuthError(null);
@@ -305,8 +447,36 @@ export default function AdminDashboardPage() {
       setAuthStatus("authed");
       setAuthPassword("");
     } catch (err: any) {
+      const localOk = await tryLocalAdminLogin();
+      if (localOk) return;
       setAuthError(err?.message || "Unable to sign in.");
     }
+  };
+  const handleAdminBootstrap = async () => {
+    setAuthError(null);
+    try {
+      const res = await register({
+        email: authEmail.trim(),
+        password: authPassword,
+        role: "ADMIN",
+      });
+      if (!res?.user || res.user.role !== "ADMIN") {
+        throw new Error("Admin account could not be created.");
+      }
+      setSession({ role: "ADMIN", adminId: res.user.id });
+      setAuthStatus("authed");
+      setAuthPassword("");
+    } catch (err: any) {
+      const localOk = await createLocalAdmin();
+      if (localOk) return;
+      setAuthError(err?.message || "Unable to create admin account.");
+    }
+  };
+  const handleLocalAdminSession = () => {
+    setAuthError(null);
+    setSession({ role: "ADMIN", adminId: "local-admin" });
+    setAuthStatus("authed");
+    setAuthPassword("");
   };
 
   useEffect(() => {
@@ -323,6 +493,7 @@ export default function AdminDashboardPage() {
   const [openSections, setOpenSections] = useState<Record<NavSectionKey, boolean>>(() => ({
     seekers: false,
     retainers: false,
+    users: false,
     messaging: false,
     content: false,
     badges: false,
@@ -408,7 +579,31 @@ export default function AdminDashboardPage() {
               >
                 Sign in
               </button>
+              {canBootstrapAdmin && (
+                <button
+                  type="button"
+                  onClick={handleAdminBootstrap}
+                  className="w-full rounded-full border border-slate-600/60 bg-slate-800/50 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800/70 transition"
+                >
+                  Create admin account (local bootstrap)
+                </button>
+              )}
+              {canBootstrapAdmin && (
+                <button
+                  type="button"
+                  onClick={handleLocalAdminSession}
+                  className="w-full rounded-full border border-slate-700/70 bg-slate-900/60 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-900/80 transition"
+                >
+                  Enter local admin session (offline)
+                </button>
+              )}
             </div>
+            {canBootstrapAdmin && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-400">
+                Local bootstrap is enabled. Use this only for staging or development to create the
+                first admin account or enter an offline admin session.
+              </div>
+            )}
           </div>
         </div>
       </main>
@@ -419,6 +614,9 @@ export default function AdminDashboardPage() {
     if (panel === "dashboard") return "Dashboard";
     if (panel === "createSeeker") return "Create Seeker";
     if (panel === "createRetainer") return "Create Retainer";
+    if (panel === "users:admins") return "User Management - Admins";
+    if (panel === "users:seekers") return "User Management - Seekers";
+    if (panel === "users:retainers") return "User Management - Retainers";
     if (panel.startsWith("seekers:")) return `Seekers - ${panel.split(":")[1]}`;
     if (panel.startsWith("retainers:")) return `Retainers - ${panel.split(":")[1]}`;
     if (panel === "routes") return "Routes";
@@ -426,6 +624,7 @@ export default function AdminDashboardPage() {
     if (panel === "system:badges") return "Badge Rules";
     if (panel === "system:badgeScoring") return "Badge Scoring";
     if (panel === "system:badgeAudit") return "Badge Audit";
+    if (panel === "system:workUnits") return "Work Units";
     if (panel === "system:server") return "Server & Seed";
     if (panel === "messages:external") return "Message Traffic (Seeker and Retainer)";
     if (panel === "messages:retainerStaff") return "Retainer Staff Messages";
@@ -440,6 +639,14 @@ export default function AdminDashboardPage() {
         { label: "Dashboard", value: "dashboard" },
         { label: "Create Seeker", value: "createSeeker" },
         { label: "Create Retainer", value: "createRetainer" },
+      ],
+    },
+    {
+      label: "User Management",
+      items: [
+        { label: "Admins", value: "users:admins" },
+        { label: "Seekers", value: "users:seekers" },
+        { label: "Retainers", value: "users:retainers" },
       ],
     },
     {
@@ -480,7 +687,9 @@ export default function AdminDashboardPage() {
       items: [
         { label: "Rules", value: "system:badges" },
         { label: "Scoring", value: "system:badgeScoring" },
-        { label: "Audit", value: "system:badgeAudit" },        { label: "Server & Seed", value: "system:server" },
+        { label: "Audit", value: "system:badgeAudit" },
+        { label: "Work Units", value: "system:workUnits" },
+        ...(showServerPanel ? [{ label: "Server & Seed", value: "system:server" as Panel }] : []),
       ],
     },
   ];
@@ -579,6 +788,28 @@ export default function AdminDashboardPage() {
 
           <section className="space-y-2">
             <NavSectionHeader
+              title="User Management"
+              open={openSections.users}
+              active={activeSection === "users"}
+              onClick={() => handleSectionClick("users")}
+            />
+            {openSections.users && (
+              <div className="space-y-2 pl-2">
+                <NavButton active={panel === "users:admins"} onClick={() => setPanel("users:admins")}>
+                  Admins
+                </NavButton>
+                <NavButton active={panel === "users:seekers"} onClick={() => setPanel("users:seekers")}>
+                  Seekers
+                </NavButton>
+                <NavButton active={panel === "users:retainers"} onClick={() => setPanel("users:retainers")}>
+                  Retainers
+                </NavButton>
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <NavSectionHeader
               title="Messaging"
               open={openSections.messaging}
               active={activeSection === "messaging"}
@@ -640,9 +871,14 @@ export default function AdminDashboardPage() {
                 <NavButton active={panel === "system:badgeAudit"} onClick={() => setPanel("system:badgeAudit")}>
                   Badge Audit
                 </NavButton>
-                <NavButton active={panel === "system:server"} onClick={() => setPanel("system:server")}>
-                  Server & Seed
+                <NavButton active={panel === "system:workUnits"} onClick={() => setPanel("system:workUnits")}>
+                  Work Units
                 </NavButton>
+                {showServerPanel && (
+                  <NavButton active={panel === "system:server"} onClick={() => setPanel("system:server")}>
+                    Server & Seed
+                  </NavButton>
+                )}
               </div>
             )}
           </section>
@@ -943,6 +1179,14 @@ export default function AdminDashboardPage() {
             </div>
           )}
 
+          {panel.startsWith("users:") && (
+            <>
+              {panel === "users:admins" && <AdminUserManagementPanel role="ADMIN" />}
+              {panel === "users:seekers" && <AdminUserManagementPanel role="SEEKER" />}
+              {panel === "users:retainers" && <AdminUserManagementPanel role="RETAINER" />}
+            </>
+          )}
+
           {panel.startsWith("seekers:") && (
             <section className="surface p-5 hover:border-blue-500/30 transition">
               {panel === "seekers:pending" && <SD_List items={seekersPending} role="SEEKER" />}
@@ -990,7 +1234,18 @@ export default function AdminDashboardPage() {
           {panel === "system:badges" && <AdminBadgeRulesPanel />}
           {panel === "system:badgeScoring" && <AdminBadgeScoringPanel />}
           {panel === "system:badgeAudit" && <AdminBadgeAuditPanel />}
-          {panel === "system:server" && <AdminServerPanel />}
+          {panel === "system:workUnits" && (
+            <AdminWorkUnitsPanel retainers={retainers} seekers={seekers} />
+          )}
+          {panel === "system:server" && (
+            showServerPanel ? (
+              <AdminServerPanel />
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/70">
+                Server &amp; Seed tools are disabled. Set `VITE_ENABLE_SERVER_PANEL=true` to enable.
+              </div>
+            )
+          )}
 
           {panel === "messages:external" && (
             <div className="h-full">
@@ -1758,6 +2013,689 @@ const AdminBadgeAuditPanel: React.FC = () => {
                     onClick={() => applyStatus(checkin.id, "ACTIVE")}
                   >
                     Reset
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+};
+
+const AdminUserManagementPanel: React.FC<{ role: AdminUserRole }> = ({ role }) => {
+  const [items, setItems] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<AdminUserRole>(role);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [passwordDrafts, setPasswordDrafts] = useState<Record<string, string>>({});
+  const [statusDrafts, setStatusDrafts] = useState<
+    Record<string, { status: string; note: string }>
+  >({});
+
+  const formatError = (err: any) =>
+    err?.response?.data?.error || err?.message || "Request failed";
+
+  const refreshUsers = async () => {
+    setLoading(true);
+    setError(null);
+    setActionStatus(null);
+    try {
+      const res = await getAdminUsers({ role });
+      setItems(res.items);
+    } catch (err: any) {
+      const local = loadLocalAdmin();
+      if (role === "ADMIN" && local) {
+        setItems([
+          {
+            id: "local-admin",
+            email: local.email,
+            role: "ADMIN",
+            status: "LOCAL",
+            statusNote: null,
+            statusUpdatedAt: local.createdAt,
+            createdAt: local.createdAt,
+            updatedAt: local.createdAt,
+            passwordSet: true,
+            source: "local",
+          },
+        ]);
+        setError("Server unavailable. Showing local admin only.");
+      } else {
+        setItems([]);
+        setError(formatError(err));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setInviteRole(role);
+    refreshUsers();
+  }, [role]);
+
+  const handleInvite = async () => {
+    const email = inviteEmail.trim();
+    if (!email) {
+      setActionStatus("Enter an email to invite.");
+      return;
+    }
+    setBusy(true);
+    setActionStatus(null);
+    try {
+      const res = await inviteUser({ email, role: inviteRole });
+      setInviteLink(res.magicLink);
+      setActionStatus(`Invite created. Expires ${new Date(res.expiresAt).toLocaleString()}.`);
+      await refreshUsers();
+    } catch (err: any) {
+      setActionStatus(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReset = async (email: string) => {
+    setBusy(true);
+    setActionStatus(null);
+    try {
+      const res = await resetPassword({ email });
+      setInviteLink(res.magicLink);
+      setActionStatus(`Reset link created. Expires ${new Date(res.expiresAt).toLocaleString()}.`);
+    } catch (err: any) {
+      setActionStatus(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSetPassword = async (user: AdminUser) => {
+    const nextPassword = passwordDrafts[user.id]?.trim() ?? "";
+    if (!nextPassword) {
+      setActionStatus("Enter a password before updating.");
+      return;
+    }
+    if (nextPassword.length < 8) {
+      setActionStatus("Password must be at least 8 characters.");
+      return;
+    }
+    setBusy(true);
+    setActionStatus(null);
+    try {
+      await setUserPassword({ userId: user.id, password: nextPassword });
+      setPasswordDrafts((prev) => ({ ...prev, [user.id]: "" }));
+      setActionStatus("Password updated.");
+      await refreshUsers();
+    } catch (err: any) {
+      setActionStatus(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleStatusUpdate = async (user: AdminUser) => {
+    const draft = statusDrafts[user.id];
+    const statusValue = (draft?.status || user.status || "ACTIVE").toUpperCase();
+    const noteValue = draft?.note?.trim() ?? "";
+    if (statusValue !== "ACTIVE" && !noteValue) {
+      setActionStatus("Add a status note when deactivating a user.");
+      return;
+    }
+    setBusy(true);
+    setActionStatus(null);
+    try {
+      await setUserStatus({
+        userId: user.id,
+        status: statusValue,
+        note: noteValue || undefined,
+      });
+      setActionStatus("Status updated.");
+      await refreshUsers();
+    } catch (err: any) {
+      setActionStatus(formatError(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setActionStatus("Link copied.");
+    } catch {
+      setActionStatus("Link ready to copy.");
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
+        <div>
+          <div className="text-sm font-semibold">User Management</div>
+          <div className="text-xs text-white/60">
+            Usernames use the account email. Passwords are never shown; only set/reset actions are available.
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
+          <input
+            className="input"
+            placeholder="Email address"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+          />
+          <select
+            className="input"
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as AdminUserRole)}
+          >
+            <option value="ADMIN">Admin</option>
+            <option value="RETAINER">Retainer</option>
+            <option value="SEEKER">Seeker</option>
+          </select>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn" onClick={handleInvite} disabled={busy}>
+            Create Invite Link
+          </button>
+          {inviteLink && (
+            <button className="btn" onClick={handleCopyLink} disabled={busy}>
+              Copy Link
+            </button>
+          )}
+          <button className="btn" onClick={refreshUsers} disabled={loading || busy}>
+            Refresh List
+          </button>
+        </div>
+        {inviteLink && (
+          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-xs break-all">
+            {inviteLink}
+          </div>
+        )}
+        {actionStatus && <div className="text-xs text-white/70">{actionStatus}</div>}
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-sm font-semibold">{role} accounts</div>
+          {loading && <div className="text-xs text-white/60">Loading…</div>}
+        </div>
+        {error && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100 mb-4">
+            {error}
+          </div>
+        )}
+        {items.length === 0 ? (
+          <div className="text-sm text-white/60">No users found.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs uppercase text-white/50">
+                <tr className="border-b border-white/10">
+                  <th className="py-2 text-left">Username (Email)</th>
+                  <th className="py-2 text-left">Role</th>
+                  <th className="py-2 text-left">Status</th>
+                  <th className="py-2 text-left">Status Note</th>
+                  <th className="py-2 text-left">Status Updated</th>
+                  <th className="py-2 text-left">Password Status</th>
+                  <th className="py-2 text-left">Created</th>
+                  <th className="py-2 text-left">Updated</th>
+                  <th className="py-2 text-left">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="text-white/80">
+                {items.map((user) => (
+                  <tr key={`${user.id}-${user.email}`} className="border-b border-white/5">
+                    <td className="py-2">{user.email}</td>
+                    <td className="py-2">{user.role}</td>
+                    <td className="py-2">{user.status}</td>
+                    <td className="py-2">{user.statusNote ?? "-"}</td>
+                    <td className="py-2">
+                      {user.statusUpdatedAt
+                        ? new Date(user.statusUpdatedAt).toLocaleString()
+                        : "-"}
+                    </td>
+                    <td className="py-2">{user.passwordSet ? "Set" : "Not set"}</td>
+                    <td className="py-2">
+                      {user.createdAt ? new Date(user.createdAt).toLocaleString() : "-"}
+                    </td>
+                    <td className="py-2">
+                      {user.updatedAt ? new Date(user.updatedAt).toLocaleString() : "-"}
+                    </td>
+                    <td className="py-2">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <input
+                            type="password"
+                            className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white"
+                            placeholder="New password"
+                            value={passwordDrafts[user.id] ?? ""}
+                            onChange={(e) =>
+                              setPasswordDrafts((prev) => ({
+                                ...prev,
+                                [user.id]: e.target.value,
+                              }))
+                            }
+                            disabled={busy || user.source === "local"}
+                          />
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => handleSetPassword(user)}
+                            disabled={busy || user.source === "local"}
+                          >
+                            Set Password
+                          </button>
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => handleReset(user.email)}
+                            disabled={busy || user.source === "local"}
+                          >
+                            Reset Link
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <select
+                            className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white"
+                            value={(statusDrafts[user.id]?.status || user.status || "ACTIVE").toUpperCase()}
+                            onChange={(e) =>
+                              setStatusDrafts((prev) => ({
+                                ...prev,
+                                [user.id]: {
+                                  status: e.target.value,
+                                  note: prev[user.id]?.note ?? "",
+                                },
+                              }))
+                            }
+                            disabled={busy || user.source === "local"}
+                          >
+                            <option value="ACTIVE">Active</option>
+                            <option value="SUSPENDED">Suspended</option>
+                          </select>
+                          <input
+                            className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-xs text-white"
+                            placeholder="Status note"
+                            value={statusDrafts[user.id]?.note ?? ""}
+                            onChange={(e) =>
+                              setStatusDrafts((prev) => ({
+                                ...prev,
+                                [user.id]: {
+                                  status: (prev[user.id]?.status || user.status || "ACTIVE").toUpperCase(),
+                                  note: e.target.value,
+                                },
+                              }))
+                            }
+                            disabled={busy || user.source === "local"}
+                          />
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => handleStatusUpdate(user)}
+                            disabled={busy || user.source === "local"}
+                          >
+                            Update Status
+                          </button>
+                        </div>
+                        {user.source === "local" && (
+                          <span className="text-[10px] text-white/50">Local only</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const AdminWorkUnitsPanel: React.FC<{
+  retainers: Retainer[];
+  seekers: Seeker[];
+}> = ({ retainers, seekers }) => {
+  const [refresh, setRefresh] = useState(0);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<
+    "ALL" | "PENDING" | "DISPUTED" | "CONFIRMED" | "AUTO_APPROVED"
+  >("DISPUTED");
+  const [drafts, setDrafts] = useState<
+    Record<string, { completedUnits: string; missedUnits: string; adminNote: string }>
+  >({});
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const routes = useMemo(() => getAllRoutes(), [refresh]);
+  const routeById = useMemo(
+    () => new Map(routes.map((route) => [route.id, route] as const)),
+    [routes]
+  );
+
+  const assignments = useMemo<RouteAssignment[]>(
+    () => getRouteAssignments(),
+    [refresh]
+  );
+  const assignmentById = useMemo(
+    () => new Map(assignments.map((assignment) => [assignment.id, assignment] as const)),
+    [assignments]
+  );
+
+  const periods = useMemo<WorkUnitPeriod[]>(
+    () => getWorkUnitPeriods(),
+    [refresh]
+  );
+
+  const seekerById = useMemo(
+    () => new Map(seekers.map((s) => [s.id, s] as const)),
+    [seekers]
+  );
+  const retainerById = useMemo(
+    () => new Map(retainers.map((r) => [r.id, r] as const)),
+    [retainers]
+  );
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return "-";
+    const dt = new Date(value);
+    if (Number.isNaN(dt.valueOf())) return "-";
+    return dt.toLocaleString();
+  };
+
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const rows = periods.filter((period) =>
+      statusFilter === "ALL" ? true : period.status === statusFilter
+    );
+    if (!needle) return rows;
+    return rows.filter((period) => {
+      const assignment = assignmentById.get(period.assignmentId);
+      const route = assignment ? routeById.get(assignment.routeId) : null;
+      const retainer = assignment ? retainerById.get(assignment.retainerId) : null;
+      const seeker = assignment ? seekerById.get(assignment.seekerId) : null;
+      const retainerName = retainer ? formatRetainerName(retainer) : "";
+      const seekerName = seeker ? formatSeekerName(seeker) : "";
+      const haystack = [
+        period.periodKey,
+        period.status,
+        assignment?.assignmentType ?? "",
+        assignment?.cadence ?? "",
+        route?.title ?? "",
+        retainerName,
+        seekerName,
+        period.disputeNote ?? "",
+        period.adminNote ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(needle);
+    });
+  }, [assignmentById, periods, query, retainerById, routeById, seekerById, statusFilter]);
+
+  const resolvePeriod = (
+    period: WorkUnitPeriod,
+    resolution: "CONFIRM" | "NEUTRAL"
+  ) => {
+    setErrorMessage(null);
+    setStatusMessage(null);
+    const assignment = assignmentById.get(period.assignmentId);
+    const draft = drafts[period.id];
+    const completedRaw = draft?.completedUnits?.trim();
+    const missedRaw = draft?.missedUnits?.trim();
+    const completed =
+      completedRaw && completedRaw.length > 0
+        ? Number(completedRaw)
+        : period.completedUnits;
+    const missed =
+      missedRaw && missedRaw.length > 0 ? Number(missedRaw) : period.missedUnits;
+
+    if (completed != null && (!Number.isFinite(completed) || completed < 0)) {
+      setErrorMessage("Completed units must be a valid non-negative number.");
+      return;
+    }
+    if (missed != null && (!Number.isFinite(missed) || missed < 0)) {
+      setErrorMessage("Missed units must be a valid non-negative number.");
+      return;
+    }
+
+    if (assignment?.assignmentType === "DEDICATED") {
+      const expected = assignment.expectedUnitsPerPeriod ?? period.expectedUnits;
+      if (expected != null) {
+        if (completed != null && completed > expected) {
+          setErrorMessage("Completed units cannot exceed expected units.");
+          return;
+        }
+        if (missed != null && missed > expected) {
+          setErrorMessage("Missed units cannot exceed expected units.");
+          return;
+        }
+      }
+    }
+    if (assignment?.assignmentType === "ON_DEMAND") {
+      const accepted = period.acceptedUnits;
+      if (accepted != null) {
+        if (completed != null && completed > accepted) {
+          setErrorMessage("Completed units cannot exceed accepted units.");
+          return;
+        }
+        if (missed != null && missed > accepted) {
+          setErrorMessage("Missed units cannot exceed accepted units.");
+          return;
+        }
+      }
+    }
+
+    try {
+      resolveDisputedWorkUnitPeriod({
+        periodId: period.id,
+        resolution,
+        completedUnits: completed,
+        missedUnits: missed,
+        adminNote: draft?.adminNote,
+      });
+      setStatusMessage(
+        resolution === "CONFIRM"
+          ? "Work units confirmed."
+          : "Work units neutralized."
+      );
+      setRefresh((r) => r + 1);
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Could not resolve work units.");
+    }
+  };
+
+  return (
+    <section className="surface p-5 hover:border-blue-500/30 transition space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold">Work Unit Disputes</h2>
+          <p className="text-sm text-white/60">
+            Resolve disputed work-unit periods for both parties.
+          </p>
+        </div>
+        <button className="btn" type="button" onClick={() => setRefresh((r) => r + 1)}>
+          Refresh
+        </button>
+      </div>
+
+      {(statusMessage || errorMessage) && (
+        <div
+          className={
+            "rounded-xl border px-3 py-2 text-xs " +
+            (errorMessage
+              ? "border-rose-500/40 text-rose-200 bg-rose-500/10"
+              : "border-emerald-500/40 text-emerald-200 bg-emerald-500/10")
+          }
+        >
+          {errorMessage ?? statusMessage}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by route, retainer, seeker..."
+          className="w-full md:w-72 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as any)}
+          className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+        >
+          <option value="DISPUTED">Disputed</option>
+          <option value="PENDING">Pending</option>
+          <option value="CONFIRMED">Confirmed</option>
+          <option value="AUTO_APPROVED">Auto-approved</option>
+          <option value="ALL">All</option>
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
+          No work-unit periods match the current filters.
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {filtered.slice(0, 120).map((period) => {
+            const assignment = assignmentById.get(period.assignmentId);
+            const route = assignment ? routeById.get(assignment.routeId) : null;
+            const retainer = assignment ? retainerById.get(assignment.retainerId) : null;
+            const seeker = assignment ? seekerById.get(assignment.seekerId) : null;
+            const expected =
+              assignment?.assignmentType === "DEDICATED"
+                ? assignment.expectedUnitsPerPeriod ?? period.expectedUnits
+                : undefined;
+            const accepted =
+              assignment?.assignmentType === "ON_DEMAND" ? period.acceptedUnits : undefined;
+            const draft =
+              drafts[period.id] ?? {
+                completedUnits:
+                  period.completedUnits != null ? String(period.completedUnits) : "",
+                missedUnits:
+                  period.missedUnits != null ? String(period.missedUnits) : "",
+                adminNote: period.adminNote ?? "",
+              };
+
+            return (
+              <div
+                key={period.id}
+                className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-white/90">
+                      {route?.title ?? "Route"} - {retainer ? formatRetainerName(retainer) : "Retainer"}
+                    </div>
+                    <div className="text-xs text-white/60">
+                      Seeker: {seeker ? formatSeekerName(seeker) : "Seeker"} - {assignment?.assignmentType ?? "Unknown"}
+                    </div>
+                  </div>
+                  <div className="text-xs text-white/50 text-right">
+                    <div>{period.periodKey}</div>
+                    <div>{period.cadence}</div>
+                    <div>{period.status}</div>
+                  </div>
+                </div>
+
+                <div className="grid gap-2 md:grid-cols-3 text-xs text-white/70">
+                  <div>
+                    <span className="text-white/50">Expected:</span> {expected ?? "-"}
+                  </div>
+                  <div>
+                    <span className="text-white/50">Accepted:</span> {accepted ?? "-"}
+                  </div>
+                  <div>
+                    <span className="text-white/50">Completed:</span> {period.completedUnits ?? "-"} / Missed: {period.missedUnits ?? "-"}
+                  </div>
+                  <div>
+                    <span className="text-white/50">Retainer submitted:</span>{" "}
+                    {formatDateTime(period.retainerSubmittedAt)}
+                  </div>
+                  <div>
+                    <span className="text-white/50">Seeker response:</span>{" "}
+                    {period.seekerResponse}
+                  </div>
+                  <div>
+                    <span className="text-white/50">Seeker responded:</span>{" "}
+                    {formatDateTime(period.seekerRespondedAt)}
+                  </div>
+                </div>
+
+                {period.disputeNote && (
+                  <div className="text-xs text-amber-200">
+                    Dispute note: {period.disputeNote}
+                  </div>
+                )}
+
+                <div className="grid gap-2 md:grid-cols-3">
+                  <label className="text-xs text-white/60">
+                    Completed units
+                    <input
+                      type="number"
+                      min={0}
+                      value={draft.completedUnits}
+                      onChange={(e) =>
+                        setDrafts((prev) => ({
+                          ...prev,
+                          [period.id]: { ...draft, completedUnits: e.target.value },
+                        }))
+                      }
+                      className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs text-white/60">
+                    Missed units
+                    <input
+                      type="number"
+                      min={0}
+                      value={draft.missedUnits}
+                      onChange={(e) =>
+                        setDrafts((prev) => ({
+                          ...prev,
+                          [period.id]: { ...draft, missedUnits: e.target.value },
+                        }))
+                      }
+                      className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+                    />
+                  </label>
+                  <label className="text-xs text-white/60">
+                    Admin note
+                    <input
+                      value={draft.adminNote}
+                      onChange={(e) =>
+                        setDrafts((prev) => ({
+                          ...prev,
+                          [period.id]: { ...draft, adminNote: e.target.value },
+                        }))
+                      }
+                      placeholder="Resolution note"
+                      className="mt-1 w-full rounded-md border border-white/10 bg-white/5 px-2 py-1 text-sm"
+                    />
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="px-3 py-1 rounded-full text-[11px] border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10"
+                    onClick={() => resolvePeriod(period, "CONFIRM")}
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    type="button"
+                    className="px-3 py-1 rounded-full text-[11px] border border-slate-500/40 text-slate-200 hover:bg-white/10"
+                    onClick={() => resolvePeriod(period, "NEUTRAL")}
+                  >
+                    Neutral
                   </button>
                 </div>
               </div>

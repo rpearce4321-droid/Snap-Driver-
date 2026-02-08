@@ -22,9 +22,10 @@ Status: Draft - update until finalized.
 - Pay cycle is a soft filter on the Seeker wheel (like radius or zip).
 
 ## Check-in Lifecycle
-- Auto-approval toggle per retainer in Badge Center (after profile completion).
-- If auto-approval is OFF and no response after 48 hours: check-in resolves as neutral.
-- Neutral counts against the Badge Checker (approval badge).
+- Auto-approval window: **48 hours** after cadence close.
+- If no action, check-in **defaults to YES** (points awarded).
+- Neutral check-in is **explicit** (no points, no level change).
+- Negative check-in triggers a **7-day dispute** window; Admin resolves.
 - NO requires an explanation. YES never requires an explanation.
 - Explanations are visible to both parties and Snap Admin.
 
@@ -35,7 +36,7 @@ Status: Draft - update until finalized.
 - Snap Admin resolves disputes with YES or NO and creates a log entry.
 
 ## Scoring Model
-- Badge levels are dynamic (can drop).
+- Badge levels are dynamic (can drop); negative outcomes are **3x impact** vs positives.
 - Badge scores drive the global Professional Reputation Score; avoid double penalties.
 - Global Professional Reputation Score is the weighted average of badge scores.
 - Professional Reputation Score display uses a 200-900 scale.
@@ -59,10 +60,51 @@ Status: Draft - update until finalized.
 - Professional Reputation Score = weighted average of badgeScore values
 - k (default): 0.56; level multipliers editable in Snap Admin
 
+## Mandatory Badges
+- **Snap badges** (mandatory):
+  - **Profile Integrity** (granted when full profile completion criteria are met; revoked if profile becomes incomplete).
+  - **Operational Disclosure** (granted when non-sensitive operating details are provided).
+  - Existing onboarding Snap badge remains mandatory.
+- **Work Completion** is a mandatory **BACKGROUND** badge, fed by work-unit completion.
+- **Background badge selection is tiered and locked**:
+  - Tier 1: 1 foreground + 1 background
+  - Tier 2: 2 foreground + 2 background
+  - Tier 3: 4 foreground + 4 background
+  - Background badges are locked for 12 months and must include mandatory selections.
+  - Implementation note: caps are derived from entitlements (Retainer STARTER/GROWTH/ENTERPRISE -> Tier 1/2/3; Seeker TRIAL/STARTER/GROWTH/ELITE -> Tier 1/1/2/3).
+
+## Mandatory Badge Definitions (Draft)
+### Profile Integrity (Snap)
+- **Kind**: SNAP (ONCE)
+- **Grant**: When all required profile fields are complete and required media are present.
+- **Revoke**: If required fields or media are removed.
+- **Purpose**: Establish baseline trust; ties to base score.
+
+### Operational Disclosure (Snap)
+- **Kind**: SNAP (ONCE)
+- **Grant**: When non-sensitive operating details are provided (business type/model, coverage area, equipment/fleet summary, terms acknowledgement).
+- **Revoke**: If required disclosures are removed.
+- **Purpose**: Establish operational clarity without sensitive identity data.
+
+### Work Completion (Background)
+- **Kind**: BACKGROUND (RECURRING)
+- **Cadence**: Retainer pay-cycle frequency (weekly/biweekly/monthly).
+- **Weight**: Default 4 (admin-adjustable).
+- **Seeker meaning**: Completed assigned work units for the period.
+- **Retainer meaning**: Delivered the promised work units for the period.
+
+## Work-Unit Completion (Scoring Anchor)
+- Score is tied to **work units**, not route-ops data.
+- Dedicated routes: work units are scheduled **days or shifts** per period.
+- On-demand routes: work units are **accepted jobs** per period.
+- Only accepted work can be marked missed; no penalty for unaccepted offers.
+- Retainer submits completed/missed counts; Seeker can confirm/dispute within 48 hours.
+- Both parties are blind to each other's input during the window.
+
 ## UI Requirements
 - Only the notice-related badge shows a timer (top-right of the badge).
 - Badge Checker is the approval badge.
-- Badge Center includes the auto-approval toggle per retainer.
+- Auto-approval is on by default after the 48-hour window (no toggle).
 - Add a Record Hall to each party's action page and to Snap Admin.
 - Add a Score History tab in Badge Center with filters (30/60/90/180 days).
 - Add a Repair Planner (projection) panel inside the Score History tab.
@@ -79,12 +121,13 @@ Status: Draft - update until finalized.
 
 ## Open Decisions
 - New-user protections (if any) and confirmation thresholds.
+- Define base score weighting to equal **6 months at 700** and decay rules.
 
 
 ## Abuse Countermeasures
 - Collusion (fake YESes): require periodic admin audits and flag suspicious patterns.
 - Retaliatory NOs: dispute flow + admin override with audit logs.
-- No-response abuse: neutral default; auto-approval toggle per retainer.
+- No-response abuse: auto-approval defaults YES after the 48-hour window; neutral requires explicit action.
 - Sockpuppet accounts: admin review + linkage rules later.
 - Timing manipulation: pay-cycle-locked cadence and timestamps.
 - Badge selection gaming: admin can require minimum badge groups.

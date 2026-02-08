@@ -6,7 +6,7 @@
 // - Badges are global per profile (Seeker/Retainer).
 // - Only linked parties can verify badge check-ins.
 // - "Working together" must be enabled on the link to submit check-ins.
-// - Each profile can pick up to 4 active (goal) badges at a time.
+// - Badge selection caps are tiered (1/1, 2/2, 4/4).
 // - Badges are scored from recent confirmations (YES/(YES+NO)).
 // - A Professional Reputation Score (PRS) is derived from badge scores.
 // - Badge levels are achieved based on lifetime average + sample size.
@@ -15,12 +15,13 @@
 import { readStoreData, writeStore } from "./storage";
 import { getActiveBadExitPenaltyPercent } from "./routeNotices";
 import { getLink, getLinksForRetainer, getLinksForSeeker, isWorkingTogether, type Link } from "./linking";
+import { getRetainerEntitlements, getSeekerEntitlements } from "./entitlements";
 
 export type BadgeOwnerRole = "SEEKER" | "RETAINER";
 export type BadgeId = string;
 
 export type BadgeKind = "BACKGROUND" | "SELECTABLE" | "SNAP" | "CHECKER";
-export type BadgeCadence = "WEEKLY" | "MONTHLY" | "ONCE";
+export type BadgeCadence = "WEEKLY" | "BIWEEKLY" | "MONTHLY" | "ONCE";
 export type BadgeCheckinStatus = "ACTIVE" | "DISPUTED" | "OVERRIDDEN";
 
 export type BadgeLevelRule = {
@@ -34,6 +35,7 @@ export type BadgeDefinition = {
   kind: BadgeKind;
   cadence?: BadgeCadence;
   weight?: number;
+  isMandatory?: boolean;
   title: string;
   iconKey: string;
   description: string;
@@ -72,6 +74,7 @@ export type BadgeCheckin = {
   // Link context (who worked with whom)
   seekerId: string;
   retainerId: string;
+  linkId?: string;
 
   badgeId: BadgeId;
   targetRole: BadgeOwnerRole;
@@ -81,8 +84,14 @@ export type BadgeCheckin = {
   verifierId: string;
 
   value: BadgeCheckinValue;
+  // Optional unit-based counts (used for work completion)
+  yesUnits?: number;
+  noUnits?: number;
+
   status?: BadgeCheckinStatus;
   overrideValue?: BadgeCheckinValue;
+  overrideYesUnits?: number;
+  overrideNoUnits?: number;
   overrideNote?: string;
   createdAt: string;
   updatedAt: string;
@@ -118,6 +127,13 @@ export type ReputationScoreHistoryEntry = {
   note?: string;
 };
 
+export type BadgeTier = 1 | 2 | 3;
+export type BadgeSelectionCaps = {
+  tier: BadgeTier;
+  active: number;
+  background: number;
+};
+
 const BADGES_KEY_V2 = "snapdriver_badges_v2";
 const BADGES_KEY_V1 = "snapdriver_badges_v1";
 const BADGE_RULES_KEY = "snapdriver_badge_rules_v1";
@@ -139,11 +155,25 @@ const DEFAULT_KIND_WEIGHTS: Record<BadgeKind, number> = {
 };
 const DEFAULT_LEVEL_MULTIPLIERS = [0.85, 0.95, 1, 1.1, 1.25];
 const BACKGROUND_LOCK_MONTHS = 12;
+const AUTO_APPROVAL_WINDOW_HOURS = 48;
+
+const BADGE_CAPS_BY_TIER: Record<BadgeTier, { active: number; background: number }> = {
+  1: { active: 1, background: 1 },
+  2: { active: 2, background: 2 },
+  3: { active: 4, background: 4 },
+};
+
+const WORK_COMPLETION_BADGE_IDS: Record<BadgeOwnerRole, BadgeId> = {
+  SEEKER: "seeker_work_completion",
+  RETAINER: "retainer_work_completion",
+};
 
 export const REPUTATION_SCORE_MIN = 200;
 export const REPUTATION_SCORE_MAX = 900;
 export const REPUTATION_SCORE_WINDOW_DAYS = 90;
 export const REPUTATION_PENALTY_K = 0.56;
+export const NEGATIVE_UNIT_MULTIPLIER = 3;
+export const REPUTATION_SCORE_MIN_SAMPLES = 12;
 
 export const MAX_ACTIVE_BADGES = 4;
 export const MAX_BACKGROUND_BADGES = 4;
@@ -200,6 +230,19 @@ function isoWeekKey(d: Date = new Date()): string {
   return `${date.getUTCFullYear()}-W${ww}`;
 }
 
+function biWeekKey(d: Date = new Date()): string {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(
+    ((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+  );
+  const biWeekNo = Math.ceil(weekNo / 2);
+  const bw = String(biWeekNo).padStart(2, "0");
+  return `${date.getUTCFullYear()}-BW${bw}`;
+}
+
 function monthKey(d: Date = new Date()): string {
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -209,6 +252,12 @@ function monthKey(d: Date = new Date()): string {
 function addMonths(date: Date, months: number): Date {
   const next = new Date(date.getTime());
   next.setMonth(next.getMonth() + months);
+  return next;
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date.getTime());
+  next.setDate(next.getDate() + days);
   return next;
 }
 
@@ -225,6 +274,66 @@ function isWithinDaysOf(iso: string, days: number, asOf: Date): boolean {
   const asOfTs = asOf.getTime();
   const cutoff = asOfTs - days * 86_400_000;
   return ts >= cutoff && ts <= asOfTs;
+}
+
+function parseIsoWeekKey(key: string): { year: number; week: number } | null {
+  const match = /^(\d{4})-W(\d{2})$/.exec(key);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(week)) return null;
+  return { year, week };
+}
+
+function isoWeekStartDate(year: number, week: number): Date {
+  const simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
+  const dow = simple.getUTCDay();
+  const start = new Date(simple.getTime());
+  if (dow <= 4) {
+    start.setUTCDate(simple.getUTCDate() - (dow === 0 ? 6 : dow - 1));
+  } else {
+    start.setUTCDate(simple.getUTCDate() + (8 - dow));
+  }
+  return start;
+}
+
+function getPeriodEndMs(periodKey: string, cadence: BadgeCadence): number | null {
+  if (!periodKey) return null;
+  if (cadence === "MONTHLY") {
+    const match = /^(\d{4})-(\d{2})$/.exec(periodKey);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const monthIndex = Number(match[2]) - 1;
+    if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return null;
+    return Date.UTC(year, monthIndex + 1, 1);
+  }
+  if (cadence === "BIWEEKLY") {
+    const match = /^(\d{4})-BW(\d{2})$/.exec(periodKey);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const biweek = Number(match[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(biweek)) return null;
+    const week = (biweek - 1) * 2 + 1;
+    const start = isoWeekStartDate(year, week);
+    return start.getTime() + 14 * 86_400_000;
+  }
+  const parsed = parseIsoWeekKey(periodKey);
+  if (!parsed) return null;
+  const start = isoWeekStartDate(parsed.year, parsed.week);
+  return start.getTime() + 7 * 86_400_000;
+}
+
+function getWindowCloseMs(periodKey: string, cadence: BadgeCadence): number | null {
+  const end = getPeriodEndMs(periodKey, cadence);
+  if (!end) return null;
+  return end + AUTO_APPROVAL_WINDOW_HOURS * 60 * 60 * 1000;
+}
+
+function getPreviousPeriodKey(cadence: BadgeCadence, from: Date = new Date()): string {
+  const base = new Date(from.getTime());
+  if (cadence === "MONTHLY") return monthKey(addMonths(base, -1));
+  if (cadence === "BIWEEKLY") return biWeekKey(addDays(base, -14));
+  return isoWeekKey(addDays(base, -7));
 }
 
 function normalizeRulesArray(
@@ -537,6 +646,36 @@ export function getBadgeWeight(badgeId: BadgeId): number {
   return 2;
 }
 
+export function getBadgeSelectionCaps(ownerRole: BadgeOwnerRole, ownerId: string): BadgeSelectionCaps {
+  const tier: BadgeTier = (() => {
+    if (ownerRole === "RETAINER") {
+      const ent = getRetainerEntitlements(ownerId);
+      if (ent.tier === "ENTERPRISE") return 3;
+      if (ent.tier === "GROWTH") return 2;
+      return 1;
+    }
+    const ent = getSeekerEntitlements(ownerId);
+    if (ent.tier === "ELITE") return 3;
+    if (ent.tier === "GROWTH") return 2;
+    return 1;
+  })();
+  const caps = BADGE_CAPS_BY_TIER[tier];
+  const mandatoryCount = getMandatoryBackgroundBadges(ownerRole).length;
+  return {
+    tier,
+    active: caps.active,
+    background: Math.max(caps.background, mandatoryCount),
+  };
+}
+
+export function getMandatoryBackgroundBadges(role: BadgeOwnerRole): BadgeDefinition[] {
+  return getBackgroundBadges(role).filter((b) => b.isMandatory);
+}
+
+function getMandatoryBackgroundBadgeIds(role: BadgeOwnerRole): BadgeId[] {
+  return getMandatoryBackgroundBadges(role).map((b) => b.id);
+}
+
 
 function normalizeSelection(raw: any): BadgeSelection | null {
   if (!raw || typeof raw !== "object") return null;
@@ -602,11 +741,25 @@ function normalizeCheckin(raw: any): BadgeCheckin | null {
   const verifierRole = normalizeRole(raw.verifierRole);
   const value: BadgeCheckinValue = raw.value === "NO" ? "NO" : "YES";
   const cadence: BadgeCadence =
-    raw.cadence === "MONTHLY" ? "MONTHLY" : raw.cadence === "ONCE" ? "ONCE" : "WEEKLY";
+    raw.cadence === "MONTHLY"
+      ? "MONTHLY"
+      : raw.cadence === "BIWEEKLY"
+        ? "BIWEEKLY"
+        : raw.cadence === "ONCE"
+          ? "ONCE"
+          : "WEEKLY";
   const status: BadgeCheckinStatus =
     raw.status === "DISPUTED" ? "DISPUTED" : raw.status === "OVERRIDDEN" ? "OVERRIDDEN" : "ACTIVE";
   const overrideValue: BadgeCheckinValue | undefined =
     raw.overrideValue === "NO" ? "NO" : raw.overrideValue === "YES" ? "YES" : undefined;
+  const yesUnits = Number.isFinite(raw.yesUnits) ? Math.max(0, Math.floor(raw.yesUnits)) : undefined;
+  const noUnits = Number.isFinite(raw.noUnits) ? Math.max(0, Math.floor(raw.noUnits)) : undefined;
+  const overrideYesUnits = Number.isFinite(raw.overrideYesUnits)
+    ? Math.max(0, Math.floor(raw.overrideYesUnits))
+    : undefined;
+  const overrideNoUnits = Number.isFinite(raw.overrideNoUnits)
+    ? Math.max(0, Math.floor(raw.overrideNoUnits))
+    : undefined;
   const overrideNote = typeof raw.overrideNote === "string" ? raw.overrideNote : undefined;
   return {
     id: String(raw.id || makeId("checkin")),
@@ -614,14 +767,19 @@ function normalizeCheckin(raw: any): BadgeCheckin | null {
     cadence,
     seekerId: String(raw.seekerId),
     retainerId: String(raw.retainerId),
+    linkId: typeof raw.linkId === "string" ? raw.linkId : undefined,
     badgeId: String(raw.badgeId),
     targetRole,
     targetId: String(raw.targetId),
     verifierRole,
     verifierId: String(raw.verifierId),
     value,
+    yesUnits,
+    noUnits,
     status,
     overrideValue,
+    overrideYesUnits,
+    overrideNoUnits,
     overrideNote,
     createdAt: typeof raw.createdAt === "string" ? raw.createdAt : nowIso(),
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : nowIso(),
@@ -651,17 +809,58 @@ function getEffectiveCheckinValue(checkin: BadgeCheckin): BadgeCheckinValue | nu
   return checkin.value;
 }
 
+function getRawCheckinUnits(checkin: BadgeCheckin): { yes: number; no: number } {
+  const hasUnits = checkin.yesUnits != null || checkin.noUnits != null;
+  if (hasUnits) {
+    return {
+      yes: Math.max(0, Math.floor(checkin.yesUnits ?? 0)),
+      no: Math.max(0, Math.floor(checkin.noUnits ?? 0)),
+    };
+  }
+  return {
+    yes: checkin.value === "YES" ? 1 : 0,
+    no: checkin.value === "NO" ? 1 : 0,
+  };
+}
+
+function getEffectiveCheckinUnits(checkin: BadgeCheckin): { yes: number; no: number } | null {
+  if (checkin.status === "DISPUTED") return null;
+  const hasOverrideUnits = checkin.overrideYesUnits != null || checkin.overrideNoUnits != null;
+  if (hasOverrideUnits) {
+    return {
+      yes: Math.max(0, Math.floor(checkin.overrideYesUnits ?? 0)),
+      no: Math.max(0, Math.floor(checkin.overrideNoUnits ?? 0)),
+    };
+  }
+  if (checkin.overrideValue) {
+    return {
+      yes: checkin.overrideValue === "YES" ? 1 : 0,
+      no: checkin.overrideValue === "NO" ? 1 : 0,
+    };
+  }
+  return getRawCheckinUnits(checkin);
+}
+
+function getWeightedCheckinUnits(checkin: BadgeCheckin): { yes: number; no: number } | null {
+  const units = getEffectiveCheckinUnits(checkin);
+  if (!units) return null;
+  return {
+    yes: units.yes,
+    no: units.no * NEGATIVE_UNIT_MULTIPLIER,
+  };
+}
+
 function computeCountsFromCheckins(
   checkins: BadgeCheckin[]
 ): Map<string, { yes: number; no: number }> {
   const map = new Map<string, { yes: number; no: number }>();
   for (const c of checkins) {
-    const value = getEffectiveCheckinValue(c);
-    if (!value) continue;
+    const units = getWeightedCheckinUnits(c);
+    if (!units) continue;
     const key = `${c.targetRole}:${c.targetId}:${c.badgeId}`;
     const curr = map.get(key) ?? { yes: 0, no: 0 };
-    if (value === "YES") curr.yes += 1;
-    else curr.no += 1;
+    curr.yes += units.yes;
+    curr.no += units.no;
     map.set(key, curr);
   }
   return map;
@@ -857,7 +1056,8 @@ export function getActiveBadges(ownerRole: BadgeOwnerRole, ownerId: string): Bad
     store.selections.find((s) => s.ownerRole === ownerRole && s.ownerId === ownerId) ?? null;
   const ids = sel?.activeBadgeIds ?? [];
   const selectableIds = new Set(getSelectableBadges(ownerRole).map((b) => b.id));
-  return ids.filter((id) => selectableIds.has(id)).slice(0, MAX_ACTIVE_BADGES);
+  const caps = getBadgeSelectionCaps(ownerRole, ownerId);
+  return ids.filter((id) => selectableIds.has(id)).slice(0, caps.active);
 }
 
 export function getBadgeSelections(): BadgeSelection[] {
@@ -872,9 +1072,10 @@ export function setActiveBadges(
 ): BadgeSelection {
   const store = loadStore();
   const selectableIds = new Set(getSelectableBadges(ownerRole).map((b) => b.id));
+  const caps = getBadgeSelectionCaps(ownerRole, ownerId);
   const cleaned = uniqStrings(Array.isArray(badgeIds) ? badgeIds : [])
     .filter((id) => selectableIds.has(id))
-    .slice(0, MAX_ACTIVE_BADGES);
+    .slice(0, caps.active);
 
   const ts = nowIso();
   const existing =
@@ -909,17 +1110,20 @@ export function setActiveBadges(
 }
 
 export function getSelectedBackgroundBadges(ownerRole: BadgeOwnerRole, ownerId: string): BadgeId[] {
-  const fallback = getBackgroundBadges(ownerRole)
-    .map((b) => b.id)
-    .slice(0, MAX_BACKGROUND_BADGES);
-  if (!ownerId) return fallback;
+  const fallback = getBackgroundBadges(ownerRole).map((b) => b.id);
+  const caps = getBadgeSelectionCaps(ownerRole, ownerId);
+  const mandatory = getMandatoryBackgroundBadgeIds(ownerRole);
+  const base = fillWithFallback(mandatory, fallback, caps.background);
+  if (!ownerId) return base;
   const store = loadStore();
   const sel =
     store.selections.find((s) => s.ownerRole === ownerRole && s.ownerId === ownerId) ?? null;
   const ids = sel?.backgroundBadgeIds ?? [];
   const validIds = new Set(getBackgroundBadges(ownerRole).map((b) => b.id));
-  const cleaned = ids.filter((id) => validIds.has(id)).slice(0, MAX_BACKGROUND_BADGES);
-  return cleaned.length > 0 ? cleaned : fallback;
+  const cleaned = ids.filter((id) => validIds.has(id));
+  const withMandatory = fillWithFallback(mandatory, cleaned, caps.background);
+  const filled = fillWithFallback(withMandatory, fallback, caps.background);
+  return filled.length > 0 ? filled : base;
 }
 
 export function getBackgroundLockStatus(ownerRole: BadgeOwnerRole, ownerId: string): {
@@ -965,7 +1169,9 @@ export function setBackgroundBadges(
     };
   }
 
+  const caps = getBadgeSelectionCaps(ownerRole, ownerId);
   const validIds = new Set(getBackgroundBadges(ownerRole).map((b) => b.id));
+  const mandatory = getMandatoryBackgroundBadgeIds(ownerRole).filter((id) => validIds.has(id));
   const cleaned = uniqStrings(Array.isArray(badgeIds) ? badgeIds : [])
     .filter((id) => validIds.has(id));
   const fallback = existing?.backgroundBadgeIds?.length
@@ -973,7 +1179,8 @@ export function setBackgroundBadges(
     : getBackgroundBadges(ownerRole)
         .map((b) => b.id)
         .slice(0, MAX_BACKGROUND_BADGES);
-  const filled = fillWithFallback(cleaned, fallback, MAX_BACKGROUND_BADGES);
+  const withMandatory = fillWithFallback(mandatory, cleaned, caps.background);
+  const filled = fillWithFallback(withMandatory, fallback, caps.background);
 
   const ts = nowIso();
   const next: BadgeSelection = {
@@ -1020,6 +1227,38 @@ export function grantSnapBadge(
     ownerRole,
     ownerId,
     note: "Snap badge granted",
+  });
+  return next;
+}
+
+export function revokeSnapBadge(
+  ownerRole: BadgeOwnerRole,
+  ownerId: string,
+  badgeId: BadgeId
+): BadgeProgress {
+  const def = getBadgeDefinition(badgeId);
+  if (!def || def.kind !== "SNAP") throw new Error("Snap badge not found.");
+  const store = loadStore();
+  const progress = getOrCreateProgress(store, ownerRole, ownerId, badgeId);
+  if (progress.yesCount <= 0 && progress.maxLevel <= 0) return progress;
+  const ts = nowIso();
+  const next: BadgeProgress = {
+    ...progress,
+    yesCount: 0,
+    noCount: 0,
+    maxLevel: 0,
+    updatedAt: ts,
+  };
+  const idx = store.progress.findIndex(
+    (p) => p.ownerRole === ownerRole && p.ownerId === ownerId && p.badgeId === badgeId
+  );
+  if (idx >= 0) store.progress[idx] = next;
+  else store.progress.push(next);
+  saveStore(store);
+  recordReputationScoreSnapshot({
+    ownerRole,
+    ownerId,
+    note: "Snap badge revoked",
   });
   return next;
 }
@@ -1100,10 +1339,10 @@ function getBadgeReputationWindow(args: {
   let yes = 0;
   let no = 0;
   for (const c of relevant) {
-    const value = getEffectiveCheckinValue(c);
-    if (!value) continue;
-    if (value === "YES") yes += 1;
-    else no += 1;
+    const units = getWeightedCheckinUnits(c);
+    if (!units) continue;
+    yes += units.yes;
+    no += units.no;
   }
 
   return { yes, no, total: yes + no };
@@ -1129,10 +1368,10 @@ function getBadgeReputationWindowAtDate(args: {
   let yes = 0;
   let no = 0;
   for (const c of relevant) {
-    const value = getEffectiveCheckinValue(c);
-    if (!value) continue;
-    if (value === "YES") yes += 1;
-    else no += 1;
+    const units = getWeightedCheckinUnits(c);
+    if (!units) continue;
+    yes += units.yes;
+    no += units.no;
   }
 
   return { yes, no, total: yes + no };
@@ -1279,6 +1518,7 @@ export function getReputationScoreForProfile(args: {
 
   const totalYes = expectations.yes + growth.yes;
   const totalNo = expectations.no + growth.no;
+  const totalSamples = totalYes + totalNo;
 
   if (score != null && args.ownerRole === "SEEKER") {
     const penalty = getActiveBadExitPenaltyPercent(ownerId);
@@ -1291,9 +1531,13 @@ export function getReputationScoreForProfile(args: {
     score = clampReputationScore(score);
   }
 
+  if (totalSamples < REPUTATION_SCORE_MIN_SAMPLES) {
+    return { score: null, scorePercent: null, yes: totalYes, no: totalNo, total: totalSamples };
+  }
+
   const scorePercent = score == null ? null : reputationScoreToPercent(score);
 
-  return { score, scorePercent, yes: totalYes, no: totalNo, total: totalYes + totalNo };
+  return { score, scorePercent, yes: totalYes, no: totalNo, total: totalSamples };
 }
 
 export function getReputationScoreForProfileAtDate(args: {
@@ -1385,6 +1629,7 @@ export function getReputationScoreForProfileAtDate(args: {
 
   const totalYes = expectations.yes + growth.yes;
   const totalNo = expectations.no + growth.no;
+  const totalSamples = totalYes + totalNo;
 
   if (score != null && args.ownerRole === "SEEKER") {
     const penalty = getActiveBadExitPenaltyPercent(ownerId);
@@ -1397,9 +1642,13 @@ export function getReputationScoreForProfileAtDate(args: {
     score = clampReputationScore(score);
   }
 
+  if (totalSamples < REPUTATION_SCORE_MIN_SAMPLES) {
+    return { score: null, scorePercent: null, yes: totalYes, no: totalNo, total: totalSamples };
+  }
+
   const scorePercent = score == null ? null : reputationScoreToPercent(score);
 
-  return { score, scorePercent, yes: totalYes, no: totalNo, total: totalYes + totalNo };
+  return { score, scorePercent, yes: totalYes, no: totalNo, total: totalSamples };
 }
 
 export function getTrustRatingForProfile(args: {
@@ -1539,12 +1788,13 @@ export type SubmitWeeklyCheckinArgs = {
   periodKey?: string;
   cadence?: BadgeCadence;
   value: BadgeCheckinValue;
+  yesUnits?: number;
+  noUnits?: number;
   createdAt?: string;
   updatedAt?: string;
 
   // TODO(badges): Require a reason when value is NO (retainer/seeker explanation).
   // TODO(badges): Add admin tooling to create/edit badge descriptions.
-  // TODO(badges): Add automation defaults (auto-approve on deadline unless explicitly rejected).
 
   // Link context:
   seekerId: string;
@@ -1582,7 +1832,9 @@ function applyCheckinToStore(
 
   const cadence = args.cadence ?? def.cadence ?? "WEEKLY";
   const periodKey =
-    args.periodKey ?? args.weekKey ?? (cadence === "MONTHLY" ? monthKey() : isoWeekKey());
+    args.periodKey ??
+    args.weekKey ??
+    (cadence === "MONTHLY" ? monthKey() : cadence === "BIWEEKLY" ? biWeekKey() : isoWeekKey());
 
   const existingIdx = store.checkins.findIndex(
     (c) =>
@@ -1608,13 +1860,19 @@ function applyCheckinToStore(
   const progress = getOrCreateProgress(store, args.targetRole, args.targetId, args.badgeId);
   const nextProgress: BadgeProgress = { ...progress, updatedAt };
 
-  const applyDelta = (value: BadgeCheckinValue, dir: 1 | -1) => {
-    if (value === "YES") nextProgress.yesCount = Math.max(0, nextProgress.yesCount + dir);
-    else nextProgress.noCount = Math.max(0, nextProgress.noCount + dir);
+  const hasUnits = args.yesUnits != null || args.noUnits != null;
+  const yesUnits = hasUnits ? Math.max(0, asInt(args.yesUnits, 0)) : args.value === "YES" ? 1 : 0;
+  const noUnitsRaw = hasUnits ? Math.max(0, asInt(args.noUnits, 0)) : args.value === "NO" ? 1 : 0;
+  const nextUnits = { yes: yesUnits, no: noUnitsRaw * NEGATIVE_UNIT_MULTIPLIER };
+
+  const applyUnits = (units: { yes: number; no: number } | null, dir: 1 | -1) => {
+    if (!units) return;
+    nextProgress.yesCount = Math.max(0, nextProgress.yesCount + units.yes * dir);
+    nextProgress.noCount = Math.max(0, nextProgress.noCount + units.no * dir);
   };
 
-  if (existing) applyDelta(existing.value, -1);
-  applyDelta(args.value, 1);
+  if (existing) applyUnits(getWeightedCheckinUnits(existing), -1);
+  applyUnits(nextUnits, 1);
 
   const computed = computeBadgeLevel(def, nextProgress.yesCount, nextProgress.noCount);
   nextProgress.maxLevel = computed;
@@ -1625,6 +1883,8 @@ function applyCheckinToStore(
         weekKey: periodKey,
         cadence,
         value: args.value,
+        yesUnits: hasUnits ? yesUnits : undefined,
+        noUnits: hasUnits ? noUnitsRaw : undefined,
         updatedAt,
       }
     : {
@@ -1640,6 +1900,8 @@ function applyCheckinToStore(
         verifierId: args.verifierId,
         value: args.value,
         status: "ACTIVE",
+        yesUnits: hasUnits ? yesUnits : undefined,
+        noUnits: hasUnits ? noUnitsRaw : undefined,
         createdAt: ts,
         updatedAt,
       };
@@ -1671,6 +1933,42 @@ export function submitWeeklyCheckin(
     note: "Badge check-in recorded",
   });
   return result;
+}
+
+export function submitWorkCompletionCheckin(args: {
+  ownerRole: BadgeOwnerRole;
+  ownerId: string;
+  verifierRole: BadgeOwnerRole;
+  verifierId: string;
+  seekerId: string;
+  retainerId: string;
+  periodKey: string;
+  cadence: BadgeCadence;
+  completedUnits: number;
+  missedUnits: number;
+  createdAt?: string;
+  updatedAt?: string;
+}): SubmitWeeklyCheckinResult {
+  const badgeId = WORK_COMPLETION_BADGE_IDS[args.ownerRole];
+  const completedUnits = Math.max(0, Math.floor(args.completedUnits));
+  const missedUnits = Math.max(0, Math.floor(args.missedUnits));
+  const value: BadgeCheckinValue = missedUnits > 0 ? "NO" : "YES";
+  return submitWeeklyCheckin({
+    badgeId,
+    periodKey: args.periodKey,
+    cadence: args.cadence,
+    value,
+    yesUnits: completedUnits,
+    noUnits: missedUnits,
+    createdAt: args.createdAt,
+    updatedAt: args.updatedAt,
+    seekerId: args.seekerId,
+    retainerId: args.retainerId,
+    targetRole: args.ownerRole,
+    targetId: args.ownerId,
+    verifierRole: args.verifierRole,
+    verifierId: args.verifierId,
+  });
 }
 
 export function submitWeeklyCheckinsBatch(
@@ -1712,6 +2010,7 @@ export function getCurrentMonthKey(): string {
 
 export function getCurrentPeriodKey(cadence: BadgeCadence = "WEEKLY"): string {
   if (cadence === "MONTHLY") return monthKey();
+  if (cadence === "BIWEEKLY") return biWeekKey();
   return isoWeekKey();
 }
 
@@ -1735,6 +2034,10 @@ export function getPendingBadgeApprovalsForProfile(args: {
 }): { count: number; items: PendingBadgeApproval[] } {
   if (!args.ownerId) return { count: 0, items: [] };
   const verifierRole = args.ownerRole;
+  const store = loadStore();
+  let storeDirty = false;
+  const touched = new Map<string, { ownerRole: BadgeOwnerRole; ownerId: string }>();
+  const now = Date.now();
   const links =
     args.ownerRole === "SEEKER"
       ? getLinksForSeeker(args.ownerId)
@@ -1758,30 +2061,96 @@ export function getPendingBadgeApprovalsForProfile(args: {
       if (def.verifierRole !== verifierRole) continue;
       if (def.cadence === "ONCE") continue;
       const cadence = def.cadence ?? "WEEKLY";
-      const periodKey = getCurrentPeriodKey(cadence);
-      const existing = getCheckinForPeriod({
-        periodKey,
-        cadence,
-        badgeId,
-        targetRole: counterpartRole,
-        targetId: counterpartId,
-        verifierRole,
-        verifierId: args.ownerId,
-        seekerId: link.seekerId,
-        retainerId: link.retainerId,
-      });
+      const previousPeriodKey = getPreviousPeriodKey(cadence);
+      const windowClosesAt = getWindowCloseMs(previousPeriodKey, cadence);
+      const existing = store.checkins.find(
+        (c) =>
+          c.weekKey === previousPeriodKey &&
+          (c.cadence ?? "WEEKLY") === cadence &&
+          c.badgeId === badgeId &&
+          c.targetRole === counterpartRole &&
+          c.targetId === counterpartId &&
+          c.verifierRole === verifierRole &&
+          c.verifierId === args.ownerId &&
+          c.seekerId === link.seekerId &&
+          c.retainerId === link.retainerId
+      );
       if (existing) continue;
-      items.push({
-        badgeId,
-        targetRole: counterpartRole,
-        targetId: counterpartId,
-        verifierRole,
-        verifierId: args.ownerId,
-        seekerId: link.seekerId,
-        retainerId: link.retainerId,
-        cadence,
-        periodKey,
-        linkId: link.id,
+      if (windowClosesAt && now > windowClosesAt) {
+        try {
+          applyCheckinToStore(store, {
+            badgeId,
+            periodKey: previousPeriodKey,
+            cadence,
+            value: "YES",
+            createdAt: new Date(windowClosesAt).toISOString(),
+            updatedAt: new Date(windowClosesAt).toISOString(),
+            seekerId: link.seekerId,
+            retainerId: link.retainerId,
+            targetRole: counterpartRole,
+            targetId: counterpartId,
+            verifierRole,
+            verifierId: args.ownerId,
+          });
+          storeDirty = true;
+          const key = `${counterpartRole}:${counterpartId}`;
+          touched.set(key, { ownerRole: counterpartRole, ownerId: counterpartId });
+        } catch {
+          // ignore auto-approval failures
+        }
+        continue;
+      }
+      if (windowClosesAt && now <= windowClosesAt) {
+        items.push({
+          badgeId,
+          targetRole: counterpartRole,
+          targetId: counterpartId,
+          verifierRole,
+          verifierId: args.ownerId,
+          seekerId: link.seekerId,
+          retainerId: link.retainerId,
+          cadence,
+          periodKey: previousPeriodKey,
+          linkId: link.id,
+        });
+      } else {
+        const periodKey = getCurrentPeriodKey(cadence);
+        const existingCurrent = store.checkins.find(
+          (c) =>
+            c.weekKey === periodKey &&
+            (c.cadence ?? "WEEKLY") === cadence &&
+            c.badgeId === badgeId &&
+            c.targetRole === counterpartRole &&
+            c.targetId === counterpartId &&
+            c.verifierRole === verifierRole &&
+            c.verifierId === args.ownerId &&
+            c.seekerId === link.seekerId &&
+            c.retainerId === link.retainerId
+        );
+        if (existingCurrent) continue;
+        items.push({
+          badgeId,
+          targetRole: counterpartRole,
+          targetId: counterpartId,
+          verifierRole,
+          verifierId: args.ownerId,
+          seekerId: link.seekerId,
+          retainerId: link.retainerId,
+          cadence,
+          periodKey,
+          linkId: link.id,
+        });
+      }
+    }
+  }
+
+  if (storeDirty) {
+    saveStore(store);
+    for (const entry of touched.values()) {
+      recordReputationScoreSnapshot({
+        ownerRole: entry.ownerRole,
+        ownerId: entry.ownerId,
+        note: "Badge auto-approval recorded",
       });
     }
   }
@@ -1801,10 +2170,10 @@ function recomputeProgressForBadge(store: BadgeStore, targetRole: BadgeOwnerRole
   let yes = 0;
   let no = 0;
   for (const c of relevant) {
-    const value = getEffectiveCheckinValue(c);
-    if (!value) continue;
-    if (value === "YES") yes += 1;
-    else no += 1;
+    const units = getWeightedCheckinUnits(c);
+    if (!units) continue;
+    yes += units.yes;
+    no += units.no;
   }
 
   const progress = getOrCreateProgress(store, targetRole, targetId, badgeId);
@@ -1831,6 +2200,8 @@ export function updateBadgeCheckinStatus(args: {
   checkinId: string;
   status: BadgeCheckinStatus;
   overrideValue?: BadgeCheckinValue;
+  overrideYesUnits?: number;
+  overrideNoUnits?: number;
   overrideNote?: string;
 }): BadgeCheckin | null {
   const store = loadStore();
@@ -1841,6 +2212,12 @@ export function updateBadgeCheckinStatus(args: {
     ...existing,
     status: args.status,
     overrideValue: args.overrideValue,
+    overrideYesUnits: Number.isFinite(args.overrideYesUnits)
+      ? Math.max(0, Math.floor(args.overrideYesUnits as number))
+      : existing.overrideYesUnits,
+    overrideNoUnits: Number.isFinite(args.overrideNoUnits)
+      ? Math.max(0, Math.floor(args.overrideNoUnits as number))
+      : existing.overrideNoUnits,
     overrideNote: args.overrideNote,
     updatedAt: nowIso(),
   };
@@ -1901,6 +2278,37 @@ const SEEKER_BADGES: BadgeDefinition[] = [
     howToEarn:
       "Submit the onboarding video confirming you operate as an independent business.",
     weeklyPrompt: "Onboarding video completed.",
+    isMandatory: true,
+    weight: 3,
+  },
+  {
+    id: "seeker_profile_integrity",
+    ownerRole: "SEEKER",
+    kind: "SNAP",
+    cadence: "ONCE",
+    verifierRole: "RETAINER",
+    iconKey: "shield",
+    title: "Profile Integrity",
+    description: "Maintains a complete, up-to-date profile.",
+    howToEarn:
+      "Complete all required profile fields and upload required photos.",
+    weeklyPrompt: "Profile completion requirements met.",
+    isMandatory: true,
+    weight: 3,
+  },
+  {
+    id: "seeker_operational_disclosure",
+    ownerRole: "SEEKER",
+    kind: "SNAP",
+    cadence: "ONCE",
+    verifierRole: "RETAINER",
+    iconKey: "eye",
+    title: "Operational Disclosure",
+    description: "Shares non-sensitive operating details.",
+    howToEarn:
+      "Provide business type/model, coverage area, equipment summary, and terms acknowledgment.",
+    weeklyPrompt: "Operational disclosure completed.",
+    isMandatory: true,
     weight: 3,
   },
   {
@@ -1919,6 +2327,20 @@ const SEEKER_BADGES: BadgeDefinition[] = [
   },
 
   // Background badges (minimum expectations)
+  {
+    id: "seeker_work_completion",
+    ownerRole: "SEEKER",
+    kind: "BACKGROUND",
+    verifierRole: "RETAINER",
+    iconKey: "route",
+    title: "Work Completion",
+    description: "Completes assigned work units for the period.",
+    howToEarn:
+      "Complete assigned work units and resolve issues through the cadence window.",
+    weeklyPrompt: "Assigned work units were completed this period.",
+    isMandatory: true,
+    weight: 4,
+  },
   {
     id: "seeker_no_dropped_routes",
     ownerRole: "SEEKER",
@@ -2211,6 +2633,37 @@ const RETAINER_BADGES: BadgeDefinition[] = [
     howToEarn:
       "Submit the onboarding video confirming you are a broker and offer work.",
     weeklyPrompt: "Onboarding video completed.",
+    isMandatory: true,
+    weight: 3,
+  },
+  {
+    id: "retainer_profile_integrity",
+    ownerRole: "RETAINER",
+    kind: "SNAP",
+    cadence: "ONCE",
+    verifierRole: "SEEKER",
+    iconKey: "shield",
+    title: "Profile Integrity",
+    description: "Maintains a complete, up-to-date profile.",
+    howToEarn:
+      "Complete all required profile fields and upload required photos.",
+    weeklyPrompt: "Profile completion requirements met.",
+    isMandatory: true,
+    weight: 3,
+  },
+  {
+    id: "retainer_operational_disclosure",
+    ownerRole: "RETAINER",
+    kind: "SNAP",
+    cadence: "ONCE",
+    verifierRole: "SEEKER",
+    iconKey: "eye",
+    title: "Operational Disclosure",
+    description: "Shares non-sensitive operating details.",
+    howToEarn:
+      "Provide business model, coverage area, equipment summary, and terms acknowledgment.",
+    weeklyPrompt: "Operational disclosure completed.",
+    isMandatory: true,
     weight: 3,
   },
   {
@@ -2229,6 +2682,20 @@ const RETAINER_BADGES: BadgeDefinition[] = [
   },
 
   // Background badges (minimum expectations)
+  {
+    id: "retainer_work_completion",
+    ownerRole: "RETAINER",
+    kind: "BACKGROUND",
+    verifierRole: "SEEKER",
+    iconKey: "route",
+    title: "Work Completion",
+    description: "Delivers the promised work units for the period.",
+    howToEarn:
+      "Provide the committed work units and resolve issues through the cadence window.",
+    weeklyPrompt: "Promised work units were delivered this period.",
+    isMandatory: true,
+    weight: 4,
+  },
   {
     id: "retainer_clear_terms",
     ownerRole: "RETAINER",

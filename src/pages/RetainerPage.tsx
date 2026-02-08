@@ -64,6 +64,8 @@ import {
 
   setLinkVideoConfirmed,
 
+  isWorkingTogether,
+
   type Link as LinkingLink,
 
 } from "../lib/linking";
@@ -200,7 +202,20 @@ import {
 
   getReputationScoreForProfile,
 
+  getCurrentPeriodKey,
+
 } from "../lib/badges";
+
+import {
+  createRouteAssignment,
+  createWorkUnitPeriod,
+  getAssignmentsForRetainer,
+  getPeriodByKey,
+  submitWorkUnitCounts,
+  type RouteAssignment,
+  type WorkUnitAssignmentType,
+  type WorkUnitType,
+} from "../lib/workUnits";
 
 import { badgeIconFor } from "../components/badgeIcons";
 
@@ -247,7 +262,7 @@ const ApprovalGate: React.FC<ApprovalGateProps> = ({
   body,
   status,
   onBack,
-  backLabel = "Back to landing",
+  backLabel = "Back",
 }) => (
   <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-6">
     <div className="w-full max-w-xl rounded-3xl border border-slate-800 bg-slate-900/70 p-6 space-y-3">
@@ -356,6 +371,8 @@ const RetainerPage: React.FC = () => {
   const isSessionRetainer = session?.role === "RETAINER";
   const sessionRetainerId = isSessionRetainer ? session.retainerId ?? null : null;
   const sessionEmail = session?.email ? String(session.email).toLowerCase() : null;
+  const retainerHydratedRef = useRef(false);
+  const retainerUpsertedRef = useRef(false);
 
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
 
@@ -542,6 +559,8 @@ const RetainerPage: React.FC = () => {
 
   useEffect(() => {
     if (!effectiveRetainer || sessionRetainer) return;
+    if (retainerUpsertedRef.current) return;
+    retainerUpsertedRef.current = true;
     setCurrentRetainerId(effectiveRetainer.id);
     persistCurrentRetainerId(effectiveRetainer.id);
     setSession({ role: "RETAINER", retainerId: effectiveRetainer.id, email: sessionEmail ?? undefined });
@@ -985,28 +1004,33 @@ const RetainerPage: React.FC = () => {
 
     if (selectedSeekersInLists.length === 0) return;
 
+    let blocked = 0;
     for (const s of selectedSeekersInLists as any[]) {
+      try {
+        requestLink({
+          seekerId: String((s as any).id),
+          retainerId: currentRetainerId,
+          by: "RETAINER",
+        });
+      } catch {
+        blocked += 1;
+      }
+    }
 
-      requestLink({
-
-        seekerId: String((s as any).id),
-
-        retainerId: currentRetainerId,
-
-        by: "RETAINER",
-
-      });
-
+    const sentCount = selectedSeekersInLists.length - blocked;
+    if (blocked > 0) {
+      setToastMessage(
+        sentCount > 0
+          ? `${sentCount} link requests sent. ${blocked} seekers need to upgrade before linking.`
+          : `${blocked} seekers need to upgrade before linking.`
+      );
+      return;
     }
 
     setToastMessage(
-
       selectedSeekersInLists.length === 1
-
         ? "Link request sent."
-
         : `Link requests sent to ${selectedSeekersInLists.length} seekers.`
-
     );
 
   };
@@ -1213,10 +1237,38 @@ const RetainerPage: React.FC = () => {
         title={approvalGate.title}
         body={approvalGate.body}
         status={approvalGate.status}
-        onBack={() => navigate("/")}
+        onBack={() => navigate(-1)}
       />
     );
   }
+
+  const miniProfileCard = (
+    <button
+      type="button"
+      onClick={() => setActiveTab("dashboard")}
+      className="group flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-left hover:bg-slate-900/90 transition"
+      title="Go to dashboard"
+    >
+      <span className="h-10 w-10 rounded-xl overflow-hidden border border-slate-700 bg-slate-950/60 shrink-0">
+        <img
+          src={getStockImageUrl("RETAINER", currentRetainerId ?? undefined)}
+          alt=""
+          className="h-full w-full object-cover"
+        />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[10px] uppercase tracking-wide text-slate-500">
+          Dashboard
+        </span>
+        <span className="block text-sm font-semibold text-slate-100 truncate">
+          {currentRetainer ? formatRetainerName(currentRetainer) : "Retainer Portal"}
+        </span>
+        <span className="block text-[10px] text-slate-500">
+          Status: {(currentRetainer as any)?.status ?? "Not set"}
+        </span>
+      </span>
+    </button>
+  );
 
   return (
 
@@ -1332,11 +1384,14 @@ const RetainerPage: React.FC = () => {
         <div className="lg:hidden border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                  Snap Driver
+              <div className="space-y-3">
+                {miniProfileCard}
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    Snap Driver
+                  </div>
+                  <div className="text-lg font-semibold text-slate-50">Retainer Portal</div>
                 </div>
-                <div className="text-lg font-semibold text-slate-50">Retainer Portal</div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
@@ -1504,14 +1559,17 @@ const RetainerPage: React.FC = () => {
         )}
 
         <header className="hidden lg:block px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
-          <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-slate-50">
-                {renderHeaderTitle(activeTab)}
-              </h2>
-              <p className="text-sm text-slate-400 mt-1">
-                {renderHeaderSubtitle(activeTab)}
-              </p>
+          <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              {miniProfileCard}
+              <div>
+                <h2 className="text-2xl font-semibold text-slate-50">
+                  {renderHeaderTitle(activeTab)}
+                </h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  {renderHeaderSubtitle(activeTab)}
+                </p>
+              </div>
             </div>
           </div>
         </header>
@@ -4756,20 +4814,17 @@ const DashboardView: React.FC<{
 
                                 if (!canInteract) return;
 
-                                const next = clearLinkMeetingSchedule({
-
-                                  seekerId: scheduleLink.seekerId,
-
-                                  retainerId,
-
-                                });
-
-                                if (next) setScheduleLink(next);
-
-                                setLinkTick((x) => x + 1);
-
-                                onToast("Scheduled call cleared.");
-
+                                try {
+                                  const next = clearLinkMeetingSchedule({
+                                    seekerId: scheduleLink.seekerId,
+                                    retainerId,
+                                  });
+                                  if (next) setScheduleLink(next);
+                                  setLinkTick((x) => x + 1);
+                                  onToast("Scheduled call cleared.");
+                                } catch (err: any) {
+                                  onToast(err?.message || "Unable to clear schedule.");
+                                }
                               }}
 
                               disabled={!canInteract}
@@ -4846,22 +4901,18 @@ const DashboardView: React.FC<{
 
                                       if (!canInteract) return;
 
-                                      const next = acceptLinkMeetingProposal({
-
-                                        seekerId: scheduleLink.seekerId,
-
-                                        retainerId,
-
-                                        proposalId: p.id,
-
-                                      });
-
-                                      if (next) setScheduleLink(next);
-
-                                      setLinkTick((x) => x + 1);
-
-                                      onToast("Video call time confirmed.");
-
+                                      try {
+                                        const next = acceptLinkMeetingProposal({
+                                          seekerId: scheduleLink.seekerId,
+                                          retainerId,
+                                          proposalId: p.id,
+                                        });
+                                        if (next) setScheduleLink(next);
+                                        setLinkTick((x) => x + 1);
+                                        onToast("Video call time confirmed.");
+                                      } catch (err: any) {
+                                        onToast(err?.message || "Unable to confirm video call.");
+                                      }
                                     }}
 
                                     disabled={!canInteract}
@@ -4998,32 +5049,23 @@ const DashboardView: React.FC<{
 
                         }
 
-                        const next = addLinkMeetingProposal({
-
-                          seekerId: scheduleLink.seekerId,
-
-                          retainerId,
-
-                          by: "RETAINER",
-
-                          startAt: d.toISOString(),
-
-                          durationMinutes: proposalDuration,
-
-                          note: proposalNote,
-
-                        });
-
-                        setScheduleLink(next);
-
-                        setProposalAt("");
-
-                        setProposalNote("");
-
-                        setLinkTick((x) => x + 1);
-
-                        onToast("Proposed a video call time.");
-
+                        try {
+                          const next = addLinkMeetingProposal({
+                            seekerId: scheduleLink.seekerId,
+                            retainerId,
+                            by: "RETAINER",
+                            startAt: d.toISOString(),
+                            durationMinutes: proposalDuration,
+                            note: proposalNote,
+                          });
+                          setScheduleLink(next);
+                          setProposalAt("");
+                          setProposalNote("");
+                          setLinkTick((x) => x + 1);
+                          onToast("Proposed a video call time.");
+                        } catch (err: any) {
+                          onToast(err?.message || "Unable to propose a time.");
+                        }
                       }}
 
                       disabled={!canInteract}
@@ -5038,7 +5080,7 @@ const DashboardView: React.FC<{
 
                     <div className="text-[11px] text-slate-500">
 
-                      Times use your local timezone.
+                      Times use the selected route timezone.
 
                     </div>
 
@@ -5214,6 +5256,7 @@ const ActionView: React.FC<{
 }) => {
 
   const selectedCount = selectedSeekerIds.size;
+  const [seekerSort, setSeekerSort] = useState<"default" | "match">("default");
 
   const activeRoutes = useMemo(
 
@@ -5231,13 +5274,21 @@ const ActionView: React.FC<{
 
   );
 
+  const matchSeekers = useMemo(
+
+    () => [...wheelSeekers, ...bucketSeekers],
+
+    [wheelSeekers, bucketSeekers]
+
+  );
+
   const scheduleMatchBySeekerId = useMemo(() => {
 
     const map = new Map<string, ScheduleMatch>();
 
     if (activeRoutes.length === 0) return map;
 
-    for (const s of bucketSeekers) {
+    for (const s of matchSeekers) {
 
       const availability = (s as any)?.availability;
 
@@ -5251,7 +5302,57 @@ const ActionView: React.FC<{
 
     return map;
 
-  }, [activeRoutes, bucketSeekers]);
+  }, [activeRoutes, matchSeekers]);
+
+  const sortSeekers = (list: Seeker[]) => {
+
+    if (seekerSort !== "match") return list;
+
+    return [...list].sort((a, b) => {
+
+      const aMatch = scheduleMatchBySeekerId.get(String((a as any).id))?.percent ?? 0;
+
+      const bMatch = scheduleMatchBySeekerId.get(String((b as any).id))?.percent ?? 0;
+
+      if (bMatch !== aMatch) return bMatch - aMatch;
+
+      return formatSeekerName(a).localeCompare(formatSeekerName(b));
+
+    });
+
+  };
+
+  const sortedWheelSeekers = useMemo(
+
+    () => sortSeekers(wheelSeekers),
+
+    [wheelSeekers, seekerSort, scheduleMatchBySeekerId]
+
+  );
+
+  const sortedExcellentSeekers = useMemo(
+
+    () => sortSeekers(excellentSeekers),
+
+    [excellentSeekers, seekerSort, scheduleMatchBySeekerId]
+
+  );
+
+  const sortedPossibleSeekers = useMemo(
+
+    () => sortSeekers(possibleSeekers),
+
+    [possibleSeekers, seekerSort, scheduleMatchBySeekerId]
+
+  );
+
+  const sortedNotNowSeekers = useMemo(
+
+    () => sortSeekers(notNowSeekers),
+
+    [notNowSeekers, seekerSort, scheduleMatchBySeekerId]
+
+  );
 
   const getScheduleMatch = (seekerId: string): ScheduleMatch | undefined =>
 
@@ -5591,10 +5692,13 @@ const ActionView: React.FC<{
 
         <ViewSeekersView
 
-          wheelSeekers={wheelSeekers}
-          excellentSeekers={excellentSeekers}
-          possibleSeekers={possibleSeekers}
-          notNowSeekers={notNowSeekers}
+          wheelSeekers={sortedWheelSeekers}
+          excellentSeekers={sortedExcellentSeekers}
+          possibleSeekers={sortedPossibleSeekers}
+          notNowSeekers={sortedNotNowSeekers}
+          seekerSort={seekerSort}
+          onChangeSeekerSort={setSeekerSort}
+          scheduleMatchBySeekerId={scheduleMatchBySeekerId}
 
           onClassify={onClassifySeeker}
 
@@ -5630,12 +5734,22 @@ const ActionView: React.FC<{
 
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-wrap items-center justify-between gap-3">
 
-            <div className="flex items-center gap-2">
-
-              <div className="text-sm font-semibold text-slate-100">Bulk actions</div>
-
-              <span className="text-xs text-slate-400">{selectedCount} selected</span>
-
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-semibold text-slate-100">Bulk actions</div>
+                <span className="text-xs text-slate-400">{selectedCount} selected</span>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-300">
+                <span className="text-slate-400">Sort</span>
+                <select
+                  value={seekerSort}
+                  onChange={(e) => setSeekerSort(e.target.value as "default" | "match")}
+                  className="bg-transparent text-[11px] text-slate-100 focus:outline-none"
+                >
+                  <option value="default">Default order</option>
+                  <option value="match">Schedule match</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -5736,7 +5850,7 @@ const ActionView: React.FC<{
 
               color="emerald"
 
-              seekers={excellentSeekers}
+              seekers={sortedExcellentSeekers}
 
               bucketKey="excellent"
 
@@ -5764,7 +5878,7 @@ const ActionView: React.FC<{
 
               color="sky"
 
-              seekers={possibleSeekers}
+              seekers={sortedPossibleSeekers}
 
               bucketKey="possible"
 
@@ -5792,7 +5906,7 @@ const ActionView: React.FC<{
 
               color="rose"
 
-              seekers={notNowSeekers}
+              seekers={sortedNotNowSeekers}
 
               bucketKey="notNow"
 
@@ -6488,20 +6602,17 @@ const ActionView: React.FC<{
 
                                 if (!canInteract) return;
 
-                                const next = clearLinkMeetingSchedule({
-
-                                  seekerId: scheduleLink.seekerId,
-
-                                  retainerId,
-
-                                });
-
-                                if (next) setScheduleLink(next);
-
-                                setScheduleTick((x) => x + 1);
-
-                                onToast("Scheduled call cleared.");
-
+                                try {
+                                  const next = clearLinkMeetingSchedule({
+                                    seekerId: scheduleLink.seekerId,
+                                    retainerId,
+                                  });
+                                  if (next) setScheduleLink(next);
+                                  setScheduleTick((x) => x + 1);
+                                  onToast("Scheduled call cleared.");
+                                } catch (err: any) {
+                                  onToast(err?.message || "Unable to clear schedule.");
+                                }
                               }}
 
                               disabled={!canInteract}
@@ -6576,22 +6687,18 @@ const ActionView: React.FC<{
 
                                       if (!canInteract) return;
 
-                                      const next = acceptLinkMeetingProposal({
-
-                                        seekerId: scheduleLink.seekerId,
-
-                                        retainerId,
-
-                                        proposalId: p.id,
-
-                                      });
-
-                                      if (next) setScheduleLink(next);
-
-                                      setScheduleTick((x) => x + 1);
-
-                                      onToast("Video call time confirmed.");
-
+                                      try {
+                                        const next = acceptLinkMeetingProposal({
+                                          seekerId: scheduleLink.seekerId,
+                                          retainerId,
+                                          proposalId: p.id,
+                                        });
+                                        if (next) setScheduleLink(next);
+                                        setScheduleTick((x) => x + 1);
+                                        onToast("Video call time confirmed.");
+                                      } catch (err: any) {
+                                        onToast(err?.message || "Unable to confirm video call.");
+                                      }
                                     }}
 
                                     disabled={!canInteract}
@@ -6728,32 +6835,23 @@ const ActionView: React.FC<{
 
                         }
 
-                        const next = addLinkMeetingProposal({
-
-                          seekerId: scheduleLink.seekerId,
-
-                          retainerId,
-
-                          by: "RETAINER",
-
-                          startAt: d.toISOString(),
-
-                          durationMinutes: proposalDuration,
-
-                          note: proposalNote,
-
-                        });
-
-                        setScheduleLink(next);
-
-                        setProposalAt("");
-
-                        setProposalNote("");
-
-                        setScheduleTick((x) => x + 1);
-
-                        onToast("Proposed a video call time.");
-
+                        try {
+                          const next = addLinkMeetingProposal({
+                            seekerId: scheduleLink.seekerId,
+                            retainerId,
+                            by: "RETAINER",
+                            startAt: d.toISOString(),
+                            durationMinutes: proposalDuration,
+                            note: proposalNote,
+                          });
+                          setScheduleLink(next);
+                          setProposalAt("");
+                          setProposalNote("");
+                          setScheduleTick((x) => x + 1);
+                          onToast("Proposed a video call time.");
+                        } catch (err: any) {
+                          onToast(err?.message || "Unable to propose a time.");
+                        }
                       }}
 
                       disabled={!canInteract}
@@ -6768,7 +6866,7 @@ const ActionView: React.FC<{
 
                     <div className="text-[11px] text-slate-500">
 
-                      Times use your local timezone.
+                      Times use the selected route timezone.
 
                     </div>
 
@@ -7151,12 +7249,28 @@ const ViewSeekersView: React.FC<{
   excellentSeekers: Seeker[];
   possibleSeekers: Seeker[];
   notNowSeekers: Seeker[];
+  seekerSort: "default" | "match";
+  onChangeSeekerSort: (value: "default" | "match") => void;
+  scheduleMatchBySeekerId: Map<string, ScheduleMatch>;
   onClassify: (seeker: Seeker, bucket: SeekerBucketKey) => void;
   onOpenProfile: (seeker: Seeker) => void;
   onMessage: (seeker: Seeker) => void;
   retainerRoutes: Route[];
   canInteract?: boolean;
-}> = ({ wheelSeekers, excellentSeekers, possibleSeekers, notNowSeekers, onClassify, onOpenProfile, onMessage, retainerRoutes, canInteract = true }) => {
+}> = ({
+  wheelSeekers,
+  excellentSeekers,
+  possibleSeekers,
+  notNowSeekers,
+  seekerSort,
+  onChangeSeekerSort,
+  scheduleMatchBySeekerId,
+  onClassify,
+  onOpenProfile,
+  onMessage,
+  retainerRoutes,
+  canInteract = true,
+}) => {
   const [centerIndex, setCenterIndex] = useState(0);
   const wheelAccumulatorRef = useRef(0);
   const [expandedSeeker, setExpandedSeeker] = useState<Seeker | null>(null);
@@ -7166,14 +7280,20 @@ const ViewSeekersView: React.FC<{
     [retainerRoutes]
   );
 
+  const sortedWheelSeekers = wheelSeekers;
+  const sortedExcellentSeekers = excellentSeekers;
+  const sortedPossibleSeekers = possibleSeekers;
+  const sortedNotNowSeekers = notNowSeekers;
+
   useEffect(() => {
-    if (wheelSeekers.length === 0) setCenterIndex(0);
-    else setCenterIndex((prev) => Math.max(0, Math.min(prev, wheelSeekers.length - 1)));
-  }, [wheelSeekers.length]);
+    if (sortedWheelSeekers.length === 0) setCenterIndex(0);
+    else setCenterIndex((prev) => Math.max(0, Math.min(prev, sortedWheelSeekers.length - 1)));
+  }, [sortedWheelSeekers.length]);
 
   const goToNext = (direction: number) => {
-    if (wheelSeekers.length === 0) return;
-    const nextIndex = (centerIndex + direction + wheelSeekers.length) % wheelSeekers.length;
+    if (sortedWheelSeekers.length === 0) return;
+    const nextIndex =
+      (centerIndex + direction + sortedWheelSeekers.length) % sortedWheelSeekers.length;
     if (nextIndex === centerIndex) return;
     setCenterIndex(nextIndex);
   };
@@ -7184,7 +7304,7 @@ const ViewSeekersView: React.FC<{
   };
 
   const handleWheel: React.WheelEventHandler<HTMLDivElement> = (e) => {
-    if (wheelSeekers.length === 0) return;
+    if (sortedWheelSeekers.length === 0) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -7214,20 +7334,6 @@ const ViewSeekersView: React.FC<{
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
-  const scheduleMatchBySeekerId = useMemo(() => {
-    const map = new Map<string, ScheduleMatch>();
-    if (activeRoutes.length === 0) return map;
-
-    for (const s of wheelSeekers) {
-      const availability = (s as any).availability;
-      if (!availability?.blocks?.length) continue;
-      const m = bestMatchForRoutes({ availability, routes: activeRoutes as any });
-      if (m.percent > 0) map.set(String((s as any).id), m);
-    }
-
-    return map;
-  }, [activeRoutes, wheelSeekers]);
-
   useEffect(() => {
     if (!expandedSeeker) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -7237,17 +7343,19 @@ const ViewSeekersView: React.FC<{
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [expandedSeeker]);
 
-  const currentSeeker = wheelSeekers[centerIndex] ?? null;
+  const currentSeeker = sortedWheelSeekers[centerIndex] ?? null;
   const nextSeeker =
-    wheelSeekers.length > 1
-      ? wheelSeekers[(centerIndex + 1) % wheelSeekers.length]
+    sortedWheelSeekers.length > 1
+      ? sortedWheelSeekers[(centerIndex + 1) % sortedWheelSeekers.length]
       : null;
   const prevPeek =
-    wheelSeekers.length > 1
-      ? wheelSeekers[(centerIndex - 1 + wheelSeekers.length) % wheelSeekers.length]
+    sortedWheelSeekers.length > 1
+      ? sortedWheelSeekers[
+          (centerIndex - 1 + sortedWheelSeekers.length) % sortedWheelSeekers.length
+        ]
       : null;
   const nextPeek = nextSeeker;
-  const remaining = Math.max(0, wheelSeekers.length - centerIndex - 1);
+  const remaining = Math.max(0, sortedWheelSeekers.length - centerIndex - 1);
 
     const renderPeekCard = (s: Seeker) => {
     const name = formatSeekerName(s);
@@ -7302,14 +7410,28 @@ const ViewSeekersView: React.FC<{
             Scroll to browse one profile at a time. Click to open the full profile, or sort them into your lists.
           </p>
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-300">
-          Scroll to browse ? Click to expand
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-300">
+            <span className="text-slate-400">Sort</span>
+            <select
+              value={seekerSort}
+              onChange={(e) => onChangeSeekerSort(e.target.value as "default" | "match")}
+              className="bg-transparent text-[11px] text-slate-100 focus:outline-none"
+            >
+              <option value="default">Default order</option>
+              <option value="match">Schedule match</option>
+            </select>
+          </div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-300">
+            Scroll to browse ? Click to expand
+          </div>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-[11px] text-slate-400 mb-3">
         <span>
-          Profile {wheelSeekers.length === 0 ? 0 : centerIndex + 1} of {wheelSeekers.length}
+          Profile {sortedWheelSeekers.length === 0 ? 0 : centerIndex + 1} of{" "}
+          {sortedWheelSeekers.length}
         </span>
         <span>
           {remaining} left
@@ -7361,9 +7483,9 @@ const ViewSeekersView: React.FC<{
         <div className="hidden lg:block relative w-full lg:w-64 shrink-0 h-[64vh] lg:h-[70vh]">
           <div className="absolute left-0 right-0 top-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-3 h-[28%] flex flex-col">
             <div className="text-xs uppercase tracking-wide text-emerald-200">Excellent</div>
-            <div className="text-[11px] text-emerald-100 mt-1">{excellentSeekers.length} saved</div>
+            <div className="text-[11px] text-emerald-100 mt-1">{sortedExcellentSeekers.length} saved</div>
             <div className="mt-2 space-y-2 overflow-y-auto pr-1">
-              {excellentSeekers.map((s) => (
+              {sortedExcellentSeekers.map((s) => (
                 <div key={s.id}>{renderRailCard(s, "emerald")}</div>
               ))}
             </div>
@@ -7371,9 +7493,9 @@ const ViewSeekersView: React.FC<{
 
           <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 rounded-2xl border border-sky-500/30 bg-sky-500/10 px-3 py-3 h-[28%] flex flex-col">
             <div className="text-xs uppercase tracking-wide text-sky-200">Possible</div>
-            <div className="text-[11px] text-sky-100 mt-1">{possibleSeekers.length} saved</div>
+            <div className="text-[11px] text-sky-100 mt-1">{sortedPossibleSeekers.length} saved</div>
             <div className="mt-2 space-y-2 overflow-y-auto pr-1">
-              {possibleSeekers.map((s) => (
+              {sortedPossibleSeekers.map((s) => (
                 <div key={s.id}>{renderRailCard(s, "sky")}</div>
               ))}
             </div>
@@ -7381,9 +7503,9 @@ const ViewSeekersView: React.FC<{
 
           <div className="absolute left-0 right-0 bottom-6 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-3 h-[28%] flex flex-col">
             <div className="text-xs uppercase tracking-wide text-rose-200">Not now</div>
-            <div className="text-[11px] text-rose-100 mt-1">{notNowSeekers.length} saved</div>
+            <div className="text-[11px] text-rose-100 mt-1">{sortedNotNowSeekers.length} saved</div>
             <div className="mt-2 space-y-2 overflow-y-auto pr-1">
-              {notNowSeekers.map((s) => (
+              {sortedNotNowSeekers.map((s) => (
                 <div key={s.id}>{renderRailCard(s, "rose")}</div>
               ))}
             </div>
@@ -9476,7 +9598,12 @@ const RetainerLinkingView: React.FC<{
 
     if (existing) return existing;
 
-    return requestLink({ seekerId, retainerId, by: "RETAINER" });
+    try {
+      return requestLink({ seekerId, retainerId, by: "RETAINER" });
+    } catch (err: any) {
+      onToast(err?.message || "Unable to request link.");
+      return null;
+    }
 
   };
 
@@ -9711,37 +9838,30 @@ const RetainerLinkingView: React.FC<{
                   checked={link.videoConfirmedByRetainer}
 
                   onChange={(e) => {
-
-                    ensureLink(s.id);
-
-                    const updated = setLinkVideoConfirmed({
-
-                      seekerId: s.id,
-
-                      retainerId,
-
-                      by: "RETAINER",
-
-                      value: e.target.checked,
-
-                    });
+                    const ensured = ensureLink(s.id);
+                    if (!ensured) return;
+                    let updated: LinkingLink | null = null;
+                    try {
+                      updated = setLinkVideoConfirmed({
+                        seekerId: s.id,
+                        retainerId,
+                        by: "RETAINER",
+                        value: e.target.checked,
+                      });
+                    } catch (err: any) {
+                      onToast(err?.message || "Unable to update link.");
+                      return;
+                    }
 
                     if (e.target.checked) {
-
                       onToast(
-
                         updated?.status === "ACTIVE"
-
                           ? "Link is now active."
-
                           : "Video confirmation saved. Waiting on the other side."
-
                       );
-
                     }
 
                     setRefresh((n) => n + 1);
-
                   }}
 
                 />
@@ -9777,37 +9897,30 @@ const RetainerLinkingView: React.FC<{
                   checked={link.approvedByRetainer}
 
                   onChange={(e) => {
-
-                    ensureLink(s.id);
-
-                    const updated = setLinkApproved({
-
-                      seekerId: s.id,
-
-                      retainerId,
-
-                      by: "RETAINER",
-
-                      value: e.target.checked,
-
-                    });
+                    const ensured = ensureLink(s.id);
+                    if (!ensured) return;
+                    let updated: LinkingLink | null = null;
+                    try {
+                      updated = setLinkApproved({
+                        seekerId: s.id,
+                        retainerId,
+                        by: "RETAINER",
+                        value: e.target.checked,
+                      });
+                    } catch (err: any) {
+                      onToast(err?.message || "Unable to update link.");
+                      return;
+                    }
 
                     if (e.target.checked) {
-
                       onToast(
-
                         updated?.status === "ACTIVE"
-
                           ? "Link is now active."
-
                           : "Approval saved. Waiting on the other side."
-
                       );
-
                     }
 
                     setRefresh((n) => n + 1);
-
                   }}
 
                 />
@@ -9913,15 +10026,17 @@ const RetainerLinkingView: React.FC<{
                   className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
 
                   onClick={() => {
-
                     resetLink(s.id, retainerId);
-
-                    requestLink({ seekerId: s.id, retainerId, by: "RETAINER" });
+                    try {
+                      requestLink({ seekerId: s.id, retainerId, by: "RETAINER" });
+                    } catch (err: any) {
+                      onToast(err?.message || "Unable to request link.");
+                      return;
+                    }
 
                     onToast("Started a new link request");
 
                     setRefresh((n) => n + 1);
-
                   }}
 
                 >
@@ -11454,6 +11569,54 @@ const RetainerRoutesView: React.FC<{
 
   const [disputeNotes, setDisputeNotes] = useState<Record<string, string>>({});
 
+  const assignments = useMemo<RouteAssignment[]>(
+    () => (retainer ? getAssignmentsForRetainer(retainer.id) : []),
+    [retainer?.id, refresh]
+  );
+
+  const assignmentsByRouteId = useMemo(() => {
+    const map = new Map<string, RouteAssignment[]>();
+    assignments.forEach((assignment) => {
+      const list = map.get(assignment.routeId) ?? [];
+      list.push(assignment);
+      map.set(assignment.routeId, list);
+    });
+    map.forEach((list) => {
+      list.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
+    });
+    return map;
+  }, [assignments]);
+
+  const linksBySeekerId = useMemo(() => {
+    if (!retainer) return new Map<string, LinkingLink>();
+    const links = getLinksForRetainer(retainer.id);
+    const map = new Map<string, LinkingLink>();
+    links.forEach((link) => map.set(link.seekerId, link));
+    return map;
+  }, [retainer?.id, refresh]);
+
+  const [lockDrafts, setLockDrafts] = useState<
+    Record<
+      string,
+      {
+        seekerId: string;
+        startDate: string;
+        expectedUnits: string;
+        unitType: WorkUnitType;
+      }
+    >
+  >({});
+
+  const [workUnitDrafts, setWorkUnitDrafts] = useState<
+    Record<
+      string,
+      {
+        completedUnits: string;
+        acceptedUnits: string;
+      }
+    >
+  >({});
+
   const activeNotices = useMemo(() => {
 
     if (!retainer) return [];
@@ -11481,6 +11644,17 @@ const RetainerRoutesView: React.FC<{
     return dt.toLocaleDateString();
 
   };
+
+  const toInputDate = (iso: string) => {
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.valueOf())) return "";
+    const year = dt.getFullYear();
+    const month = String(dt.getMonth() + 1).padStart(2, "0");
+    const day = String(dt.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayInput = () => toInputDate(new Date().toISOString());
 
   const [title, setTitle] = useState("");
 
@@ -12702,6 +12876,22 @@ const RetainerRoutesView: React.FC<{
 
                   const isExpanded = expandedRouteId === route.id;
 
+                  const assignmentsForRoute =
+                    assignmentsByRouteId.get(route.id) ?? [];
+
+                  const defaultExpectedUnits = route.scheduleDays?.length
+                    ? route.scheduleDays.length
+                    : 5;
+
+                  const lockDraft =
+                    lockDrafts[route.id] ??
+                    ({
+                      seekerId: interests[0]?.seekerId ?? "",
+                      startDate: todayInput(),
+                      expectedUnits: String(defaultExpectedUnits),
+                      unitType: "DAY",
+                    } as const);
+
                   return (
 
                     <div
@@ -12841,6 +13031,488 @@ const RetainerRoutesView: React.FC<{
                             })
 
                           )}
+
+                          <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3 space-y-2">
+                            <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                              Lock in seeker
+                            </div>
+                            {interests.length === 0 ? (
+                              <div className="text-xs text-slate-500">
+                                No Interested seekers yet.
+                              </div>
+                            ) : (
+                              <>
+                                <div className="grid gap-2 md:grid-cols-4">
+                                  <div className="space-y-1 md:col-span-2">
+                                    <label className="text-[11px] text-slate-400">
+                                      Seeker
+                                    </label>
+                                    <select
+                                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-slate-100"
+                                      value={lockDraft.seekerId}
+                                      onChange={(e) =>
+                                        setLockDrafts((prev) => ({
+                                          ...prev,
+                                          [route.id]: {
+                                            ...lockDraft,
+                                            seekerId: e.target.value,
+                                          },
+                                        }))
+                                      }
+                                      disabled={!canEdit}
+                                    >
+                                      {interests.map((i) => {
+                                        const seeker = seekerById.get(i.seekerId);
+                                        const name = seeker
+                                          ? formatSeekerName(seeker)
+                                          : "Seeker";
+                                        const link =
+                                          linksBySeekerId.get(i.seekerId) ?? null;
+                                        const statusLabel = link
+                                          ? link.status === "ACTIVE"
+                                            ? isWorkingTogether(link)
+                                              ? "Active + working"
+                                              : "Active (enable working)"
+                                            : link.status
+                                          : "No link";
+                                        return (
+                                          <option key={i.seekerId} value={i.seekerId}>
+                                            {name} - {statusLabel}
+                                          </option>
+                                        );
+                                      })}
+                                    </select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[11px] text-slate-400">
+                                      Start date
+                                    </label>
+                                    <input
+                                      type="date"
+                                      value={lockDraft.startDate}
+                                      onChange={(e) =>
+                                        setLockDrafts((prev) => ({
+                                          ...prev,
+                                          [route.id]: {
+                                            ...lockDraft,
+                                            startDate: e.target.value,
+                                          },
+                                        }))
+                                      }
+                                      className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-slate-100"
+                                      disabled={!canEdit}
+                                    />
+                                  </div>
+                                  {route.commitmentType === "DEDICATED" && (
+                                    <div className="space-y-1">
+                                      <label className="text-[11px] text-slate-400">
+                                        Expected units
+                                      </label>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        value={lockDraft.expectedUnits}
+                                        onChange={(e) =>
+                                          setLockDrafts((prev) => ({
+                                            ...prev,
+                                            [route.id]: {
+                                              ...lockDraft,
+                                              expectedUnits: e.target.value,
+                                            },
+                                          }))
+                                        }
+                                        className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-slate-100"
+                                        disabled={!canEdit}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                {route.commitmentType === "DEDICATED" && (
+                                  <div className="grid gap-2 md:grid-cols-2">
+                                    <div className="space-y-1">
+                                      <label className="text-[11px] text-slate-400">
+                                        Unit type
+                                      </label>
+                                      <select
+                                        className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-slate-100"
+                                        value={lockDraft.unitType}
+                                        onChange={(e) =>
+                                          setLockDrafts((prev) => ({
+                                            ...prev,
+                                            [route.id]: {
+                                              ...lockDraft,
+                                              unitType: e.target.value as WorkUnitType,
+                                            },
+                                          }))
+                                        }
+                                        disabled={!canEdit}
+                                      >
+                                        <option value="DAY">Day</option>
+                                        <option value="SHIFT">Shift</option>
+                                      </select>
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 self-end">
+                                      Cadence uses the retainer pay cycle.
+                                    </div>
+                                  </div>
+                                )}
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="px-3 py-2 rounded-lg text-xs font-medium bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                    disabled={!canEdit}
+                                    onClick={() => {
+                                      if (!retainer) return;
+                                      if (!lockDraft.seekerId) {
+                                        onToast("Select a seeker first");
+                                        return;
+                                      }
+                                      const link =
+                                        linksBySeekerId.get(lockDraft.seekerId) ??
+                                        null;
+                                      if (!link || link.status !== "ACTIVE") {
+                                        onToast("Link must be active to lock in");
+                                        return;
+                                      }
+                                      if (
+                                        assignmentsForRoute.some(
+                                          (a) =>
+                                            a.seekerId === lockDraft.seekerId &&
+                                            a.status === "ACTIVE"
+                                        )
+                                      ) {
+                                        onToast("Seeker is already locked to this route");
+                                        return;
+                                      }
+                                      const assignmentType: WorkUnitAssignmentType =
+                                        route.commitmentType === "DEDICATED"
+                                          ? "DEDICATED"
+                                          : "ON_DEMAND";
+                                      const unitType: WorkUnitType =
+                                        assignmentType === "ON_DEMAND"
+                                          ? "JOB"
+                                          : lockDraft.unitType;
+                                      const expectedUnits =
+                                        assignmentType === "DEDICATED"
+                                          ? Number(lockDraft.expectedUnits)
+                                          : undefined;
+                                      if (
+                                        assignmentType === "DEDICATED" &&
+                                        (!Number.isFinite(expectedUnits) ||
+                                          (expectedUnits ?? 0) <= 0)
+                                      ) {
+                                        onToast("Enter expected units per pay cycle");
+                                        return;
+                                      }
+                                      const startDate = lockDraft.startDate
+                                        ? new Date(
+                                            `${lockDraft.startDate}T00:00:00`
+                                          ).toISOString()
+                                        : new Date().toISOString();
+                                      try {
+                                        createRouteAssignment({
+                                          routeId: route.id,
+                                          retainerId: retainer.id,
+                                          seekerId: lockDraft.seekerId,
+                                          assignmentType,
+                                          unitType,
+                                          cadence:
+                                            retainer.payCycleFrequency ?? "WEEKLY",
+                                          expectedUnitsPerPeriod: expectedUnits,
+                                          startDate,
+                                        });
+                                        onToast("Seeker locked in to route");
+                                        setRefresh((n) => n + 1);
+                                        setLockDrafts((prev) => ({
+                                          ...prev,
+                                          [route.id]: {
+                                            ...lockDraft,
+                                            startDate: todayInput(),
+                                            expectedUnits: String(defaultExpectedUnits),
+                                          },
+                                        }));
+                                      } catch (err: any) {
+                                        onToast(
+                                          err?.message || "Could not lock in seeker"
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    Lock in
+                                  </button>
+                                  <div className="text-[11px] text-slate-500">
+                                    Scoring requires an active link and Working Together.
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+
+                          <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/40 p-3 space-y-2">
+                            <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                              Locked assignments
+                            </div>
+                            {assignmentsForRoute.length === 0 ? (
+                              <div className="text-xs text-slate-500">
+                                No locked seekers yet.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {assignmentsForRoute.map((assignment) => {
+                                  const seeker =
+                                    seekerById.get(assignment.seekerId) ?? null;
+                                  const name = seeker
+                                    ? formatSeekerName(seeker)
+                                    : "Seeker";
+                                  const periodKey = getCurrentPeriodKey(
+                                    assignment.cadence
+                                  );
+                                  const period = getPeriodByKey(
+                                    assignment.id,
+                                    periodKey
+                                  );
+                                  const workDraft =
+                                    workUnitDrafts[assignment.id] ?? {
+                                      completedUnits:
+                                        period?.completedUnits != null
+                                          ? String(period.completedUnits)
+                                          : "",
+                                      acceptedUnits:
+                                        period?.acceptedUnits != null
+                                          ? String(period.acceptedUnits)
+                                          : "",
+                                    };
+                                  const expectedUnits =
+                                    assignment.assignmentType === "DEDICATED"
+                                      ? assignment.expectedUnitsPerPeriod ??
+                                        period?.expectedUnits
+                                      : undefined;
+                                  const link =
+                                    linksBySeekerId.get(assignment.seekerId) ??
+                                    null;
+                                  const canScore = isWorkingTogether(link);
+                                  const canSubmit =
+                                    canEdit &&
+                                    assignment.status === "ACTIVE" &&
+                                    canScore &&
+                                    (!period || period.status === "PENDING");
+                                  const windowLabel = period?.windowClosesAt
+                                    ? new Date(
+                                        period.windowClosesAt
+                                      ).toLocaleString()
+                                    : "-";
+                                  const statusLabel = period
+                                    ? `${period.status} (${period.periodKey})`
+                                    : `No period yet (${periodKey})`;
+                                  return (
+                                    <div
+                                      key={assignment.id}
+                                      className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 space-y-2"
+                                    >
+                                      <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div>
+                                          <div className="text-xs font-semibold text-slate-100">
+                                            {name}
+                                          </div>
+                                          <div className="text-[11px] text-slate-500">
+                                            {assignment.assignmentType === "DEDICATED"
+                                              ? "Dedicated"
+                                              : "On-demand"}{" "}
+                                            - {assignment.cadence} - Start:{" "}
+                                            {toInputDate(assignment.startDate)}
+                                          </div>
+                                        </div>
+                                        <div className="text-[11px] text-slate-400">
+                                          {statusLabel}
+                                        </div>
+                                      </div>
+
+                                      {period && (
+                                        <div className="text-[11px] text-slate-500">
+                                          Window closes: {windowLabel}
+                                        </div>
+                                      )}
+
+                                      <div className="grid gap-2 md:grid-cols-3">
+                                        {assignment.assignmentType === "ON_DEMAND" ? (
+                                          <div className="space-y-1">
+                                            <label className="text-[11px] text-slate-400">
+                                              Accepted jobs
+                                            </label>
+                                            <input
+                                              type="number"
+                                              min={0}
+                                              value={workDraft.acceptedUnits}
+                                              onChange={(e) =>
+                                                setWorkUnitDrafts((prev) => ({
+                                                  ...prev,
+                                                  [assignment.id]: {
+                                                    ...workDraft,
+                                                    acceptedUnits: e.target.value,
+                                                  },
+                                                }))
+                                              }
+                                              className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-slate-100"
+                                              disabled={!canEdit}
+                                            />
+                                          </div>
+                                        ) : (
+                                          <div className="space-y-1">
+                                            <label className="text-[11px] text-slate-400">
+                                              Expected units
+                                            </label>
+                                            <div className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-slate-200">
+                                              {expectedUnits ?? "-"}
+                                            </div>
+                                          </div>
+                                        )}
+                                        <div className="space-y-1">
+                                          <label className="text-[11px] text-slate-400">
+                                            Completed units
+                                          </label>
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            value={workDraft.completedUnits}
+                                            onChange={(e) =>
+                                              setWorkUnitDrafts((prev) => ({
+                                                ...prev,
+                                                [assignment.id]: {
+                                                  ...workDraft,
+                                                  completedUnits: e.target.value,
+                                                },
+                                              }))
+                                            }
+                                            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-slate-100"
+                                            disabled={!canEdit}
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-[11px] text-slate-400">
+                                            Missed units
+                                          </label>
+                                          <div className="rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-2 text-xs text-slate-200">
+                                            {period?.missedUnits ?? "-"}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {!canScore && (
+                                        <div className="text-[11px] text-amber-300">
+                                          Enable Working Together on the link to
+                                          submit work units.
+                                        </div>
+                                      )}
+
+                                      {period?.status === "DISPUTED" && (
+                                        <div className="text-[11px] text-rose-300">
+                                          Disputed. Awaiting admin review.
+                                        </div>
+                                      )}
+
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                          type="button"
+                                          className="px-3 py-2 rounded-lg text-xs font-medium bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                          disabled={!canSubmit}
+                                          onClick={() => {
+                                            const completed = Number(
+                                              workDraft.completedUnits
+                                            );
+                                            if (
+                                              !Number.isFinite(completed) ||
+                                              completed < 0
+                                            ) {
+                                              onToast("Enter completed units");
+                                              return;
+                                            }
+                                            if (
+                                              assignment.assignmentType ===
+                                              "DEDICATED"
+                                            ) {
+                                              if (
+                                                expectedUnits == null ||
+                                                expectedUnits <= 0
+                                              ) {
+                                                onToast(
+                                                  "Expected units are required"
+                                                );
+                                                return;
+                                              }
+                                              if (completed > expectedUnits) {
+                                                onToast(
+                                                  "Completed units cannot exceed expected"
+                                                );
+                                                return;
+                                              }
+                                            } else {
+                                              const accepted = Number(
+                                                workDraft.acceptedUnits
+                                              );
+                                              if (
+                                                !Number.isFinite(accepted) ||
+                                                accepted < 0
+                                              ) {
+                                                onToast("Enter accepted jobs");
+                                                return;
+                                              }
+                                              if (completed > accepted) {
+                                                onToast(
+                                                  "Completed units cannot exceed accepted"
+                                                );
+                                                return;
+                                              }
+                                            }
+                                            try {
+                                              const accepted =
+                                                assignment.assignmentType ===
+                                                "ON_DEMAND"
+                                                  ? Number(workDraft.acceptedUnits)
+                                                  : undefined;
+                                              let targetPeriod = period;
+                                              if (!targetPeriod) {
+                                                targetPeriod = createWorkUnitPeriod({
+                                                  assignmentId: assignment.id,
+                                                  periodKey,
+                                                  cadence: assignment.cadence,
+                                                  expectedUnits,
+                                                  acceptedUnits: accepted,
+                                                });
+                                              }
+                                              if (
+                                                targetPeriod &&
+                                                targetPeriod.status !== "PENDING"
+                                              ) {
+                                                onToast(
+                                                  "This period is already finalized"
+                                                );
+                                                return;
+                                              }
+                                              submitWorkUnitCounts({
+                                                periodId: targetPeriod.id,
+                                                completedUnits: completed,
+                                                acceptedUnits: accepted,
+                                                expectedUnits,
+                                              });
+                                              onToast("Work units submitted");
+                                              setRefresh((n) => n + 1);
+                                            } catch (err: any) {
+                                              onToast(
+                                                err?.message ||
+                                                  "Could not submit work units"
+                                              );
+                                            }
+                                          }}
+                                        >
+                                          Submit work units
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
 
                         </div>
 

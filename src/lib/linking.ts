@@ -8,6 +8,7 @@
 // - Manual video-confirmation toggles for each party.
 
 import { readStoreData, writeStore } from "./storage";
+import { canSeekerLink } from "./entitlements";
 
 export type LinkStatus = "PENDING" | "ACTIVE" | "REJECTED" | "DISABLED";
 
@@ -156,6 +157,13 @@ function saveAll(list: Link[]) {
   writeStore(KEY, SCHEMA_VERSION, list);
 }
 
+function assertSeekerCanLink(seekerId: string) {
+  const access = canSeekerLink(seekerId);
+  if (!access.ok) {
+    throw new Error(access.reason || "Paid seeker tier required to link.");
+  }
+}
+
 export function getAllLinks(): Link[] {
   return loadAll().sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 }
@@ -185,6 +193,7 @@ export function requestLink(args: {
 }): Link {
   const { seekerId, retainerId } = args;
   if (!seekerId || !retainerId) throw new Error("seekerId and retainerId are required");
+  assertSeekerCanLink(seekerId);
 
   const all = loadAll();
   const existingIdx = all.findIndex((l) => l.seekerId === seekerId && l.retainerId === retainerId);
@@ -235,6 +244,9 @@ export function setLinkVideoConfirmed(args: {
   by: "SEEKER" | "RETAINER";
   value: boolean;
 }): Link | null {
+  if (args.by === "SEEKER") {
+    assertSeekerCanLink(args.seekerId);
+  }
   const all = loadAll();
   const idx = all.findIndex((l) => l.seekerId === args.seekerId && l.retainerId === args.retainerId);
   if (idx < 0) return null;
@@ -262,6 +274,9 @@ export function setLinkApproved(args: {
   by: "SEEKER" | "RETAINER";
   value: boolean;
 }): Link | null {
+  if (args.by === "SEEKER") {
+    assertSeekerCanLink(args.seekerId);
+  }
   const all = loadAll();
   const idx = all.findIndex((l) => l.seekerId === args.seekerId && l.retainerId === args.retainerId);
   if (idx < 0) return null;
@@ -349,6 +364,7 @@ export function addLinkMeetingProposal(args: {
   durationMinutes: number;
   note?: string;
 }): Link {
+  assertSeekerCanLink(args.seekerId);
   if (!args.seekerId || !args.retainerId) {
     throw new Error("seekerId and retainerId are required");
   }
@@ -392,6 +408,7 @@ export function acceptLinkMeetingProposal(args: {
   retainerId: string;
   proposalId: string;
 }): Link | null {
+  assertSeekerCanLink(args.seekerId);
   const all = loadAll();
   const idx = all.findIndex(
     (l) => l.seekerId === args.seekerId && l.retainerId === args.retainerId
@@ -420,6 +437,7 @@ export function clearLinkMeetingSchedule(args: {
   seekerId: string;
   retainerId: string;
 }): Link | null {
+  assertSeekerCanLink(args.seekerId);
   const all = loadAll();
   const idx = all.findIndex(
     (l) => l.seekerId === args.seekerId && l.retainerId === args.retainerId
@@ -446,6 +464,9 @@ export function setWorkingTogether(args: {
   by: "SEEKER" | "RETAINER";
   value: boolean;
 }): Link | null {
+  if (args.by === "SEEKER") {
+    assertSeekerCanLink(args.seekerId);
+  }
   const all = loadAll();
   const idx = all.findIndex(
     (l) => l.seekerId === args.seekerId && l.retainerId === args.retainerId

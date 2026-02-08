@@ -45,6 +45,8 @@ let muted = false;
 let syncTimer: number | undefined;
 let syncInFlight = false;
 let syncCooldownUntil = 0;
+let pullInFlight = false;
+let lastPullAt = 0;
 type SyncEvent = { type: "pull" | "push"; at: string };
 let syncListener: ((event: SyncEvent) => void) | null = null;
 
@@ -361,6 +363,10 @@ function buildBadgeStoreFromRows(args: {
   return { selections, progress, checkins };
 }
 export async function pullFromServer(): Promise<boolean> {
+  if (pullInFlight) return false;
+  const now = Date.now();
+  if (now - lastPullAt < 4000) return false;
+  pullInFlight = true;
   try {
     const data = await syncPull();
 
@@ -475,10 +481,14 @@ export async function pullFromServer(): Promise<boolean> {
     syncCooldownUntil = Date.now() + 3000;
 
     setServerSyncMuted(false);
+    lastPullAt = Date.now();
     return true;
   } catch {
     setServerSyncMuted(false);
+    lastPullAt = Date.now();
     return false;
+  } finally {
+    pullInFlight = false;
   }
 }
 

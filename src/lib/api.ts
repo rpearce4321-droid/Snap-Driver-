@@ -28,6 +28,34 @@ export async function getAdminKpis() {
   };
 }
 
+export async function getAdminUsers(params?: { role?: string }) {
+  const r = await api.get("/admin/users", { params });
+  return r.data as {
+    items: Array<{
+      id: string;
+      email: string;
+      role: "ADMIN" | "SEEKER" | "RETAINER";
+      status: string;
+      statusNote?: string | null;
+      statusUpdatedAt?: string | null;
+      createdAt: string;
+      updatedAt: string;
+      passwordSet: boolean;
+      source?: "server" | "local";
+    }>;
+  };
+}
+
+export async function setUserPassword(payload: { userId?: string; email?: string; password: string }) {
+  const r = await api.post("/admin/users/password", payload);
+  return r.data as { ok: boolean };
+}
+
+export async function setUserStatus(payload: { userId?: string; email?: string; status: string; note?: string }) {
+  const r = await api.post("/admin/users/status", payload);
+  return r.data as { ok: boolean };
+}
+
 
 
 export async function createSeedBatch(label?: string) {
