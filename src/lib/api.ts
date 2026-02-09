@@ -89,6 +89,15 @@ export async function inviteUser(payload: { email: string; role: string }) {
   return r.data as { ok: boolean; magicLink: string; expiresAt: string };
 }
 
+export async function bootstrapAdmin(payload: { email: string; password: string; token: string }) {
+  const r = await api.post(
+    "/auth/bootstrap",
+    { email: payload.email, password: payload.password },
+    { headers: { "X-Bootstrap-Token": payload.token } }
+  );
+  return r.data as { ok: boolean; user: { id: string; email: string; role: string } };
+}
+
 export async function login(payload: { email: string; password: string }) {
   const r = await api.post('/auth/login', payload);
   return r.data as { ok: boolean; user: { id: string; email: string; role: string; status: string } };

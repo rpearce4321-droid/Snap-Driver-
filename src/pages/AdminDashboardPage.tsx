@@ -23,6 +23,7 @@ import {
   purgeSeedBatch,
   resetPassword,
   wipeAllServerData,
+  bootstrapAdmin,
   login,
   getSessionMe,
   register,
@@ -286,6 +287,7 @@ export default function AdminDashboardPage() {
   const [authStatus, setAuthStatus] = useState<"checking" | "authed" | "unauth">("checking");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [bootstrapToken, setBootstrapToken] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const isLocalHost =
@@ -297,6 +299,8 @@ export default function AdminDashboardPage() {
     Boolean(import.meta.env?.DEV) ||
     import.meta.env?.VITE_ENABLE_ADMIN_BOOTSTRAP === "true" ||
     isLocalHost;
+  const requiresBootstrapToken =
+    !isLocalHost && import.meta.env?.VITE_ENABLE_ADMIN_BOOTSTRAP === "true";
 
   useEffect(() => {
     setPortalContext("ADMIN");
@@ -454,18 +458,35 @@ export default function AdminDashboardPage() {
   };
   const handleAdminBootstrap = async () => {
     setAuthError(null);
+    const email = authEmail.trim();
+    const password = authPassword;
+    if (!email || !password) {
+      setAuthError("Email and password are required.");
+      return;
+    }
+    if (requiresBootstrapToken && !bootstrapToken.trim()) {
+      setAuthError("Bootstrap token is required.");
+      return;
+    }
     try {
-      const res = await register({
-        email: authEmail.trim(),
-        password: authPassword,
-        role: "ADMIN",
-      });
+      const res = requiresBootstrapToken
+        ? await bootstrapAdmin({
+            email,
+            password,
+            token: bootstrapToken.trim(),
+          })
+        : await register({
+            email,
+            password,
+            role: "ADMIN",
+          });
       if (!res?.user || res.user.role !== "ADMIN") {
         throw new Error("Admin account could not be created.");
       }
       setSession({ role: "ADMIN", adminId: res.user.id });
       setAuthStatus("authed");
       setAuthPassword("");
+      setBootstrapToken("");
     } catch (err: any) {
       const localOk = await createLocalAdmin();
       if (localOk) return;
@@ -571,6 +592,16 @@ export default function AdminDashboardPage() {
                   {showAuthPassword ? "Hide" : "Show"}
                 </button>
               </div>
+              {requiresBootstrapToken && (
+                <input
+                  value={bootstrapToken}
+                  onChange={(e) => setBootstrapToken(e.target.value)}
+                  placeholder="Bootstrap token"
+                  type="password"
+                  autoComplete="one-time-code"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                />
+              )}
               {authError && <div className="text-xs text-rose-300">{authError}</div>}
               <button
                 type="button"
@@ -585,10 +616,10 @@ export default function AdminDashboardPage() {
                   onClick={handleAdminBootstrap}
                   className="w-full rounded-full border border-slate-600/60 bg-slate-800/50 px-4 py-2 text-xs font-semibold text-slate-100 hover:bg-slate-800/70 transition"
                 >
-                  Create admin account (local bootstrap)
+                  Create admin account (bootstrap)
                 </button>
               )}
-              {canBootstrapAdmin && (
+              {isLocalHost && (
                 <button
                   type="button"
                   onClick={handleLocalAdminSession}
@@ -600,8 +631,9 @@ export default function AdminDashboardPage() {
             </div>
             {canBootstrapAdmin && (
               <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-400">
-                Local bootstrap is enabled. Use this only for staging or development to create the
-                first admin account or enter an offline admin session.
+                {requiresBootstrapToken
+                  ? "Bootstrap is enabled. Requires a token and only works if no admin exists yet."
+                  : "Local bootstrap is enabled. Use this only for staging or development to create the first admin account or enter an offline admin session."}
               </div>
             )}
           </div>

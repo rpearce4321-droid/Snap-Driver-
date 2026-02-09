@@ -17,6 +17,12 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
   if (!/[\w.+-]+@[\w-]+\.[\w.-]+/.test(email)) return badRequest("Invalid email");
   if (password.length < 8) return badRequest("Password must be at least 8 characters");
   if (!['ADMIN', 'SEEKER', 'RETAINER'].includes(role)) return badRequest("Invalid role");
+  const host = new URL(request.url).hostname;
+  const isLocalHost =
+    host === "localhost" || host === "127.0.0.1" || host.endsWith(".local");
+  if (role === "ADMIN" && !isLocalHost) {
+    return badRequest("Admin registration is disabled. Use bootstrap.");
+  }
 
   const existing = await db.prepare("SELECT id, role, password_hash FROM users WHERE email = ?").bind(email).first<any>();
   if (existing) {

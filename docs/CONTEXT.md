@@ -130,6 +130,7 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
   - **Current implementation recomputes levels from yes/no counts; levels can decrease** (see conflict below).
 - **Route Notices**: bad-exit penalties for dedicated routes (15/25/35% for 30/60/90 days), with suspension/blacklist logic (`src/lib/routeNotices.ts`).
 - **Server sync**: `/api/sync/pull` and `/api/sync/upsert` (Cloudflare Pages Functions + D1). Sync flags: `snapdriver_server_sync_enabled`, `snapdriver_seed_mode`. Seeded rows are marked with `__seed` for purge.
+- **Admin bootstrap**: `/api/auth/bootstrap` is enabled only with `ADMIN_BOOTSTRAP_TOKEN` and UI gated by `VITE_ENABLE_ADMIN_BOOTSTRAP` for first admin creation.
 
 ## Alignment Tasks
 - Update `docs/badges-spec.md` and `docs/decision-log.md` to reflect new production badge policies.
