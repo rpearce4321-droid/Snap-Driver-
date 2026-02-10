@@ -23,13 +23,26 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     return badRequest("Invalid role");
   }
 
-  const query =
+  const queryBase =
     "SELECT id, email, role, status, status_note, status_updated_at, created_at, updated_at, password_hash FROM users" +
     (role ? " WHERE role = ?" : "") +
     " ORDER BY created_at DESC";
-  const rows = role
-    ? await db.prepare(query).bind(role).all<any>()
-    : await db.prepare(query).all<any>();
+  const fallbackQuery =
+    "SELECT id, email, role, status, created_at, updated_at, password_hash FROM users" +
+    (role ? " WHERE role = ?" : "") +
+    " ORDER BY created_at DESC";
+
+  let rows: { results: any[] };
+  try {
+    rows = role
+      ? await db.prepare(queryBase).bind(role).all<any>()
+      : await db.prepare(queryBase).all<any>();
+  } catch (err: any) {
+    // Backward-compatible fallback when status_note/status_updated_at columns are missing.
+    rows = role
+      ? await db.prepare(fallbackQuery).bind(role).all<any>()
+      : await db.prepare(fallbackQuery).all<any>();
+  }
 
   const items = (rows?.results ?? []).map((row: any) => ({
     id: row.id,

@@ -43,12 +43,20 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     .first<any>();
   if (!user) return badRequest("User not found");
 
-  await db
-    .prepare(
-      "UPDATE users SET status = ?, status_note = ?, status_updated_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
-    )
-    .bind(status, note, user.id)
-    .run();
+  try {
+    await db
+      .prepare(
+        "UPDATE users SET status = ?, status_note = ?, status_updated_at = datetime('now'), updated_at = datetime('now') WHERE id = ?"
+      )
+      .bind(status, note, user.id)
+      .run();
+  } catch {
+    // Backward-compatible fallback when status_note/status_updated_at columns are missing.
+    await db
+      .prepare("UPDATE users SET status = ?, updated_at = datetime('now') WHERE id = ?")
+      .bind(status, user.id)
+      .run();
+  }
 
   return json({ ok: true });
 };
