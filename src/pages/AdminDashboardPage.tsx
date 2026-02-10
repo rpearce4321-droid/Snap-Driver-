@@ -27,6 +27,7 @@ import {
   login,
   getSessionMe,
   register,
+  logout,
   getAdminUsers,
   setUserPassword,
   setUserStatus,
@@ -316,7 +317,12 @@ export default function AdminDashboardPage() {
     setPortalContext("ADMIN");
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // ignore logout network errors
+    }
     clearSession();
     clearPortalContext();
     if (typeof window !== "undefined") {

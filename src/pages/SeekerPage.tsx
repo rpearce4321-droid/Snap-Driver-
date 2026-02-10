@@ -116,7 +116,7 @@ import {
 } from "../lib/workUnits";
 import { badgeIconFor } from "../components/badgeIcons";
 import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
-import { changePassword, resetPassword, syncUpsert } from "../lib/api";
+import { changePassword, logout, resetPassword, syncUpsert } from "../lib/api";
 import { getRetainerPosts, type RetainerPost } from "../lib/posts";
 import { getStockImageUrl } from "../lib/stockImages";
 import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
@@ -273,7 +273,12 @@ const SeekerPage: React.FC = () => {
     }
   }, [isDesktop, isMobileNavOpen]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // ignore logout network errors
+    }
     clearSession();
     clearPortalContext();
     if (typeof window !== "undefined") {

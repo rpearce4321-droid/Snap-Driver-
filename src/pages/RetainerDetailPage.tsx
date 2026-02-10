@@ -16,6 +16,7 @@ import { can, assertCan } from "../lib/permissions";
 import { getLink, requestLink, type Link as LinkModel } from "../lib/linking";
 import { getRoutesForRetainer, type Route } from "../lib/routes";
 import { clearPortalContext, clearSession, getPortalContext, getSession } from "../lib/session";
+import { logout } from "../lib/api";
 import { DAYS, type DayOfWeek } from "../lib/schedule";
 const LazyHierarchyCanvas = lazy(() => import("../components/HierarchyCanvas"));
 import { getBadgeSummaryForProfile, getReputationScoreForProfile } from "../lib/badges";
@@ -172,7 +173,12 @@ export default function RetainerDetailPage() {
     navigate(dashboardPath);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // ignore logout network errors
+    }
     clearSession();
     clearPortalContext();
     if (typeof window !== "undefined") {

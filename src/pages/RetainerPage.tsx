@@ -143,7 +143,7 @@ import {
 } from "../lib/broadcasts";
 
 import { deliverRetainerBroadcastToLinkedSeekers } from "../lib/broadcastDelivery";
-import { changePassword, resetPassword, syncUpsert } from "../lib/api";
+import { changePassword, logout, resetPassword, syncUpsert } from "../lib/api";
 
 import { getFeedForRetainer, type FeedItem } from "../lib/feed";
 import {
@@ -394,7 +394,12 @@ const RetainerPage: React.FC = () => {
     }
   }, [isDesktop, isMobileNavOpen]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // ignore logout network errors
+    }
     clearSession();
     clearPortalContext();
     if (typeof window !== "undefined") {

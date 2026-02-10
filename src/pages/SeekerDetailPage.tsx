@@ -15,6 +15,7 @@ import { getLink, requestLink, type Link as LinkModel } from "../lib/linking";
 import type { WeeklyAvailability } from "../lib/schedule";
 import { DAYS, isDayOfWeek } from "../lib/schedule";
 import { clearPortalContext, clearSession, getPortalContext, getSession } from "../lib/session";
+import { logout } from "../lib/api";
 const LazyHierarchyCanvas = lazy(() => import("../components/HierarchyCanvas"));
 import { getBadgeSummaryForProfile, getReputationScoreForProfile } from "../lib/badges";
 import {
@@ -261,7 +262,12 @@ export default function SeekerDetailPage() {
     navigate(dashboardPath);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      // ignore logout network errors
+    }
     clearSession();
     clearPortalContext();
     if (typeof window !== "undefined") {
