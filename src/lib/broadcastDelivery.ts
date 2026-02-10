@@ -4,6 +4,7 @@
 // to ACTIVE linked Seekers.
 
 import { getLinksForRetainer } from "./linking";
+import { getAssignmentsForRetainer } from "./workUnits";
 import {
   addMessageToConversation,
   createConversationWithFirstMessage,
@@ -33,10 +34,18 @@ export function deliverRetainerBroadcastToLinkedSeekers(args: {
   if (!retainerId) throw new Error("retainerId is required");
   if (!body) throw new Error("body is required");
 
+  const activeAssignments = getAssignmentsForRetainer(retainerId).filter(
+    (a) => a.status === "ACTIVE"
+  );
+  const activeSeekerIds = new Set(
+    activeAssignments.map((a) => a.seekerId).filter(Boolean)
+  );
+
   const seekerIds = Array.from(
     new Set(
       getLinksForRetainer(retainerId)
         .filter((l) => l.status === "ACTIVE")
+        .filter((l) => activeSeekerIds.has(l.seekerId))
         .map((l) => l.seekerId)
         .filter(Boolean)
     )
@@ -83,4 +92,3 @@ export function deliverRetainerBroadcastToLinkedSeekers(args: {
 
   return { delivered, failed };
 }
-

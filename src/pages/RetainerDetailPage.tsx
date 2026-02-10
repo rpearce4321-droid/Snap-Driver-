@@ -1,5 +1,5 @@
 // src/pages/RetainerDetailPage.tsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, lazy, Suspense } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { Retainer, Status, RetainerFee, PaymentTerm, PayCycleFrequency } from "../lib/data";
 import {
@@ -17,7 +17,7 @@ import { getLink, requestLink, type Link as LinkModel } from "../lib/linking";
 import { getRoutesForRetainer, type Route } from "../lib/routes";
 import { clearPortalContext, clearSession, getPortalContext, getSession } from "../lib/session";
 import { DAYS, type DayOfWeek } from "../lib/schedule";
-import HierarchyCanvas from "../components/HierarchyCanvas";
+const LazyHierarchyCanvas = lazy(() => import("../components/HierarchyCanvas"));
 import { getBadgeSummaryForProfile, getReputationScoreForProfile } from "../lib/badges";
 import { badgeIconFor } from "../components/badgeIcons";
 import { getStockImageUrl } from "../lib/stockImages";
@@ -823,13 +823,21 @@ export default function RetainerDetailPage() {
                 No users have been added yet.
               </div>
             ) : (
-              <HierarchyCanvas
-                owner={hierarchyOwner}
-                items={hierarchyItems}
-                nodes={(retainer as any).hierarchyNodes ?? []}
-                readOnly
-                showList={false}
-              />
+              <Suspense
+                fallback={
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-6 text-sm text-slate-400">
+                    Loading hierarchy…
+                  </div>
+                }
+              >
+                <LazyHierarchyCanvas
+                  owner={hierarchyOwner}
+                  items={hierarchyItems}
+                  nodes={(retainer as any).hierarchyNodes ?? []}
+                  readOnly
+                  showList={false}
+                />
+              </Suspense>
             )}
           </div>
         )}

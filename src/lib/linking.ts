@@ -369,15 +369,12 @@ export function addLinkMeetingProposal(args: {
     throw new Error("seekerId and retainerId are required");
   }
 
-  // Ensure the link exists (and mark requester) before adding proposals
-  requestLink({ seekerId: args.seekerId, retainerId: args.retainerId, by: args.by });
-
   const all = loadAll();
   const idx = all.findIndex(
     (l) => l.seekerId === args.seekerId && l.retainerId === args.retainerId
   );
   if (idx < 0) {
-    throw new Error("Failed to create link");
+    throw new Error("Link not found. Request a link first.");
   }
 
   const ts = nowIso();

@@ -34,7 +34,8 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
   - Seeker and Retainer each approve the link.
   - Link becomes active only when both toggles + both approvals are complete.
 - Linked content is **linked-only** by default.
-  - Higher paid Retainer tiers can publish to **public** Seekers.
+  - Retainer **broadcasts** are always linked-only to active working links.
+  - Retainer **posts** can be area-visible (public) when tier allows.
 - If a profile is **deleted/rejected**, linking should auto-break.
   - A system/admin-generated message must be sent to the non-deleted/rejected party notifying them.
 - Route system should use a **real Route object** (structured data), not only text posts.
@@ -81,7 +82,7 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
 - A locked route should create a **work history** entry for the Seeker.
 - Points are awarded only for **completed work**, not just a locked schedule.
 - Cadence end points create a **pending score** until the 48-hour check-in window closes.
-- Work completion is measured in **work units** (counts only; no route-ops detail):
+- Work completion is measured in **work units** (UI label: **reputation points**, counts only; no route-ops detail):
   - **Dedicated** routes: work units are scheduled **days or shifts** per period.
   - **On-demand** routes: work units are **accepted jobs** per period.
   - Only **accepted** work can be marked missed; no penalty for unaccepted offers.

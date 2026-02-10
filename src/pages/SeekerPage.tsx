@@ -7,6 +7,10 @@ import {
   DELIVERY_VERTICALS,
   INSURANCE_TYPES,
   PAY_CYCLE_FREQUENCIES,
+  MAX_VEHICLES,
+  VEHICLE_YEARS,
+  VEHICLE_MAKES,
+  VEHICLE_MODELS_BY_MAKE,
   getSeekers,
   getRetainers,
   addSeekerForcePending,
@@ -15,6 +19,7 @@ import {
   setSeekerHierarchyNodes,
   subscribe,
   type PayCycleFrequency,
+  type VehicleEntry,
 } from "../lib/data";
 import {
   createConversationWithFirstMessage,
@@ -497,6 +502,9 @@ const SeekerPage: React.FC = () => {
   const handleSeekerCreated = () => {
     refreshSeekersAndSession();
     setActiveTab("dashboard");
+    setToastMessage(
+      "Profile created. Head to Badges to select your badges while you wait for approval."
+    );
   };
 
   const handleSeekerUpdated = () => {
@@ -1285,6 +1293,7 @@ const SeekerPage: React.FC = () => {
                 onReturnToWheel={handleReturnRetainerToWheel}
                 onRebucketById={handleRebucketById}
                 onMessage={handleMessageRetainer}
+                onComposeMessage={(draft) => setComposeDraft(draft)}
                 onToast={(msg) => setToastMessage(msg)}
                 onSeekerCreated={handleSeekerCreated}
                 onSeekerUpdated={handleSeekerUpdated}
@@ -1338,6 +1347,7 @@ const SeekerPage: React.FC = () => {
                 onReturnToWheel={handleReturnRetainerToWheel}
                 onRebucketById={handleRebucketById}
                 onMessage={handleMessageRetainer}
+                onComposeMessage={(draft) => setComposeDraft(draft)}
                 visibleTabs={["routes", "schedule", "editProfile", "addSubcontractor", "hierarchy"]}
                 onToast={(msg) => setToastMessage(msg)}
                 onSeekerCreated={handleSeekerCreated}
@@ -1422,6 +1432,7 @@ const SeekerPage: React.FC = () => {
                       linkTick={linkTick}
                       onToast={(msg) => setToastMessage(msg)}
                       onComposeMessage={(draft) => setComposeDraft(draft)}
+                      onGoToMessages={() => setActiveTab("messages")}
                       onGoToRoutes={() => openActionTab("routes")}
                       className="min-h-[320px]"
                     />
@@ -1668,9 +1679,20 @@ type SeekerFeedPanelProps = {
   linkTick: number;
   onToast: (message: string) => void;
   onComposeMessage: (draft: ComposeDraft) => void;
+  onGoToMessages: () => void;
   onGoToRoutes: () => void;
   className?: string;
 };
+
+type FeedFilterKey = "POST" | "BROADCAST" | "ROUTE" | "MESSAGE" | "PROFILE";
+
+const FEED_FILTER_OPTIONS: Array<{ key: FeedFilterKey; label: string }> = [
+  { key: "POST", label: "Posts" },
+  { key: "BROADCAST", label: "Broadcasts" },
+  { key: "ROUTE", label: "Routes" },
+  { key: "MESSAGE", label: "Messages" },
+  { key: "PROFILE", label: "New profiles" },
+];
 
 const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
   seekerId,
@@ -1678,6 +1700,7 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
   linkTick,
   onToast,
   onComposeMessage,
+  onGoToMessages,
   onGoToRoutes,
   className,
 }) => {
@@ -1696,13 +1719,14 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
   }, [seekerId, linkTick]);
 
   const [feedTick, setFeedTick] = useState(0);
-  const [feedFilter, setFeedFilter] = useState<"ALL" | "BROADCAST" | "ROUTE" | "UPDATE">(
-    "ALL"
+  const [feedFilters, setFeedFilters] = useState<Set<FeedFilterKey>>(
+    () => new Set(FEED_FILTER_OPTIONS.map((item) => item.key))
   );
   const [expandedFeedKey, setExpandedFeedKey] = useState<string | null>(null);
   const feedItems = useMemo(() => {
     const all = seekerId ? getFeedForSeeker(seekerId) : [];
     return all.filter((it) => {
+      if (it.kind === "PROFILE_APPROVED") return true;
       const r = retainerById.get(it.retainerId);
       return !!r && (r as any).status === "APPROVED";
     });
@@ -1729,9 +1753,21 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
       const parsed = JSON.parse(raw) as { role?: string; kind?: string; id?: string };
       if (parsed?.role !== "SEEKER" || !parsed.kind || !parsed.id) return;
       setExpandedFeedKey(`${parsed.kind}:${parsed.id}`);
-      if (parsed.kind === "ROUTE") setFeedFilter("ROUTE");
-      else if (parsed.kind === "BROADCAST") setFeedFilter("BROADCAST");
-      else setFeedFilter("UPDATE");
+      const nextKey: FeedFilterKey =
+        parsed.kind === "ROUTE"
+          ? "ROUTE"
+          : parsed.kind === "BROADCAST"
+            ? "BROADCAST"
+            : parsed.kind === "MESSAGE"
+              ? "MESSAGE"
+              : parsed.kind === "PROFILE_APPROVED"
+                ? "PROFILE"
+                : "POST";
+      setFeedFilters((prev) => {
+        const next = new Set(prev);
+        next.add(nextKey);
+        return next;
+      });
       window.localStorage.removeItem("snapdriver_feed_jump");
     } catch {
       // ignore
@@ -1739,15 +1775,15 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
   }, [seekerId, feedItems]);
 
   const filteredFeedItems = useMemo(() => {
-    if (feedFilter === "ALL") return feedItems;
-    if (feedFilter === "BROADCAST") {
-      return feedItems.filter((it) => it.kind === "BROADCAST");
-    }
-    if (feedFilter === "ROUTE") {
-      return feedItems.filter((it) => it.kind === "ROUTE");
-    }
-    return feedItems.filter((it) => it.kind === "POST");
-  }, [feedFilter, feedItems]);
+    const mapKey = (it: FeedItem): FeedFilterKey => {
+      if (it.kind === "POST") return "POST";
+      if (it.kind === "BROADCAST") return "BROADCAST";
+      if (it.kind === "ROUTE") return "ROUTE";
+      if (it.kind === "MESSAGE") return "MESSAGE";
+      return "PROFILE";
+    };
+    return feedItems.filter((it) => feedFilters.has(mapKey(it)));
+  }, [feedFilters, feedItems]);
 
   const visibleFeedItems = useMemo(
     () => filteredFeedItems.slice(0, 12),
@@ -1760,16 +1796,30 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
   };
 
   const feedWhen = (it: FeedItem) =>
-    it.kind === "BROADCAST" ? it.createdAt : (it as any).updatedAt;
+    it.kind === "BROADCAST" || it.kind === "PROFILE_APPROVED"
+      ? it.createdAt
+      : (it as any).updatedAt;
 
   const feedTitle = (it: FeedItem) => {
     if (it.kind === "POST") return it.post.title || "Post";
     if (it.kind === "ROUTE") return it.route.title || "Route";
+    if (it.kind === "MESSAGE") return it.subject || "Message";
+    if (it.kind === "PROFILE_APPROVED") {
+      return `New ${it.profileRole === "RETAINER" ? "Retainer" : "Seeker"} approved`;
+    }
     return it.broadcast.subject || "Broadcast";
   };
 
   const feedBadge = (it: FeedItem) =>
-    it.kind === "POST" ? it.post.type : it.kind === "ROUTE" ? "ROUTE" : "BROADCAST";
+    it.kind === "POST"
+      ? it.post.type
+      : it.kind === "ROUTE"
+        ? "ROUTE"
+        : it.kind === "MESSAGE"
+          ? "MESSAGE"
+          : it.kind === "PROFILE_APPROVED"
+            ? "NEW PROFILE"
+            : "BROADCAST";
 
   const feedKey = (it: FeedItem) => `${it.kind}:${it.id}`;
 
@@ -1835,6 +1885,26 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
       seekerId,
       type,
     });
+
+    if (type === "INTERESTED" || type === "REQUEST_INFO") {
+      if (!canDirectMessage) {
+        onToast("Interest recorded. Direct message is available after the link is approved.");
+        return;
+      }
+      const retainer = retainerById.get(retainerId);
+      if (!retainer) return;
+      const subject = route.title || "Route";
+      const body =
+        type === "REQUEST_INFO"
+          ? `Hi ${retainer.companyName || "there"}, can you share more details about "${subject}"?`
+          : `Hi ${retainer.companyName || "there"}, I am interested in "${subject}" and would like to discuss next steps.`;
+      onComposeMessage({
+        retainer,
+        initialSubject: subject,
+        initialBody: body,
+        messageFlag: `FEED:ROUTE:${route.id}`,
+      });
+    }
   };
 
   const handlePostResponse = (
@@ -1879,6 +1949,26 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
       seekerId,
       type,
     });
+
+    if (type === "INTERESTED" || type === "REQUEST_INFO") {
+      if (!canDirectMessage) {
+        onToast("Interest recorded. Direct message is available after the link is approved.");
+        return;
+      }
+      const retainer = retainerById.get(retainerId);
+      if (!retainer) return;
+      const subject = post.title || "Post";
+      const body =
+        type === "REQUEST_INFO"
+          ? `Hi ${retainer.companyName || "there"}, can you share more details about "${subject}"?`
+          : `Hi ${retainer.companyName || "there"}, I am interested in "${subject}" and would like to learn more.`;
+      onComposeMessage({
+        retainer,
+        initialSubject: subject,
+        initialBody: body,
+        messageFlag: `FEED:POST:${post.id}`,
+      });
+    }
   };
 
   const handleFeedReaction = (
@@ -1971,9 +2061,11 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
 
   const renderFeedDetails = (it: FeedItem) => {
     if (it.kind === "POST") {
+      const visibility = it.post.audience === "PUBLIC" ? "Area" : "Linked only";
       return (
-        <div className="text-sm text-slate-200 whitespace-pre-wrap">
-          {it.post.body}
+        <div className="space-y-2 text-sm text-slate-200">
+          <div className="text-[11px] text-slate-400">Visibility: {visibility}</div>
+          <div className="whitespace-pre-wrap">{it.post.body}</div>
         </div>
       );
     }
@@ -2030,6 +2122,59 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
       );
     }
 
+    if (it.kind === "MESSAGE") {
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          <div className="text-xs text-slate-400">Latest message</div>
+          <div className="text-sm text-slate-100 whitespace-pre-wrap">
+            {it.preview || "Open the conversation to view the latest message."}
+          </div>
+          <div className="text-[11px] text-slate-500">
+            Unread: {it.unreadCount}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!seekerId) return;
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(
+                  `snapdriver_seeker_active_retainer_${seekerId}`,
+                  it.retainerId
+                );
+                window.localStorage.setItem(
+                  `snapdriver_seeker_active_conversation_${seekerId}`,
+                  it.conversationId
+                );
+              }
+              onGoToMessages();
+            }}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition"
+          >
+            Open conversation
+          </button>
+        </div>
+      );
+    }
+
+    if (it.kind === "PROFILE_APPROVED") {
+      const location = [it.city, it.state].filter(Boolean).join(", ");
+      const zipLabel = it.zip ? `ZIP ${it.zip}` : "";
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          <div>
+            {it.name} was approved and is now visible in your area.
+          </div>
+          {(location || zipLabel) && (
+            <div className="text-[11px] text-slate-500">
+              {location}
+              {location && zipLabel ? " • " : ""}
+              {zipLabel}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <div className="text-sm text-slate-200 whitespace-pre-wrap">
         {it.broadcast.body}
@@ -2052,7 +2197,7 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
             Feed
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Broadcasts, routes, and updates from Retainers.
+            Posts, broadcasts, routes, and messages from Retainers.
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -2073,20 +2218,38 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {(
-          [
-            { key: "ALL", label: "All" },
-            { key: "BROADCAST", label: "Broadcasts" },
-            { key: "ROUTE", label: "Routes" },
-            { key: "UPDATE", label: "Updates" },
-          ] as const
-        ).map((item) => {
-          const isActive = feedFilter === item.key;
+        <button
+          type="button"
+          onClick={() =>
+            setFeedFilters(new Set(FEED_FILTER_OPTIONS.map((item) => item.key)))
+          }
+          className={[
+            "px-3 py-1 rounded-full text-[11px] border transition",
+            feedFilters.size === FEED_FILTER_OPTIONS.length
+              ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
+              : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
+          ].join(" ")}
+        >
+          All
+        </button>
+        {FEED_FILTER_OPTIONS.map((item) => {
+          const isActive = feedFilters.has(item.key);
           return (
             <button
               key={item.key}
               type="button"
-              onClick={() => setFeedFilter(item.key)}
+              onClick={() => {
+                setFeedFilters((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(item.key)) {
+                    if (next.size === 1) return next;
+                    next.delete(item.key);
+                    return next;
+                  }
+                  next.add(item.key);
+                  return next;
+                });
+              }}
               className={[
                 "px-3 py-1 rounded-full text-[11px] border transition",
                 isActive
@@ -2112,17 +2275,25 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
         <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1">
           <ul className="space-y-2">
             {visibleFeedItems.map((it) => {
-              const r = retainerById.get(it.retainerId);
-              const retainerName = r?.companyName || "Retainer";
+              const isPost = it.kind === "POST";
+              const isRoute = it.kind === "ROUTE";
+              const isBroadcast = it.kind === "BROADCAST";
+              const isProfile = it.kind === "PROFILE_APPROVED";
+              const retainerIdForItem =
+                it.kind === "PROFILE_APPROVED" ? it.profileId : it.retainerId;
+              const r = retainerById.get(retainerIdForItem);
+              const retainerName =
+                isProfile
+                  ? r?.companyName || it.name || "Retainer"
+                  : r?.companyName || "Retainer";
               const when = feedWhen(it);
               const badge = feedBadge(it);
               const key = feedKey(it);
               const isExpanded = expandedFeedKey === key;
-              const isAd = it.kind === "POST" && it.post.type === "AD";
-              const isUpdate = it.kind === "POST" && it.post.type === "UPDATE";
-              const isBroadcast = it.kind === "BROADCAST";
+              const isAd = isPost && it.post.type === "AD";
+              const isUpdate = isPost && it.post.type === "UPDATE";
               const routeResponse =
-                seekerId && it.kind === "ROUTE"
+                seekerId && isRoute
                   ? getRouteResponseForSeeker(it.route.id, seekerId)
                   : null;
               const postResponse =
@@ -2139,7 +2310,8 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
                 routeResponse?.type || postResponse?.type || null
               );
               const reactionText = reactionLabel(reaction?.type || null);
-              const canDirectMessage = activeLinkRetainerIds.has(it.retainerId);
+              const canDirectMessage =
+                (isRoute || isPost) && activeLinkRetainerIds.has(retainerIdForItem);
 
               return (
                 <li
@@ -2155,7 +2327,7 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
                       <div className="min-w-0 flex items-start gap-2">
                         <ProfileAvatar
                           role="RETAINER"
-                          profile={(r ?? { id: it.retainerId }) as any}
+                          profile={(r ?? { id: retainerIdForItem }) as any}
                           name={retainerName}
                           size="lg"
                         />
@@ -2370,13 +2542,14 @@ const DashboardView: React.FC<{
 
 
   const [feedTick, setFeedTick] = useState(0);
-  const [feedFilter, setFeedFilter] = useState<"ALL" | "BROADCAST" | "ROUTE" | "UPDATE">(
-    "ALL"
+  const [feedFilters, setFeedFilters] = useState<Set<FeedFilterKey>>(
+    () => new Set(FEED_FILTER_OPTIONS.map((item) => item.key))
   );
   const [expandedFeedKey, setExpandedFeedKey] = useState<string | null>(null);
   const feedItems = useMemo(() => {
     const all = getFeedForSeeker(seekerId);
     return all.filter((it) => {
+      if (it.kind === "PROFILE_APPROVED") return true;
       const r = retainerById.get(it.retainerId);
       return !!r && (r as any).status === "APPROVED";
     });
@@ -2403,9 +2576,21 @@ const DashboardView: React.FC<{
       const parsed = JSON.parse(raw) as { role?: string; kind?: string; id?: string };
       if (parsed?.role !== "SEEKER" || !parsed.kind || !parsed.id) return;
       setExpandedFeedKey(`${parsed.kind}:${parsed.id}`);
-      if (parsed.kind === "ROUTE") setFeedFilter("ROUTE");
-      else if (parsed.kind === "BROADCAST") setFeedFilter("BROADCAST");
-      else setFeedFilter("UPDATE");
+      const nextKey: FeedFilterKey =
+        parsed.kind === "ROUTE"
+          ? "ROUTE"
+          : parsed.kind === "BROADCAST"
+            ? "BROADCAST"
+            : parsed.kind === "MESSAGE"
+              ? "MESSAGE"
+              : parsed.kind === "PROFILE_APPROVED"
+                ? "PROFILE"
+                : "POST";
+      setFeedFilters((prev) => {
+        const next = new Set(prev);
+        next.add(nextKey);
+        return next;
+      });
       window.localStorage.removeItem("snapdriver_feed_jump");
     } catch {
       // ignore
@@ -2413,15 +2598,15 @@ const DashboardView: React.FC<{
   }, [seekerId, feedItems]);
 
   const filteredFeedItems = useMemo(() => {
-    if (feedFilter === "ALL") return feedItems;
-    if (feedFilter === "BROADCAST") {
-      return feedItems.filter((it) => it.kind === "BROADCAST");
-    }
-    if (feedFilter === "ROUTE") {
-      return feedItems.filter((it) => it.kind === "ROUTE");
-    }
-    return feedItems.filter((it) => it.kind === "POST");
-  }, [feedFilter, feedItems]);
+    const mapKey = (it: FeedItem): FeedFilterKey => {
+      if (it.kind === "POST") return "POST";
+      if (it.kind === "BROADCAST") return "BROADCAST";
+      if (it.kind === "ROUTE") return "ROUTE";
+      if (it.kind === "MESSAGE") return "MESSAGE";
+      return "PROFILE";
+    };
+    return feedItems.filter((it) => feedFilters.has(mapKey(it)));
+  }, [feedFilters, feedItems]);
 
   const visibleFeedItems = useMemo(
     () => filteredFeedItems.slice(0, 12),
@@ -2434,16 +2619,30 @@ const DashboardView: React.FC<{
   };
 
   const feedWhen = (it: FeedItem) =>
-    it.kind === "BROADCAST" ? it.createdAt : (it as any).updatedAt;
+    it.kind === "BROADCAST" || it.kind === "PROFILE_APPROVED"
+      ? it.createdAt
+      : (it as any).updatedAt;
 
   const feedTitle = (it: FeedItem) => {
     if (it.kind === "POST") return it.post.title || "Post";
     if (it.kind === "ROUTE") return it.route.title || "Route";
+    if (it.kind === "MESSAGE") return it.subject || "Message";
+    if (it.kind === "PROFILE_APPROVED") {
+      return `New ${it.profileRole === "RETAINER" ? "Retainer" : "Seeker"} approved`;
+    }
     return it.broadcast.subject || "Broadcast";
   };
 
   const feedBadge = (it: FeedItem) =>
-    it.kind === "POST" ? it.post.type : it.kind === "ROUTE" ? "ROUTE" : "BROADCAST";
+    it.kind === "POST"
+      ? it.post.type
+      : it.kind === "ROUTE"
+        ? "ROUTE"
+        : it.kind === "MESSAGE"
+          ? "MESSAGE"
+          : it.kind === "PROFILE_APPROVED"
+            ? "NEW PROFILE"
+            : "BROADCAST";
 
   const feedKey = (it: FeedItem) => `${it.kind}:${it.id}`;
 
@@ -2509,6 +2708,26 @@ const DashboardView: React.FC<{
       seekerId,
       type,
     });
+
+    if (type === "INTERESTED" || type === "REQUEST_INFO") {
+      if (!canDirectMessage) {
+        onToast("Interest recorded. Direct message is available after the link is approved.");
+        return;
+      }
+      const retainer = retainerById.get(retainerId);
+      if (!retainer) return;
+      const subject = route.title || "Route";
+      const body =
+        type === "REQUEST_INFO"
+          ? `Hi ${retainer.companyName || "there"}, can you share more details about "${subject}"?`
+          : `Hi ${retainer.companyName || "there"}, I am interested in "${subject}" and would like to discuss next steps.`;
+      onComposeMessage({
+        retainer,
+        initialSubject: subject,
+        initialBody: body,
+        messageFlag: `FEED:ROUTE:${route.id}`,
+      });
+    }
   };
 
   const handlePostResponse = (
@@ -2553,6 +2772,26 @@ const DashboardView: React.FC<{
       seekerId,
       type,
     });
+
+    if (type === "INTERESTED" || type === "REQUEST_INFO") {
+      if (!canDirectMessage) {
+        onToast("Interest recorded. Direct message is available after the link is approved.");
+        return;
+      }
+      const retainer = retainerById.get(retainerId);
+      if (!retainer) return;
+      const subject = post.title || "Post";
+      const body =
+        type === "REQUEST_INFO"
+          ? `Hi ${retainer.companyName || "there"}, can you share more details about "${subject}"?`
+          : `Hi ${retainer.companyName || "there"}, I am interested in "${subject}" and would like to learn more.`;
+      onComposeMessage({
+        retainer,
+        initialSubject: subject,
+        initialBody: body,
+        messageFlag: `FEED:POST:${post.id}`,
+      });
+    }
   };
 
   const handleFeedReaction = (
@@ -2645,9 +2884,11 @@ const DashboardView: React.FC<{
 
   const renderFeedDetails = (it: FeedItem) => {
     if (it.kind === "POST") {
+      const visibility = it.post.audience === "PUBLIC" ? "Area" : "Linked only";
       return (
-        <div className="text-sm text-slate-200 whitespace-pre-wrap">
-          {it.post.body}
+        <div className="space-y-2 text-sm text-slate-200">
+          <div className="text-[11px] text-slate-400">Visibility: {visibility}</div>
+          <div className="whitespace-pre-wrap">{it.post.body}</div>
         </div>
       );
     }
@@ -2698,6 +2939,59 @@ const DashboardView: React.FC<{
             <div className="whitespace-pre-wrap">
               <span className="text-slate-400">Requirements: </span>
               {route.requirements}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (it.kind === "MESSAGE") {
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          <div className="text-xs text-slate-400">Latest message</div>
+          <div className="text-sm text-slate-100 whitespace-pre-wrap">
+            {it.preview || "Open the conversation to view the latest message."}
+          </div>
+          <div className="text-[11px] text-slate-500">
+            Unread: {it.unreadCount}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!seekerId) return;
+              if (typeof window !== "undefined") {
+                window.localStorage.setItem(
+                  `snapdriver_seeker_active_retainer_${seekerId}`,
+                  it.retainerId
+                );
+                window.localStorage.setItem(
+                  `snapdriver_seeker_active_conversation_${seekerId}`,
+                  it.conversationId
+                );
+              }
+              onGoToMessages();
+            }}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition"
+          >
+            Open conversation
+          </button>
+        </div>
+      );
+    }
+
+    if (it.kind === "PROFILE_APPROVED") {
+      const location = [it.city, it.state].filter(Boolean).join(", ");
+      const zipLabel = it.zip ? `ZIP ${it.zip}` : "";
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          <div>
+            {it.name} was approved and is now visible in your area.
+          </div>
+          {(location || zipLabel) && (
+            <div className="text-[11px] text-slate-500">
+              {location}
+              {location && zipLabel ? " • " : ""}
+              {zipLabel}
             </div>
           )}
         </div>
@@ -2912,7 +3206,7 @@ const DashboardView: React.FC<{
                 Feed
               </div>
               <div className="text-[11px] text-slate-500 mt-1">
-                Broadcasts, routes, and updates from Retainers.
+                Posts, broadcasts, routes, and messages from Retainers.
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -2933,20 +3227,38 @@ const DashboardView: React.FC<{
             </div>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {(
-              [
-                { key: "ALL", label: "All" },
-                { key: "BROADCAST", label: "Broadcasts" },
-                { key: "ROUTE", label: "Routes" },
-                { key: "UPDATE", label: "Updates" },
-              ] as const
-            ).map((item) => {
-              const isActive = feedFilter === item.key;
+            <button
+              type="button"
+              onClick={() =>
+                setFeedFilters(new Set(FEED_FILTER_OPTIONS.map((item) => item.key)))
+              }
+              className={[
+                "px-3 py-1 rounded-full text-[11px] border transition",
+                feedFilters.size === FEED_FILTER_OPTIONS.length
+                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
+                  : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
+              ].join(" ")}
+            >
+              All
+            </button>
+            {FEED_FILTER_OPTIONS.map((item) => {
+              const isActive = feedFilters.has(item.key);
               return (
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => setFeedFilter(item.key)}
+                  onClick={() => {
+                    setFeedFilters((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(item.key)) {
+                        if (next.size === 1) return next;
+                        next.delete(item.key);
+                        return next;
+                      }
+                      next.add(item.key);
+                      return next;
+                    });
+                  }}
                   className={[
                     "px-3 py-1 rounded-full text-[11px] border transition",
                     isActive
@@ -2972,17 +3284,25 @@ const DashboardView: React.FC<{
             <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1">
               <ul className="space-y-2">
                 {visibleFeedItems.map((it) => {
-                  const r = retainerById.get(it.retainerId);
-                  const retainerName = r?.companyName || "Retainer";
+                  const isPost = it.kind === "POST";
+                  const isRoute = it.kind === "ROUTE";
+                  const isBroadcast = it.kind === "BROADCAST";
+                  const isMessage = it.kind === "MESSAGE";
+                  const isProfile = it.kind === "PROFILE_APPROVED";
+                  const r = isProfile
+                    ? retainerById.get(it.profileId)
+                    : retainerById.get(it.retainerId);
+                  const retainerName = isProfile
+                    ? r?.companyName || it.name || "Retainer"
+                    : r?.companyName || "Retainer";
                   const when = feedWhen(it);
                   const badge = feedBadge(it);
                   const key = feedKey(it);
                   const isExpanded = expandedFeedKey === key;
-                  const isAd = it.kind === "POST" && it.post.type === "AD";
-                  const isUpdate = it.kind === "POST" && it.post.type === "UPDATE";
-                  const isBroadcast = it.kind === "BROADCAST";
+                  const isAd = isPost && it.post.type === "AD";
+                  const isUpdate = isPost && it.post.type === "UPDATE";
                   const routeResponse =
-                    seekerId && it.kind === "ROUTE"
+                    seekerId && isRoute
                       ? getRouteResponseForSeeker(it.route.id, seekerId)
                       : null;
                   const postResponse =
@@ -2999,7 +3319,8 @@ const DashboardView: React.FC<{
                     routeResponse?.type || postResponse?.type || null
                   );
                   const reactionText = reactionLabel(reaction?.type || null);
-                  const canDirectMessage = activeLinkRetainerIds.has(it.retainerId);
+                  const canDirectMessage =
+                    (isRoute || isPost) && activeLinkRetainerIds.has(it.retainerId);
 
                   return (
                     <li
@@ -3014,8 +3335,12 @@ const DashboardView: React.FC<{
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex items-start gap-2">
                             <ProfileAvatar
-                              role="RETAINER"
-                              profile={(r ?? { id: it.retainerId }) as any}
+                              role={isProfile ? it.profileRole : "RETAINER"}
+                              profile={
+                                (isProfile
+                                  ? (r ?? { id: it.profileId })
+                                  : (r ?? { id: it.retainerId })) as any
+                              }
                               name={retainerName}
                               size="lg"
                             />
@@ -3027,6 +3352,11 @@ const DashboardView: React.FC<{
                                 <span className="inline-flex items-center rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-200 bg-slate-900/70">
                                   {badge}
                                 </span>
+                                {isMessage && it.unreadCount > 0 && (
+                                  <span className="inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-100">
+                                    {it.unreadCount} new
+                                  </span>
+                                )}
                               </div>
                               <div className="text-xs text-slate-100 font-medium truncate">
                                 {feedTitle(it)}
@@ -3399,19 +3729,23 @@ const DashboardView: React.FC<{
                           setScheduleError("Invalid date/time.");
                           return;
                         }
-                        const next = addLinkMeetingProposal({
-                          seekerId,
-                          retainerId: scheduleLink.retainerId,
-                          by: "SEEKER",
-                          startAt: d.toISOString(),
-                          durationMinutes: proposalDuration,
-                          note: proposalNote,
-                        });
-                        setScheduleLink(next);
-                        setProposalAt("");
-                        setProposalNote("");
-                        setLinkTick((x) => x + 1);
-                        onToast("Proposed a video call time.");
+                        try {
+                          const next = addLinkMeetingProposal({
+                            seekerId,
+                            retainerId: scheduleLink.retainerId,
+                            by: "SEEKER",
+                            startAt: d.toISOString(),
+                            durationMinutes: proposalDuration,
+                            note: proposalNote,
+                          });
+                          setScheduleLink(next);
+                          setProposalAt("");
+                          setProposalNote("");
+                          setLinkTick((x) => x + 1);
+                          onToast("Proposed a video call time.");
+                        } catch (err: any) {
+                          setScheduleError(err?.message || "Unable to propose a time.");
+                        }
                       }}
                       className="px-4 py-2 rounded-full text-sm font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition disabled:opacity-60 disabled:cursor-not-allowed"
                       disabled={scheduleDisabled}
@@ -3463,6 +3797,7 @@ const ActionView: React.FC<{
   onReturnToWheel: (r: Retainer) => void;
   onRebucketById: (retainerId: string, targetBucket: RetainerBucketKey) => void;
   onMessage: (r: Retainer) => void;
+  onComposeMessage: (draft: ComposeDraft) => void;
   onToast: (msg: string) => void;
   onSeekerCreated: () => void;
   onSeekerUpdated: () => void;
@@ -3493,6 +3828,7 @@ const ActionView: React.FC<{
   onReturnToWheel,
   onRebucketById,
   onMessage,
+  onComposeMessage,
   onToast,
   onSeekerCreated,
   onSeekerUpdated,
@@ -3730,6 +4066,7 @@ const ActionView: React.FC<{
             seekerId={seekerId}
             retainers={retainers}
             onToast={onToast}
+            onComposeMessage={onComposeMessage}
           />
         )}
 
@@ -5419,6 +5756,29 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
   const [activePage, setActivePage] =
     useState<SeekerProfileEditPageKey>("core");
 
+  const makeVehicleId = () =>
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? (crypto as any).randomUUID()
+      : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+  const buildVehicleState = (source?: Seeker): VehicleEntry[] => {
+    const list = Array.isArray(source?.vehicles) ? source?.vehicles : [];
+    const normalized = list
+      .map((entry) => ({
+        id: entry.id || makeVehicleId(),
+        year: entry.year,
+        make: entry.make,
+        model: entry.model,
+      }))
+      .filter((entry) => entry.year || entry.make || entry.model);
+    if (normalized.length) return normalized;
+    const legacy = typeof (source as any)?.vehicle === "string" ? (source as any).vehicle.trim() : "";
+    if (legacy) {
+      return [{ id: makeVehicleId(), model: legacy }];
+    }
+    return [{ id: makeVehicleId() }];
+  };
+
   const [firstName, setFirstName] = useState(initial?.firstName ?? "");
   const [lastName, setLastName] = useState(initial?.lastName ?? "");
   const [companyName, setCompanyName] = useState(initial?.companyName ?? "");
@@ -5431,7 +5791,9 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
   const [yearsInBusiness, setYearsInBusiness] = useState(
     initial?.yearsInBusiness != null ? String(initial.yearsInBusiness) : ""
   );
-  const [vehicle, setVehicle] = useState((initial as any)?.vehicle ?? "");
+  const [vehicles, setVehicles] = useState<VehicleEntry[]>(() =>
+    buildVehicleState(initial)
+  );
   const [notes, setNotes] = useState((initial as any)?.notes ?? "");
   const [insuranceType, setInsuranceType] = useState(
     initial?.insuranceType ?? INSURANCE_TYPES[0]
@@ -5454,6 +5816,55 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initial) {
+      setFirstName("");
+      setLastName("");
+      setCompanyName("");
+      setEmail("");
+      setPhone("");
+      setBirthday("");
+      setCity("");
+      setStateCode("FL");
+      setZip("");
+      setYearsInBusiness("");
+      setVehicles(buildVehicleState(undefined));
+      setNotes("");
+      setInsuranceType(INSURANCE_TYPES[0]);
+      setSelectedVerticals([]);
+      setPhotoUrl("");
+      setVehiclePhoto1("");
+      setVehiclePhoto2("");
+      setVehiclePhoto3("");
+      setActivePage("core");
+      return;
+    }
+
+    setFirstName(initial.firstName ?? "");
+    setLastName(initial.lastName ?? "");
+    setCompanyName(initial.companyName ?? "");
+    setEmail((initial as any)?.email ?? "");
+    setPhone((initial as any)?.phone ?? "");
+    setBirthday((initial as any)?.birthday ?? "");
+    setCity(initial.city ?? "");
+    setStateCode(initial.state ?? "FL");
+    setZip(initial.zip ?? "");
+    setYearsInBusiness(
+      initial.yearsInBusiness != null ? String(initial.yearsInBusiness) : ""
+    );
+    setVehicles(buildVehicleState(initial));
+    setNotes((initial as any)?.notes ?? "");
+    setInsuranceType(initial.insuranceType ?? INSURANCE_TYPES[0]);
+    setSelectedVerticals(initial.deliveryVerticals ?? []);
+    setPhotoUrl(
+      (initial as any)?.photoUrl ?? (initial as any)?.profileImageUrl ?? ""
+    );
+    setVehiclePhoto1((initial as any)?.vehiclePhoto1 ?? "");
+    setVehiclePhoto2((initial as any)?.vehiclePhoto2 ?? "");
+    setVehiclePhoto3((initial as any)?.vehiclePhoto3 ?? "");
+    setActivePage("core");
+  }, [initial?.id, mode]);
 
   const workHistoryAssignments = useMemo(
     () => (initial?.id ? getAssignmentsForSeeker(initial.id) : []),
@@ -5552,6 +5963,27 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     );
   };
 
+  const updateVehicleEntry = (id: string, patch: Partial<VehicleEntry>) => {
+    setVehicles((prev) =>
+      prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry))
+    );
+  };
+
+  const addVehicleEntry = () => {
+    setVehicles((prev) => {
+      if (prev.length >= MAX_VEHICLES) return prev;
+      return [...prev, { id: makeVehicleId() }];
+    });
+  };
+
+  const removeVehicleEntry = (id: string) => {
+    setVehicles((prev) => {
+      const next = prev.filter((entry) => entry.id !== id);
+      if (next.length === 0) return [{ id: makeVehicleId() }];
+      return next;
+    });
+  };
+
   const pages: { key: SeekerProfileEditPageKey; label: string }[] = [
     { key: "core", label: "Profile 1: Core Info" },
     { key: "insuranceVerticals", label: "Profile 2: Insurance & Verticals" },
@@ -5612,6 +6044,22 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     try {
       setSubmitting(true);
 
+      const normalizedVehicles = vehicles
+        .map((entry) => ({
+          id: entry.id || makeVehicleId(),
+          year:
+            entry.year != null && Number.isFinite(Number(entry.year))
+              ? Number(entry.year)
+              : undefined,
+          make: entry.make?.trim() || undefined,
+          model: entry.model?.trim() || undefined,
+        }))
+        .filter((entry) => entry.year || entry.make || entry.model);
+      const vehicleSummary = normalizedVehicles
+        .map((entry) => [entry.year, entry.make, entry.model].filter(Boolean).join(" "))
+        .filter(Boolean)
+        .join("; ");
+
       const payload = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
@@ -5625,7 +6073,8 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
         yearsInBusiness: yearsInBusiness ? Number(yearsInBusiness) : undefined,
         deliveryVerticals:
           selectedVerticals.length > 0 ? selectedVerticals : undefined,
-        vehicle: vehicle.trim() || undefined,
+        vehicles: normalizedVehicles.length ? normalizedVehicles : undefined,
+        vehicle: vehicleSummary || undefined,
         insuranceType: insuranceType || undefined,
         notes: notes.trim() || undefined,
         photoUrl: photoUrl.trim() || undefined,
@@ -5644,11 +6093,15 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
           ...payload,
         };
         updateSeekerInStorage(updated);
+        syncUpsert({ seekers: [updated] }).catch(() => undefined);
         setSuccessMsg("Profile updated. Admin and other views will see your latest info.");
         onSaved(updated.id);
       } else {
         const created = addSeekerForcePending(payload as any);
-        setSuccessMsg("Profile created and set to Pending. Admin must approve it before Retainers see you.");
+        syncUpsert({ seekers: [created] }).catch(() => undefined);
+        setSuccessMsg(
+          "Profile created and set to Pending. Head to Badges to choose your badges while you wait for approval."
+        );
         onSaved(created.id);
       }
     } catch (err) {
@@ -5913,14 +6366,103 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
 
         {activePage === "vehicleNotes" && (
           <>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-slate-200">Vehicle</label>
-              <input
-                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                value={vehicle}
-                onChange={(e) => setVehicle(e.target.value)}
-                placeholder="2020 Ford Transit 250 High Roof"
-              />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-slate-200">Vehicles</label>
+                <button
+                  type="button"
+                  onClick={addVehicleEntry}
+                  disabled={vehicles.length >= MAX_VEHICLES}
+                  className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Add vehicle
+                </button>
+              </div>
+              <div className="space-y-3">
+                {vehicles.map((entry, idx) => {
+                  const models =
+                    entry.make && VEHICLE_MODELS_BY_MAKE[entry.make]
+                      ? VEHICLE_MODELS_BY_MAKE[entry.make]
+                      : [];
+                  return (
+                    <div
+                      key={entry.id}
+                      className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-[11px] text-slate-400">
+                          Vehicle {idx + 1}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeVehicleEntry(entry.id)}
+                          className="px-2 py-1 rounded-full text-[11px] text-rose-100 border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 transition"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] text-slate-400">Year</label>
+                          <select
+                            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            value={entry.year ?? ""}
+                            onChange={(e) =>
+                              updateVehicleEntry(entry.id, {
+                                year: e.target.value ? Number(e.target.value) : undefined,
+                              })
+                            }
+                          >
+                            <option value="">Select year</option>
+                            {VEHICLE_YEARS.map((year) => (
+                              <option key={year} value={year} className="bg-slate-900 text-slate-50">
+                                {year}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] text-slate-400">Make</label>
+                          <input
+                            list={`vehicle-make-${entry.id}`}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            value={entry.make ?? ""}
+                            onChange={(e) =>
+                              updateVehicleEntry(entry.id, { make: e.target.value })
+                            }
+                            placeholder="Select make"
+                          />
+                          <datalist id={`vehicle-make-${entry.id}`}>
+                            {VEHICLE_MAKES.map((make) => (
+                              <option key={make} value={make} />
+                            ))}
+                          </datalist>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] text-slate-400">Model</label>
+                          <input
+                            list={`vehicle-model-${entry.id}`}
+                            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            value={entry.model ?? ""}
+                            onChange={(e) =>
+                              updateVehicleEntry(entry.id, { model: e.target.value })
+                            }
+                            placeholder="Select model"
+                          />
+                          <datalist id={`vehicle-model-${entry.id}`}>
+                            {models.map((model) => (
+                              <option key={model} value={model} />
+                            ))}
+                          </datalist>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="text-[11px] text-slate-400">
+                Up to {MAX_VEHICLES} vehicles per profile.
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -6014,7 +6556,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
             <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
               <div className="text-sm font-semibold text-slate-100">Work history</div>
               <div className="text-xs text-slate-400 mt-1">
-                Read-only view derived from approved work-unit periods.
+                Read-only view derived from approved reputation point periods.
               </div>
             </div>
 
@@ -6026,31 +6568,41 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
               <>
                 <div className="grid gap-3 md:grid-cols-5">
                   <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                    <div className="text-[11px] uppercase tracking-wide text-slate-400">Issued units</div>
+                    <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                      Issued points
+                    </div>
                     <div className="text-lg font-semibold text-slate-50">
                       {workHistoryTotals.issuedUnits}
                     </div>
                   </div>
                   <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
-                    <div className="text-[11px] uppercase tracking-wide text-emerald-200/80">Completed</div>
+                    <div className="text-[11px] uppercase tracking-wide text-emerald-200/80">
+                      Completed
+                    </div>
                     <div className="text-lg font-semibold text-emerald-100">
                       {workHistoryTotals.completedUnits}
                     </div>
                   </div>
                   <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3">
-                    <div className="text-[11px] uppercase tracking-wide text-rose-200/80">Missed</div>
+                    <div className="text-[11px] uppercase tracking-wide text-rose-200/80">
+                      Missed
+                    </div>
                     <div className="text-lg font-semibold text-rose-100">
                       {workHistoryTotals.missedUnits}
                     </div>
                   </div>
                   <div className="rounded-xl border border-sky-500/40 bg-sky-500/10 p-3">
-                    <div className="text-[11px] uppercase tracking-wide text-sky-200/80">Possible score</div>
+                    <div className="text-[11px] uppercase tracking-wide text-sky-200/80">
+                      Possible score
+                    </div>
                     <div className="text-lg font-semibold text-sky-100">
                       {formatScoreIncrease(workHistoryTotals.possibleScoreIncrease)}
                     </div>
                   </div>
                   <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3">
-                    <div className="text-[11px] uppercase tracking-wide text-emerald-200/80">Actual score</div>
+                    <div className="text-[11px] uppercase tracking-wide text-emerald-200/80">
+                      Actual score
+                    </div>
                     <div className="text-lg font-semibold text-emerald-100">
                       {formatScoreIncrease(workHistoryTotals.actualScoreIncrease)}
                     </div>
@@ -6418,6 +6970,7 @@ const SeekerScheduleView: React.FC<{
 
     const updated: Seeker = { ...(seeker as any), availability: nextAvailability };
     updateSeekerInStorage(updated);
+    syncUpsert({ seekers: [updated] }).catch(() => undefined);
     onSaved();
   };
 
@@ -6997,7 +7550,7 @@ const SeekerLinkingView: React.FC<{
   );
 
   const pendingRetainers = useMemo(
-    () => filteredRetainers.filter((r) => statusForRetainer(r.id) !== "ACTIVE"),
+    () => filteredRetainers.filter((r) => statusForRetainer(r.id) === "PENDING"),
     [filteredRetainers, linkByRetainerId]
   );
 
@@ -7330,7 +7883,8 @@ const SeekerRoutesView: React.FC<{
   seekerId: string | null;
   retainers: Retainer[];
   onToast: (msg: string) => void;
-}> = ({ seekerId, retainers, onToast }) => {
+  onComposeMessage: (draft: ComposeDraft) => void;
+}> = ({ seekerId, retainers, onToast, onComposeMessage }) => {
   const [refresh, setRefresh] = useState(0);
   const [noticeDraftRouteId, setNoticeDraftRouteId] = useState<string | null>(null);
   const [noticeEndDate, setNoticeEndDate] = useState("");
@@ -7374,6 +7928,15 @@ const SeekerRoutesView: React.FC<{
     () => new Map(retainers.map((r) => [r.id, r] as const)),
     [retainers]
   );
+
+  const activeLinkRetainerIds = useMemo(() => {
+    if (!seekerId) return new Set<string>();
+    return new Set(
+      getLinksForSeeker(seekerId)
+        .filter((l) => l.status === "ACTIVE")
+        .map((l) => l.retainerId)
+    );
+  }, [seekerId, refresh]);
 
   const routeScheduleMatchById = useMemo(() => {
     const map = new Map<string, ScheduleMatch>();
@@ -7510,9 +8073,11 @@ const SeekerRoutesView: React.FC<{
       <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-100">Work units</div>
+            <div className="text-sm font-semibold text-slate-100">
+              Reputation points
+            </div>
             <div className="text-xs text-slate-400">
-              Confirm work-unit submissions within 48 hours. Neutral gives no
+              Confirm reputation point submissions within 48 hours. Neutral gives no
               points.
             </div>
           </div>
@@ -7617,10 +8182,10 @@ const SeekerRoutesView: React.FC<{
                               periodId: period.id,
                               response: "CONFIRM",
                             });
-                            onToast("Confirmed work units");
+                            onToast("Confirmed reputation points");
                             setRefresh((n) => n + 1);
                           } catch (err: any) {
-                            onToast(err?.message || "Could not confirm work units");
+                            onToast(err?.message || "Could not confirm reputation points");
                           }
                         }}
                       >
@@ -7782,7 +8347,33 @@ const SeekerRoutesView: React.FC<{
                           seekerId,
                           route.id
                         );
-                        onToast(next ? "Marked Interested" : "Interest removed");
+                        if (next) {
+                          const canDirectMessage = activeLinkRetainerIds.has(
+                            route.retainerId
+                          );
+                          if (!canDirectMessage) {
+                            onToast(
+                              "Interest recorded. Direct message is available after the link is approved."
+                            );
+                          } else {
+                            const target = retainerById.get(route.retainerId);
+                            if (target) {
+                              const subject = route.title || "Route";
+                              const body = `Hi ${
+                                target.companyName || "there"
+                              }, I am interested in "${subject}" and would like to discuss next steps.`;
+                              onComposeMessage({
+                                retainer: target,
+                                initialSubject: subject,
+                                initialBody: body,
+                                messageFlag: `ROUTE:${route.id}`,
+                              });
+                            }
+                            onToast("Marked Interested");
+                          }
+                        } else {
+                          onToast("Interest removed");
+                        }
                         setRefresh((n) => n + 1);
                       } catch (err: any) {
                         onToast(err?.message || "Could not update interest");

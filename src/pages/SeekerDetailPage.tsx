@@ -1,5 +1,5 @@
 // src/pages/SeekerDetailPage.tsx
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, lazy, Suspense } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { Seeker, Status } from "../lib/data";
 import {
@@ -15,7 +15,7 @@ import { getLink, requestLink, type Link as LinkModel } from "../lib/linking";
 import type { WeeklyAvailability } from "../lib/schedule";
 import { DAYS, isDayOfWeek } from "../lib/schedule";
 import { clearPortalContext, clearSession, getPortalContext, getSession } from "../lib/session";
-import HierarchyCanvas from "../components/HierarchyCanvas";
+const LazyHierarchyCanvas = lazy(() => import("../components/HierarchyCanvas"));
 import { getBadgeSummaryForProfile, getReputationScoreForProfile } from "../lib/badges";
 import {
   NEGATIVE_UNIT_MULTIPLIER,
@@ -334,8 +334,22 @@ export default function SeekerDetailPage() {
   const phone = (seeker as any).phone ?? "—";
   const city = (seeker as any).city ?? "—";
   const state = (seeker as any).state ?? "—";
-  const insurance = (seeker as any).insuranceType ?? "—";
-  const vehicle = (seeker as any).vehicle ?? "—";
+  const insurance = (seeker as any).insuranceType ?? "--";
+  const vehiclesRaw = (seeker as any).vehicles ?? [];
+  const vehicleLines = Array.isArray(vehiclesRaw)
+    ? vehiclesRaw
+        .map((entry: any) => {
+          if (!entry) return "";
+          if (typeof entry === "string") return entry;
+          const year = entry.year ?? "";
+          const make = entry.make ?? "";
+          const model = entry.model ?? "";
+          return [year, make, model].filter(Boolean).join(" ");
+        })
+        .filter((line: string) => line.trim())
+    : [];
+  const vehicleDisplay =
+    vehicleLines.length > 0 ? vehicleLines.join(", ") : (seeker as any).vehicle ?? "--";
   const notes = (seeker as any).notes ?? (seeker as any).about ?? "";
 
   const seekerPhotoUrl: string | undefined =
@@ -705,7 +719,7 @@ export default function SeekerDetailPage() {
                       />
                       <KeyValue label="Email" value={email} />
                       <KeyValue label="Phone" value={phone} />
-                      <KeyValue label="Vehicle" value={vehicle} />
+                      <KeyValue label="Vehicle" value={vehicleDisplay} />
                       <KeyValue label="Insurance" value={insurance} />
                     </div>
                     {notes?.trim() && (
@@ -949,13 +963,21 @@ export default function SeekerDetailPage() {
                 No subcontractors have been added yet.
               </div>
             ) : (
-              <HierarchyCanvas
-                owner={hierarchyOwner}
-                items={hierarchyItems}
-                nodes={(seeker as any).hierarchyNodes ?? []}
-                readOnly
-                showList={false}
-              />
+              <Suspense
+                fallback={
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-6 text-sm text-slate-400">
+                    Loading hierarchy…
+                  </div>
+                }
+              >
+                <LazyHierarchyCanvas
+                  owner={hierarchyOwner}
+                  items={hierarchyItems}
+                  nodes={(seeker as any).hierarchyNodes ?? []}
+                  readOnly
+                  showList={false}
+                />
+              </Suspense>
             )}
           </div>
         )}

@@ -2534,12 +2534,12 @@ const AdminWorkUnitsPanel: React.FC<{
       });
       setStatusMessage(
         resolution === "CONFIRM"
-          ? "Work units confirmed."
-          : "Work units neutralized."
+          ? "Reputation points confirmed."
+          : "Reputation points neutralized."
       );
       setRefresh((r) => r + 1);
     } catch (err: any) {
-      setErrorMessage(err?.message || "Could not resolve work units.");
+      setErrorMessage(err?.message || "Could not resolve reputation points.");
     }
   };
 

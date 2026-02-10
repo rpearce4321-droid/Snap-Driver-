@@ -653,6 +653,9 @@ const RetainerPage: React.FC = () => {
     refreshRetainersAndSession();
 
     setActiveTab("dashboard");
+    setToastMessage(
+      "Profile created. Head to Badges to choose your badges while you wait for approval."
+    );
 
   };
 
@@ -661,6 +664,7 @@ const RetainerPage: React.FC = () => {
     refreshRetainersAndSession();
 
     setActiveTab("dashboard");
+    setToastMessage("Profile updated.");
 
   };
 
@@ -1943,6 +1947,8 @@ const RetainerPage: React.FC = () => {
 
                     onGoToPosts={() => setActiveTab("posts")}
 
+                    onGoToMessages={() => setActiveTab("messages")}
+
                     onGoToRoutes={() => openActionTab("routes")}
 
                     className="min-h-[320px]"
@@ -2087,9 +2093,20 @@ type RetainerFeedPanelProps = {
   onOpenProfile: (s: Seeker) => void;
   onMessage: (s: Seeker) => void;
   onGoToPosts: () => void;
+  onGoToMessages: () => void;
   onGoToRoutes: () => void;
   className?: string;
 };
+
+type FeedFilterKey = "POST" | "BROADCAST" | "ROUTE" | "MESSAGE" | "PROFILE";
+
+const FEED_FILTER_OPTIONS: Array<{ key: FeedFilterKey; label: string }> = [
+  { key: "POST", label: "Posts" },
+  { key: "BROADCAST", label: "Broadcasts" },
+  { key: "ROUTE", label: "Routes" },
+  { key: "MESSAGE", label: "Messages" },
+  { key: "PROFILE", label: "New profiles" },
+];
 
 const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
   retainerId,
@@ -2100,6 +2117,7 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
   onOpenProfile,
   onMessage,
   onGoToPosts,
+  onGoToMessages,
   onGoToRoutes,
   className,
 }) => {
@@ -2121,8 +2139,8 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
   }, [retainerId, linkTick]);
 
   const [feedTick, setFeedTick] = useState(0);
-  const [feedFilter, setFeedFilter] = useState<"ALL" | "BROADCAST" | "ROUTE" | "UPDATE">(
-    "ALL"
+  const [feedFilters, setFeedFilters] = useState<Set<FeedFilterKey>>(
+    () => new Set(FEED_FILTER_OPTIONS.map((item) => item.key))
   );
   const [expandedFeedKey, setExpandedFeedKey] = useState<string | null>(null);
   const feedItems = useMemo(
@@ -2151,9 +2169,21 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
       const parsed = JSON.parse(raw) as { role?: string; kind?: string; id?: string };
       if (parsed?.role !== "RETAINER" || !parsed.kind || !parsed.id) return;
       setExpandedFeedKey(`${parsed.kind}:${parsed.id}`);
-      if (parsed.kind === "ROUTE") setFeedFilter("ROUTE");
-      else if (parsed.kind === "BROADCAST") setFeedFilter("BROADCAST");
-      else setFeedFilter("UPDATE");
+      const nextKey: FeedFilterKey =
+        parsed.kind === "ROUTE"
+          ? "ROUTE"
+          : parsed.kind === "BROADCAST"
+            ? "BROADCAST"
+            : parsed.kind === "MESSAGE"
+              ? "MESSAGE"
+              : parsed.kind === "PROFILE_APPROVED"
+                ? "PROFILE"
+                : "POST";
+      setFeedFilters((prev) => {
+        const next = new Set(prev);
+        next.add(nextKey);
+        return next;
+      });
       window.localStorage.removeItem("snapdriver_feed_jump");
     } catch {
       // ignore
@@ -2161,15 +2191,15 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
   }, [retainerId, feedItems]);
 
   const filteredFeedItems = useMemo(() => {
-    if (feedFilter === "ALL") return feedItems;
-    if (feedFilter === "BROADCAST") {
-      return feedItems.filter((it) => it.kind === "BROADCAST");
-    }
-    if (feedFilter === "ROUTE") {
-      return feedItems.filter((it) => it.kind === "ROUTE");
-    }
-    return feedItems.filter((it) => it.kind === "POST");
-  }, [feedFilter, feedItems]);
+    const mapKey = (it: FeedItem): FeedFilterKey => {
+      if (it.kind === "POST") return "POST";
+      if (it.kind === "BROADCAST") return "BROADCAST";
+      if (it.kind === "ROUTE") return "ROUTE";
+      if (it.kind === "MESSAGE") return "MESSAGE";
+      return "PROFILE";
+    };
+    return feedItems.filter((it) => feedFilters.has(mapKey(it)));
+  }, [feedFilters, feedItems]);
 
   const visibleFeedItems = useMemo(
     () => filteredFeedItems.slice(0, 12),
@@ -2182,16 +2212,30 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
   };
 
   const feedWhen = (it: FeedItem) =>
-    it.kind === "BROADCAST" ? it.createdAt : (it as any).updatedAt;
+    it.kind === "BROADCAST" || it.kind === "PROFILE_APPROVED"
+      ? it.createdAt
+      : (it as any).updatedAt;
 
   const feedTitle = (it: FeedItem) => {
     if (it.kind === "POST") return it.post.title || "Post";
     if (it.kind === "ROUTE") return it.route.title || "Route";
+    if (it.kind === "MESSAGE") return it.subject || "Message";
+    if (it.kind === "PROFILE_APPROVED") {
+      return `New ${it.profileRole === "RETAINER" ? "Retainer" : "Seeker"} approved`;
+    }
     return it.broadcast.subject || "Broadcast";
   };
 
   const feedBadge = (it: FeedItem) =>
-    it.kind === "POST" ? it.post.type : it.kind === "ROUTE" ? "ROUTE" : "BROADCAST";
+    it.kind === "POST"
+      ? it.post.type
+      : it.kind === "ROUTE"
+        ? "ROUTE"
+        : it.kind === "MESSAGE"
+          ? "MESSAGE"
+          : it.kind === "PROFILE_APPROVED"
+            ? "NEW PROFILE"
+            : "BROADCAST";
 
   const feedKey = (it: FeedItem) => `${it.kind}:${it.id}`;
 
@@ -2204,10 +2248,78 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
   };
 
   const renderFeedDetails = (it: FeedItem) => {
-    if (it.kind === "POST") {
+    if (it.kind === "MESSAGE") {
+      const seeker = seekerById.get(it.seekerId);
+      const name = seeker ? formatSeekerName(seeker) : "Seeker";
       return (
-        <div className="text-sm text-slate-200 whitespace-pre-wrap">
-          {it.post.body}
+        <div className="space-y-2 text-sm text-slate-200">
+          <div>
+            <span className="text-slate-400">From: </span>
+            {name}
+          </div>
+          {it.preview ? (
+            <div className="text-slate-200 whitespace-pre-wrap">{it.preview}</div>
+          ) : (
+            <div className="text-xs text-slate-400">No preview available.</div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (!retainerId || typeof window === "undefined") return;
+              window.localStorage.setItem(
+                `snapdriver_retainer_active_seeker_${retainerId}`,
+                it.seekerId
+              );
+              window.localStorage.setItem(
+                `snapdriver_retainer_active_conversation_${retainerId}`,
+                it.conversationId
+              );
+              onGoToMessages();
+            }}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+          >
+            Open conversation
+          </button>
+        </div>
+      );
+    }
+
+    if (it.kind === "PROFILE_APPROVED") {
+      const place = [it.city, it.state].filter(Boolean).join(", ");
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          <div>
+            <span className="text-slate-400">Name: </span>
+            {it.name}
+          </div>
+          {place && (
+            <div>
+              <span className="text-slate-400">Location: </span>
+              {place}
+            </div>
+          )}
+          {it.profileRole === "SEEKER" && (
+            <button
+              type="button"
+              onClick={() => {
+                const seeker = seekerById.get(it.profileId);
+                if (seeker) onOpenProfile(seeker);
+              }}
+              className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+            >
+              View profile
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    if (it.kind === "POST") {
+      const visibility = it.post.audience === "PUBLIC" ? "Area" : "Linked only";
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          <div className="text-xs text-slate-400">Visibility: {visibility}</div>
+          <div className="text-sm text-slate-200 whitespace-pre-wrap">{it.post.body}</div>
         </div>
       );
     }
@@ -2552,7 +2664,7 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
         <div>
           <div className="text-xs uppercase tracking-wide text-slate-400">Feed</div>
           <div className="text-[11px] text-slate-500 mt-1">
-            Broadcasts, routes, and updates you have shared.
+            Posts, broadcasts, routes, and messages tied to your account.
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -2562,7 +2674,15 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
             disabled={!retainerId || !canInteract}
             className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Create broadcast
+            Create post/broadcast
+          </button>
+          <button
+            type="button"
+            onClick={onGoToMessages}
+            disabled={!retainerId}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            View messages
           </button>
           <button
             type="button"
@@ -2582,20 +2702,38 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
         </div>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {(
-          [
-            { key: "ALL", label: "All" },
-            { key: "BROADCAST", label: "Broadcasts" },
-            { key: "ROUTE", label: "Routes" },
-            { key: "UPDATE", label: "Updates" },
-          ] as const
-        ).map((item) => {
-          const isActive = feedFilter === item.key;
+        <button
+          type="button"
+          onClick={() =>
+            setFeedFilters(new Set(FEED_FILTER_OPTIONS.map((item) => item.key)))
+          }
+          className={[
+            "px-3 py-1 rounded-full text-[11px] border transition",
+            feedFilters.size === FEED_FILTER_OPTIONS.length
+              ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
+              : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
+          ].join(" ")}
+        >
+          All
+        </button>
+        {FEED_FILTER_OPTIONS.map((item) => {
+          const isActive = feedFilters.has(item.key);
           return (
             <button
               key={item.key}
               type="button"
-              onClick={() => setFeedFilter(item.key)}
+              onClick={() => {
+                setFeedFilters((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(item.key)) {
+                    if (next.size === 1) return next;
+                    next.delete(item.key);
+                    return next;
+                  }
+                  next.add(item.key);
+                  return next;
+                });
+              }}
               className={[
                 "px-3 py-1 rounded-full text-[11px] border transition",
                 isActive
@@ -2629,6 +2767,22 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
               const isAd = it.kind === "POST" && it.post.type === "AD";
               const isUpdate = it.kind === "POST" && it.post.type === "UPDATE";
               const isBroadcast = it.kind === "BROADCAST";
+              const isMessage = it.kind === "MESSAGE";
+              const isProfile = it.kind === "PROFILE_APPROVED";
+              const seekerForItem =
+                it.kind === "MESSAGE"
+                  ? seekerById.get(it.seekerId)
+                  : it.kind === "PROFILE_APPROVED"
+                    ? seekerById.get(it.profileId)
+                    : undefined;
+              const displayName =
+                isMessage || isProfile
+                  ? seekerForItem
+                    ? formatSeekerName(seekerForItem)
+                    : isProfile
+                      ? it.name
+                      : "Seeker"
+                  : retainerName;
               const responseCounts =
                 it.kind === "ROUTE"
                   ? getRouteResponseCounts(it.route.id)
@@ -2642,7 +2796,9 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
               const unreadCount =
                 it.kind === "ROUTE" && retainerId
                   ? getUnreadRouteResponseCount(retainerId, it.route.id)
-                  : 0;
+                  : isMessage
+                    ? it.unreadCount
+                    : 0;
 
               return (
                 <li
@@ -2658,9 +2814,13 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex items-start gap-2">
                       <ProfileAvatar
-                        role="RETAINER"
-                        profile={(currentRetainer ?? { id: retainerId || "retainer" }) as any}
-                        name={retainerName}
+                        role={isMessage || isProfile ? "SEEKER" : "RETAINER"}
+                        profile={
+                          (isMessage || isProfile
+                            ? seekerForItem ?? { id: isMessage ? it.seekerId : it.id }
+                            : currentRetainer ?? { id: retainerId || "retainer" }) as any
+                        }
+                        name={displayName}
                         size="lg"
                       />
                       <div className="min-w-0">
@@ -2674,7 +2834,7 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
                             className="text-[11px] text-slate-300 hover:text-slate-100 transition truncate max-w-[180px]"
                             title="View feed details"
                           >
-                            {retainerName}
+                            {displayName}
                           </button>
                           <span className="inline-flex items-center rounded-full border border-slate-700 px-2 py-0.5 text-[10px] text-slate-200 bg-slate-900/70">
                             {badge}
@@ -2723,6 +2883,16 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
                             </span>
                           </div>
                         )}
+                        {isMessage && (
+                          <div className="mt-1 text-[10px] text-slate-400 truncate max-w-[260px]">
+                            {it.preview || "New message"}
+                            {unreadCount > 0 && (
+                              <span className="ml-2 inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-emerald-100">
+                                Unread {unreadCount}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="shrink-0 flex gap-2">
@@ -2743,14 +2913,14 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
                       className="mt-3 rounded-xl border border-slate-800 bg-slate-950/40 p-3 space-y-3"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="text-xs uppercase tracking-wide text-slate-400">Post details</div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">Feed details</div>
                       {renderFeedDetails(it)}
                       {it.kind === "ROUTE" && renderRouteResponses(it.route)}
                       {isAd && renderPostResponses(it.post)}
                       {(isBroadcast || isUpdate) &&
                         renderFeedReactions(isBroadcast ? "BROADCAST" : "POST", it.id)}
                       <div className="flex flex-wrap items-center justify-end gap-2">
-                        {it.kind === "ROUTE" ? (
+                        {it.kind === "ROUTE" && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -2761,7 +2931,42 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
                           >
                             View in Routes
                           </button>
-                        ) : (
+                        )}
+                        {it.kind === "MESSAGE" && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!retainerId || typeof window === "undefined") return;
+                              window.localStorage.setItem(
+                                `snapdriver_retainer_active_seeker_${retainerId}`,
+                                it.seekerId
+                              );
+                              window.localStorage.setItem(
+                                `snapdriver_retainer_active_conversation_${retainerId}`,
+                                it.conversationId
+                              );
+                              onGoToMessages();
+                            }}
+                            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                          >
+                            Open messages
+                          </button>
+                        )}
+                        {it.kind === "PROFILE_APPROVED" && it.profileRole === "SEEKER" && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const seeker = seekerById.get(it.profileId);
+                              if (seeker) onOpenProfile(seeker);
+                            }}
+                            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                          >
+                            View profile
+                          </button>
+                        )}
+                        {(it.kind === "POST" || it.kind === "BROADCAST") && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -3170,11 +3375,8 @@ const DashboardView: React.FC<{
   }, [retainerId, retainerRoutes]);
 
   const [feedTick, setFeedTick] = useState(0);
-
-  const [feedFilter, setFeedFilter] = useState<"ALL" | "BROADCAST" | "ROUTE" | "UPDATE">(
-
-    "ALL"
-
+  const [feedFilters, setFeedFilters] = useState<Set<FeedFilterKey>>(
+    () => new Set(FEED_FILTER_OPTIONS.map((item) => item.key))
   );
 
   const [expandedFeedKey, setExpandedFeedKey] = useState<string | null>(null);
@@ -3202,9 +3404,21 @@ const DashboardView: React.FC<{
       const parsed = JSON.parse(raw) as { role?: string; kind?: string; id?: string };
       if (parsed?.role !== "RETAINER" || !parsed.kind || !parsed.id) return;
       setExpandedFeedKey(`${parsed.kind}:${parsed.id}`);
-      if (parsed.kind === "ROUTE") setFeedFilter("ROUTE");
-      else if (parsed.kind === "BROADCAST") setFeedFilter("BROADCAST");
-      else setFeedFilter("UPDATE");
+      const nextKey: FeedFilterKey =
+        parsed.kind === "ROUTE"
+          ? "ROUTE"
+          : parsed.kind === "BROADCAST"
+            ? "BROADCAST"
+            : parsed.kind === "MESSAGE"
+              ? "MESSAGE"
+              : parsed.kind === "PROFILE_APPROVED"
+                ? "PROFILE"
+                : "POST";
+      setFeedFilters((prev) => {
+        const next = new Set(prev);
+        next.add(nextKey);
+        return next;
+      });
       window.localStorage.removeItem("snapdriver_feed_jump");
     } catch {
       // ignore
@@ -3212,24 +3426,15 @@ const DashboardView: React.FC<{
   }, [retainerId, feedItems]);
 
   const filteredFeedItems = useMemo(() => {
-
-    if (feedFilter === "ALL") return feedItems;
-
-    if (feedFilter === "BROADCAST") {
-
-      return feedItems.filter((it) => it.kind === "BROADCAST");
-
-    }
-
-    if (feedFilter === "ROUTE") {
-
-      return feedItems.filter((it) => it.kind === "ROUTE");
-
-    }
-
-    return feedItems.filter((it) => it.kind === "POST");
-
-  }, [feedFilter, feedItems]);
+    const mapKey = (it: FeedItem): FeedFilterKey => {
+      if (it.kind === "POST") return "POST";
+      if (it.kind === "BROADCAST") return "BROADCAST";
+      if (it.kind === "ROUTE") return "ROUTE";
+      if (it.kind === "MESSAGE") return "MESSAGE";
+      return "PROFILE";
+    };
+    return feedItems.filter((it) => feedFilters.has(mapKey(it)));
+  }, [feedFilters, feedItems]);
 
   const visibleFeedItems = useMemo(
 
@@ -3248,22 +3453,30 @@ const DashboardView: React.FC<{
   };
 
   const feedWhen = (it: FeedItem) =>
-
-    it.kind === "BROADCAST" ? it.createdAt : (it as any).updatedAt;
+    it.kind === "BROADCAST" || it.kind === "PROFILE_APPROVED"
+      ? it.createdAt
+      : (it as any).updatedAt;
 
   const feedTitle = (it: FeedItem) => {
-
     if (it.kind === "POST") return it.post.title || "Post";
-
     if (it.kind === "ROUTE") return it.route.title || "Route";
-
+    if (it.kind === "MESSAGE") return it.subject || "Message";
+    if (it.kind === "PROFILE_APPROVED") {
+      return `New ${it.profileRole === "RETAINER" ? "Retainer" : "Seeker"} approved`;
+    }
     return it.broadcast.subject || "Broadcast";
-
   };
 
   const feedBadge = (it: FeedItem) =>
-
-    it.kind === "POST" ? it.post.type : it.kind === "ROUTE" ? "ROUTE" : "BROADCAST";
+    it.kind === "POST"
+      ? it.post.type
+      : it.kind === "ROUTE"
+        ? "ROUTE"
+        : it.kind === "MESSAGE"
+          ? "MESSAGE"
+          : it.kind === "PROFILE_APPROVED"
+            ? "NEW PROFILE"
+            : "BROADCAST";
 
   const feedKey = (it: FeedItem) => `${it.kind}:${it.id}`;
 
@@ -3282,19 +3495,68 @@ const DashboardView: React.FC<{
   };
 
   const renderFeedDetails = (it: FeedItem) => {
+    if (it.kind === "MESSAGE") {
+      const seeker = seekers.find((s) => s.id === it.seekerId);
+      const name = seeker ? formatSeekerName(seeker) : "Seeker";
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          <div>
+            <span className="text-slate-400">From: </span>
+            {name}
+          </div>
+          {it.preview ? (
+            <div className="text-slate-200 whitespace-pre-wrap">{it.preview}</div>
+          ) : (
+            <div className="text-xs text-slate-400">No preview available.</div>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              if (!retainerId || typeof window === "undefined") return;
+              window.localStorage.setItem(
+                `snapdriver_retainer_active_seeker_${retainerId}`,
+                it.seekerId
+              );
+              window.localStorage.setItem(
+                `snapdriver_retainer_active_conversation_${retainerId}`,
+                it.conversationId
+              );
+              onGoToMessages();
+            }}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+          >
+            Open conversation
+          </button>
+        </div>
+      );
+    }
+
+    if (it.kind === "PROFILE_APPROVED") {
+      const place = [it.city, it.state].filter(Boolean).join(", ");
+      return (
+        <div className="space-y-2 text-sm text-slate-200">
+          <div>
+            <span className="text-slate-400">Name: </span>
+            {it.name}
+          </div>
+          {place && (
+            <div>
+              <span className="text-slate-400">Location: </span>
+              {place}
+            </div>
+          )}
+        </div>
+      );
+    }
 
     if (it.kind === "POST") {
-
+      const visibility = it.post.audience === "PUBLIC" ? "Area" : "Linked only";
       return (
-
-        <div className="text-sm text-slate-200 whitespace-pre-wrap">
-
-          {it.post.body}
-
+        <div className="space-y-2 text-sm text-slate-200">
+          <div className="text-xs text-slate-400">Visibility: {visibility}</div>
+          <div className="text-sm text-slate-200 whitespace-pre-wrap">{it.post.body}</div>
         </div>
-
       );
-
     }
 
     if (it.kind === "ROUTE") {
@@ -4077,7 +4339,7 @@ const DashboardView: React.FC<{
 
               <div className="text-[11px] text-slate-500 mt-1">
 
-                Broadcasts, routes, and updates you have shared.
+                Posts, broadcasts, routes, and messages tied to your account.
 
               </div>
 
@@ -4097,7 +4359,23 @@ const DashboardView: React.FC<{
 
               >
 
-                Create broadcast
+                Create post/broadcast
+
+              </button>
+
+              <button
+
+                type="button"
+
+                onClick={onGoToMessages}
+
+                disabled={!retainerId}
+
+                className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+
+              >
+
+                View messages
 
               </button>
 
@@ -4137,54 +4415,48 @@ const DashboardView: React.FC<{
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
 
-            {(
-
-              [
-
-                { key: "ALL", label: "All" },
-
-                { key: "BROADCAST", label: "Broadcasts" },
-
-                { key: "ROUTE", label: "Routes" },
-
-                { key: "UPDATE", label: "Updates" },
-
-              ] as const
-
-            ).map((item) => {
-
-              const isActive = feedFilter === item.key;
-
+            <button
+              type="button"
+              onClick={() =>
+                setFeedFilters(new Set(FEED_FILTER_OPTIONS.map((item) => item.key)))
+              }
+              className={[
+                "px-3 py-1 rounded-full text-[11px] border transition",
+                feedFilters.size === FEED_FILTER_OPTIONS.length
+                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
+                  : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
+              ].join(" ")}
+            >
+              All
+            </button>
+            {FEED_FILTER_OPTIONS.map((item) => {
+              const isActive = feedFilters.has(item.key);
               return (
-
                 <button
-
                   key={item.key}
-
                   type="button"
-
-                  onClick={() => setFeedFilter(item.key)}
-
+                  onClick={() => {
+                    setFeedFilters((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(item.key)) {
+                        if (next.size === 1) return next;
+                        next.delete(item.key);
+                        return next;
+                      }
+                      next.add(item.key);
+                      return next;
+                    });
+                  }}
                   className={[
-
                     "px-3 py-1 rounded-full text-[11px] border transition",
-
                     isActive
-
                       ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-100"
-
                       : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
-
                   ].join(" ")}
-
                 >
-
                   {item.label}
-
                 </button>
-
               );
-
             })}
 
           </div>
@@ -4228,6 +4500,22 @@ const DashboardView: React.FC<{
                   const isUpdate = it.kind === "POST" && it.post.type === "UPDATE";
 
                   const isBroadcast = it.kind === "BROADCAST";
+                  const isMessage = it.kind === "MESSAGE";
+                  const isProfile = it.kind === "PROFILE_APPROVED";
+                  const seekerForItem =
+                    it.kind === "MESSAGE"
+                      ? seekerById.get(it.seekerId)
+                      : it.kind === "PROFILE_APPROVED"
+                        ? seekerById.get(it.profileId)
+                        : undefined;
+                  const displayName =
+                    isMessage || isProfile
+                      ? seekerForItem
+                        ? formatSeekerName(seekerForItem)
+                        : isProfile
+                          ? it.name
+                          : "Seeker"
+                      : retainerName;
 
                   const responseCounts =
 
@@ -4255,7 +4543,9 @@ const DashboardView: React.FC<{
 
                       ? getUnreadRouteResponseCount(retainerId, it.route.id)
 
-                      : 0;
+                      : isMessage
+                        ? it.unreadCount
+                        : 0;
 
                   return (
 
@@ -4284,15 +4574,14 @@ const DashboardView: React.FC<{
                         <div className="min-w-0 flex items-start gap-2">
 
                           <ProfileAvatar
-
-                            role="RETAINER"
-
-                            profile={(currentRetainer ?? { id: retainerId || "retainer" }) as any}
-
-                            name={retainerName}
-
+                            role={isMessage || isProfile ? "SEEKER" : "RETAINER"}
+                            profile={
+                              (isMessage || isProfile
+                                ? seekerForItem ?? { id: isMessage ? it.seekerId : it.id }
+                                : currentRetainer ?? { id: retainerId || "retainer" }) as any
+                            }
+                            name={displayName}
                             size="lg"
-
                           />
 
                           <div className="min-w-0">
@@ -4311,7 +4600,7 @@ const DashboardView: React.FC<{
 
                               >
 
-                                {retainerName}
+                                {displayName}
 
                               </button>
 
@@ -4409,6 +4698,17 @@ const DashboardView: React.FC<{
 
                             )}
 
+                            {isMessage && (
+                              <div className="mt-1 text-[10px] text-slate-400 truncate max-w-[260px]">
+                                {it.preview || "New message"}
+                                {unreadCount > 0 && (
+                                  <span className="ml-2 inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/20 px-2 py-0.5 text-emerald-100">
+                                    Unread {unreadCount}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
                           </div>
 
                         </div>
@@ -4463,7 +4763,7 @@ const DashboardView: React.FC<{
 
                         >
 
-                          <div className="text-xs uppercase tracking-wide text-slate-400">Post details</div>
+                          <div className="text-xs uppercase tracking-wide text-slate-400">Feed details</div>
 
                           {renderFeedDetails(it)}
 
@@ -4475,51 +4775,63 @@ const DashboardView: React.FC<{
                             renderFeedReactions(isBroadcast ? "BROADCAST" : "POST", it.id)}
 
                           <div className="flex flex-wrap items-center justify-end gap-2">
-
-                            {it.kind === "ROUTE" ? (
-
+                            {it.kind === "ROUTE" && (
                               <button
-
                                 type="button"
-
                                 onClick={(e) => {
-
                                   e.stopPropagation();
-
                                   onGoToRoutes();
-
                                 }}
-
                                 className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
-
                               >
-
                                 View in Routes
-
                               </button>
-
-                            ) : (
-
+                            )}
+                            {it.kind === "MESSAGE" && (
                               <button
-
                                 type="button"
-
                                 onClick={(e) => {
-
                                   e.stopPropagation();
-
-                                  onGoToPosts();
-
+                                  if (!retainerId || typeof window === "undefined") return;
+                                  window.localStorage.setItem(
+                                    `snapdriver_retainer_active_seeker_${retainerId}`,
+                                    it.seekerId
+                                  );
+                                  window.localStorage.setItem(
+                                    `snapdriver_retainer_active_conversation_${retainerId}`,
+                                    it.conversationId
+                                  );
+                                  onGoToMessages();
                                 }}
-
                                 className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
-
                               >
-
-                                View in Posts
-
+                                Open messages
                               </button>
-
+                            )}
+                            {it.kind === "PROFILE_APPROVED" && it.profileRole === "SEEKER" && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const seeker = seekerById.get(it.profileId);
+                                  if (seeker) onOpenProfile(seeker);
+                                }}
+                                className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                              >
+                                View profile
+                              </button>
+                            )}
+                            {(it.kind === "POST" || it.kind === "BROADCAST") && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onGoToPosts();
+                                }}
+                                className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                              >
+                                View in Posts
+                              </button>
                             )}
 
                           </div>
@@ -6124,6 +6436,11 @@ const ActionView: React.FC<{
               Add team members and manage their permission levels.
 
             </p>
+            <ul className="mt-2 text-xs text-slate-400 space-y-1">
+              <li>Level 1: View-only access, internal notes, no external messaging.</li>
+              <li>Level 2: Can post, broadcast, route, and message external Seekers.</li>
+              <li>Level 3: Full access including user management and hierarchy edits.</li>
+            </ul>
 
             {!canManageUsers && (
 
@@ -8377,6 +8694,32 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  useEffect(() => {
+    const next = initial as any;
+    setActivePage("core");
+    setCompanyName(next?.companyName ?? "");
+    setCeoName(next?.ceoName ?? "");
+    setEmail(next?.email ?? "");
+    setPhone(next?.phone ?? "");
+    setCity(next?.city ?? "");
+    setStateCode(next?.state ?? "FL");
+    setZip(next?.zip ?? "");
+    setYearsInBusiness(
+      next?.yearsInBusiness != null ? String(next.yearsInBusiness) : ""
+    );
+    setEmployees(next?.employees != null ? String(next.employees) : "");
+    setMission(next?.mission ?? "");
+    setSelectedVerticals(next?.deliveryVerticals ?? []);
+    setSelectedTraits(next?.desiredTraits ?? []);
+    setPaymentTerms(next?.paymentTerms ?? PAYMENT_TERMS[0].value);
+    setPayCycleCloseDay(next?.payCycleCloseDay ?? "FRI");
+    setPayCycleFrequency(next?.payCycleFrequency ?? PAY_CYCLE_FREQUENCIES[0].value);
+    setLogoUrl(next?.logoUrl ?? next?.photoUrl ?? next?.profileImageUrl ?? "");
+    setCompanyPhotoUrl(next?.companyPhotoUrl ?? next?.imageUrl ?? "");
+    setError(null);
+    setSuccessMsg(null);
+  }, [initial?.id, mode]);
+
   const pages: { key: RetainerProfileEditPageKey; label: string }[] = [
 
     { key: "core", label: "Profile 1: Core" },
@@ -8534,6 +8877,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
         const updated: any = { ...(initial as any), ...payload };
 
         updateRetainerInStorage(updated);
+        syncUpsert({ retainers: [updated] }).catch(() => undefined);
 
         setSuccessMsg("Profile updated.");
 
@@ -8542,6 +8886,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
       } else {
 
         const created = addRetainerForcePending(payload as any);
+        syncUpsert({ retainers: [created] }).catch(() => undefined);
 
         setSuccessMsg("Profile created and set to Pending.");
 
@@ -9649,11 +9994,8 @@ const RetainerLinkingView: React.FC<{
   );
 
   const pendingSeekers = useMemo(
-
-    () => filteredSeekers.filter((s) => statusForSeeker(s.id) !== "ACTIVE"),
-
+    () => filteredSeekers.filter((s) => statusForSeeker(s.id) === "PENDING"),
     [filteredSeekers, linkBySeekerId]
-
   );
 
   const renderSeekerCard = (s: Seeker) => {
@@ -10906,9 +11248,7 @@ const RetainerPostsView: React.FC<{
 
   }, [retainer?.id, refresh]);
 
-  const [broadcastAudience, setBroadcastAudience] =
-
-    useState<RetainerBroadcastAudience>("LINKED_ONLY");
+  const [broadcastAudience] = useState<RetainerBroadcastAudience>("LINKED_ONLY");
 
   const [broadcastSubject, setBroadcastSubject] = useState("");
 
@@ -10945,6 +11285,9 @@ const RetainerPostsView: React.FC<{
       ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-200"
 
       : "bg-white/5 border-white/10 text-white/70";
+
+  const audienceLabel = (aud: "LINKED_ONLY" | "PUBLIC") =>
+    aud === "PUBLIC" ? "Area" : "Linked only";
 
   const fmtWhen = (iso: string) => {
 
@@ -11029,20 +11372,15 @@ const RetainerPostsView: React.FC<{
         </h3>
 
         <p className="text-sm text-slate-300">
-
-          Posts and broadcasts appear in the Seeker feed. Linked-only items are
-
-          visible only after the link is Active.
-
+          Posts appear to Seekers in your area. Broadcasts reach active linked
+          Seekers who are currently working with you.
         </p>
 
         {ent && (
 
           <div className="text-xs text-slate-400 mt-2">
 
-            Tier: <span className="text-slate-200">{ent.tier}</span> - Public
-
-            posting:{" "}
+            Tier: <span className="text-slate-200">{ent.tier}</span> - Area posts:{" "}
 
             <span className="text-slate-200">
 
@@ -11050,7 +11388,7 @@ const RetainerPostsView: React.FC<{
 
             </span>{" "}
 
-            - Public posts this month:{" "}
+            - Area posts this month:{" "}
 
             <span className="text-slate-200">
 
@@ -11137,37 +11475,10 @@ const RetainerPostsView: React.FC<{
         <div className="grid gap-3 md:grid-cols-2">
 
           <div className="space-y-1">
-
-            <label className="text-xs font-medium text-slate-200">
-
-              Audience
-
-            </label>
-
-            <select
-
-              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-
-              value={broadcastAudience}
-
-              onChange={(e) =>
-
-                setBroadcastAudience(e.target.value as RetainerBroadcastAudience)
-
-              }
-
-              disabled={!canEdit}>
-
-              <option value="LINKED_ONLY">Linked only</option>
-
-              <option value="PUBLIC" disabled={!ent?.canPostPublic}>
-
-                Public (tier gated)
-
-              </option>
-
-            </select>
-
+            <label className="text-xs font-medium text-slate-200">Audience</label>
+            <div className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200">
+              Linked only (active linked workers)
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -11296,7 +11607,7 @@ const RetainerPostsView: React.FC<{
 
                     >
 
-                      {p.audience}
+                      {audienceLabel(p.audience)}
 
                     </span>
 
@@ -11418,7 +11729,7 @@ const RetainerPostsView: React.FC<{
 
                     >
 
-                      {b.audience}
+                      {audienceLabel(b.audience)}
 
                     </span>
 
@@ -13399,7 +13710,7 @@ const RetainerRoutesView: React.FC<{
                                       {!canScore && (
                                         <div className="text-[11px] text-amber-300">
                                           Enable Working Together on the link to
-                                          submit work units.
+                                          submit reputation points.
                                         </div>
                                       )}
 
@@ -13493,17 +13804,17 @@ const RetainerRoutesView: React.FC<{
                                                 acceptedUnits: accepted,
                                                 expectedUnits,
                                               });
-                                              onToast("Work units submitted");
+                                              onToast("Reputation points submitted");
                                               setRefresh((n) => n + 1);
                                             } catch (err: any) {
                                               onToast(
                                                 err?.message ||
-                                                  "Could not submit work units"
+                                                  "Could not submit reputation points"
                                               );
                                             }
                                           }}
                                         >
-                                          Submit work units
+                                          Submit reputation points
                                         </button>
                                       </div>
                                     </div>

@@ -150,8 +150,8 @@ const DEFAULT_GROWTH_WEIGHT = 0.35;
 const DEFAULT_KIND_WEIGHTS: Record<BadgeKind, number> = {
   BACKGROUND: 3,
   SELECTABLE: 1,
-  SNAP: 3,
-  CHECKER: 3,
+  SNAP: 1,
+  CHECKER: 1,
 };
 const DEFAULT_LEVEL_MULTIPLIERS = [0.85, 0.95, 1, 1.1, 1.25];
 const BACKGROUND_LOCK_MONTHS = 12;
@@ -690,17 +690,11 @@ function normalizeSelection(raw: any): BadgeSelection | null {
   const cleanedBackground = backgroundBadgeIds
     .filter((id) => validBackground.has(id))
     .slice(0, MAX_BACKGROUND_BADGES);
-  const fallbackBackground =
-    cleanedBackground.length > 0
-      ? cleanedBackground
-      : getBackgroundBadges(ownerRole)
-          .map((b) => b.id)
-          .slice(0, MAX_BACKGROUND_BADGES);
   return {
     ownerRole,
     ownerId,
     activeBadgeIds: activeBadgeIds.slice(0, MAX_ACTIVE_BADGES),
-    backgroundBadgeIds: fallbackBackground,
+    backgroundBadgeIds: cleanedBackground,
     backgroundLockedUntil:
       typeof raw.backgroundLockedUntil === "string" ? raw.backgroundLockedUntil : null,
     updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : nowIso(),
@@ -1078,9 +1072,7 @@ export function setActiveBadges(
   const backgroundBadgeIds =
     existing?.backgroundBadgeIds?.length
       ? existing.backgroundBadgeIds
-      : getBackgroundBadges(ownerRole)
-          .map((b) => b.id)
-          .slice(0, MAX_BACKGROUND_BADGES);
+      : getSelectedBackgroundBadges(ownerRole, ownerId);
   const backgroundLockedUntil = existing?.backgroundLockedUntil ?? null;
   const next: BadgeSelection = {
     ownerRole,
@@ -1105,10 +1097,9 @@ export function setActiveBadges(
 }
 
 export function getSelectedBackgroundBadges(ownerRole: BadgeOwnerRole, ownerId: string): BadgeId[] {
-  const fallback = getBackgroundBadges(ownerRole).map((b) => b.id);
   const caps = getBadgeSelectionCaps(ownerRole, ownerId);
   const mandatory = getMandatoryBackgroundBadgeIds(ownerRole);
-  const base = fillWithFallback(mandatory, fallback, caps.background);
+  const base = mandatory.slice(0, caps.background);
   if (!ownerId) return base;
   const store = loadStore();
   const sel =
@@ -1116,9 +1107,8 @@ export function getSelectedBackgroundBadges(ownerRole: BadgeOwnerRole, ownerId: 
   const ids = sel?.backgroundBadgeIds ?? [];
   const validIds = new Set(getBackgroundBadges(ownerRole).map((b) => b.id));
   const cleaned = ids.filter((id) => validIds.has(id));
-  const withMandatory = fillWithFallback(mandatory, cleaned, caps.background);
-  const filled = fillWithFallback(withMandatory, fallback, caps.background);
-  return filled.length > 0 ? filled : base;
+  const withMandatory = uniqStrings([...mandatory, ...cleaned]).slice(0, caps.background);
+  return withMandatory.length > 0 ? withMandatory : base;
 }
 
 export function getBackgroundLockStatus(ownerRole: BadgeOwnerRole, ownerId: string): {
@@ -1132,15 +1122,6 @@ export function getBackgroundLockStatus(ownerRole: BadgeOwnerRole, ownerId: stri
   const lockedUntil = sel?.backgroundLockedUntil ?? null;
   const isLocked = !!lockedUntil && Date.parse(lockedUntil) > Date.now();
   return { lockedUntil, isLocked };
-}
-
-function fillWithFallback(primary: string[], fallback: string[], limit: number): string[] {
-  const out = primary.slice(0, limit);
-  for (const id of fallback) {
-    if (out.length >= limit) break;
-    if (!out.includes(id)) out.push(id);
-  }
-  return out;
 }
 
 export function setBackgroundBadges(
@@ -1169,20 +1150,14 @@ export function setBackgroundBadges(
   const mandatory = getMandatoryBackgroundBadgeIds(ownerRole).filter((id) => validIds.has(id));
   const cleaned = uniqStrings(Array.isArray(badgeIds) ? badgeIds : [])
     .filter((id) => validIds.has(id));
-  const fallback = existing?.backgroundBadgeIds?.length
-    ? existing.backgroundBadgeIds
-    : getBackgroundBadges(ownerRole)
-        .map((b) => b.id)
-        .slice(0, MAX_BACKGROUND_BADGES);
-  const withMandatory = fillWithFallback(mandatory, cleaned, caps.background);
-  const filled = fillWithFallback(withMandatory, fallback, caps.background);
+  const withMandatory = uniqStrings([...mandatory, ...cleaned]).slice(0, caps.background);
 
   const ts = nowIso();
   const next: BadgeSelection = {
     ownerRole,
     ownerId,
     activeBadgeIds: existing?.activeBadgeIds ?? [],
-    backgroundBadgeIds: filled,
+    backgroundBadgeIds: withMandatory,
     backgroundLockedUntil: addMonths(new Date(), BACKGROUND_LOCK_MONTHS).toISOString(),
     updatedAt: ts,
   };
@@ -2274,7 +2249,7 @@ const SEEKER_BADGES: BadgeDefinition[] = [
       "Submit the onboarding video confirming you operate as an independent business.",
     weeklyPrompt: "Onboarding video completed.",
     isMandatory: true,
-    weight: 3,
+    weight: 1,
   },
   {
     id: "seeker_profile_integrity",
@@ -2289,7 +2264,7 @@ const SEEKER_BADGES: BadgeDefinition[] = [
       "Complete all required profile fields and upload required photos.",
     weeklyPrompt: "Profile completion requirements met.",
     isMandatory: true,
-    weight: 3,
+    weight: 1,
   },
   {
     id: "seeker_operational_disclosure",
@@ -2304,7 +2279,7 @@ const SEEKER_BADGES: BadgeDefinition[] = [
       "Provide business type/model, coverage area, equipment summary, and terms acknowledgment.",
     weeklyPrompt: "Operational disclosure completed.",
     isMandatory: true,
-    weight: 3,
+    weight: 1,
   },
   {
     id: "seeker_badge_checker",
@@ -2329,10 +2304,10 @@ const SEEKER_BADGES: BadgeDefinition[] = [
     verifierRole: "RETAINER",
     iconKey: "route",
     title: "Work Completion",
-    description: "Completes assigned work units for the period.",
+    description: "Completes assigned reputation points for the period.",
     howToEarn:
-      "Complete assigned work units and resolve issues through the cadence window.",
-    weeklyPrompt: "Assigned work units were completed this period.",
+      "Complete assigned reputation points and resolve issues through the cadence window.",
+    weeklyPrompt: "Assigned reputation points were completed this period.",
     isMandatory: true,
     weight: 4,
   },
@@ -2629,7 +2604,7 @@ const RETAINER_BADGES: BadgeDefinition[] = [
       "Submit the onboarding video confirming you are a broker and offer work.",
     weeklyPrompt: "Onboarding video completed.",
     isMandatory: true,
-    weight: 3,
+    weight: 1,
   },
   {
     id: "retainer_profile_integrity",
@@ -2644,7 +2619,7 @@ const RETAINER_BADGES: BadgeDefinition[] = [
       "Complete all required profile fields and upload required photos.",
     weeklyPrompt: "Profile completion requirements met.",
     isMandatory: true,
-    weight: 3,
+    weight: 1,
   },
   {
     id: "retainer_operational_disclosure",
@@ -2659,7 +2634,7 @@ const RETAINER_BADGES: BadgeDefinition[] = [
       "Provide business model, coverage area, equipment summary, and terms acknowledgment.",
     weeklyPrompt: "Operational disclosure completed.",
     isMandatory: true,
-    weight: 3,
+    weight: 1,
   },
   {
     id: "retainer_badge_checker",
@@ -2684,10 +2659,10 @@ const RETAINER_BADGES: BadgeDefinition[] = [
     verifierRole: "SEEKER",
     iconKey: "route",
     title: "Work Completion",
-    description: "Delivers the promised work units for the period.",
+    description: "Delivers the promised reputation points for the period.",
     howToEarn:
-      "Provide the committed work units and resolve issues through the cadence window.",
-    weeklyPrompt: "Promised work units were delivered this period.",
+      "Provide the committed reputation points and resolve issues through the cadence window.",
+    weeklyPrompt: "Promised reputation points were delivered this period.",
     isMandatory: true,
     weight: 4,
   },

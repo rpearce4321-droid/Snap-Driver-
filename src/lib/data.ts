@@ -54,6 +54,13 @@ export type Subcontractor = {
   createdAt: number;
 };
 
+export type VehicleEntry = {
+  id: string;
+  year?: number;
+  make?: string;
+  model?: string;
+};
+
 export type SeekerRef = {
   name: string;
   phone?: string;
@@ -65,6 +72,7 @@ export type Seeker = {
   id: string;
   role: "SEEKER";
   status: Status;
+  approvedAt?: number;
   firstName: string;
   lastName: string;
   companyName?: string;
@@ -79,7 +87,12 @@ export type Seeker = {
   yearsInBusiness?: number;
   deliveryVerticals?: string[];
   vehicle?: string;
+  vehicles?: VehicleEntry[];
+  notes?: string;
   insuranceType?: string;
+  vehiclePhoto1?: string;
+  vehiclePhoto2?: string;
+  vehiclePhoto3?: string;
   ref1?: SeekerRef;
   ref2?: SeekerRef;
   availability?: WeeklyAvailability;
@@ -139,6 +152,7 @@ export type Retainer = {
   id: string;
   role: "RETAINER";
   status: Status;
+  approvedAt?: number;
   companyName: string;
   ceoName?: string;
   email?: string;
@@ -214,6 +228,51 @@ export const INSURANCE_TYPES = [
   "General Liability + Auto",
   "Cargo Only",
 ];
+
+export const MAX_VEHICLES = 10;
+
+export const VEHICLE_YEARS = Array.from({ length: 30 }, (_, idx) => {
+  const currentYear = new Date().getFullYear();
+  return currentYear - idx;
+});
+
+export const VEHICLE_MAKES = [
+  "Ford",
+  "Chevrolet",
+  "Ram",
+  "Mercedes-Benz",
+  "Freightliner",
+  "GMC",
+  "Nissan",
+  "Toyota",
+  "Honda",
+  "Dodge",
+  "Isuzu",
+  "Hyundai",
+  "Kia",
+  "Volkswagen",
+  "Tesla",
+  "Other",
+];
+
+export const VEHICLE_MODELS_BY_MAKE: Record<string, string[]> = {
+  Ford: ["Transit", "Transit Connect", "E-Series", "F-150", "F-250", "F-350", "Ranger"],
+  Chevrolet: ["Express", "Silverado 1500", "Silverado 2500", "Colorado", "Colorado XL"],
+  Ram: ["ProMaster", "ProMaster City", "1500", "2500", "3500"],
+  "Mercedes-Benz": ["Sprinter", "Metris"],
+  Freightliner: ["Sprinter", "M2 106"],
+  GMC: ["Savana", "Sierra 1500", "Sierra 2500", "Canyon"],
+  Nissan: ["NV Cargo", "NV200", "Frontier"],
+  Toyota: ["HiAce", "Tacoma", "Tundra", "Proace"],
+  Honda: ["Ridgeline"],
+  Dodge: ["Grand Caravan"],
+  Isuzu: ["NPR", "NQR"],
+  Hyundai: ["H-1", "Starex"],
+  Kia: ["Carnival"],
+  Volkswagen: ["Crafter", "Transporter"],
+  Tesla: ["Cybertruck"],
+  Other: [],
+};
 
 export const TRAITS = [
   "On-time and reliable",
@@ -354,6 +413,50 @@ function normalizeAvailability(value: any): WeeklyAvailability | undefined {
   return { timezone, blocks };
 }
 
+function normalizeVehicleEntry(raw: any): VehicleEntry | null {
+  if (!raw || typeof raw !== "object") return null;
+  const yearRaw = typeof raw.year === "number" ? raw.year : Number(raw.year);
+  const year = Number.isFinite(yearRaw) ? Math.round(yearRaw) : undefined;
+  const make = typeof raw.make === "string" ? raw.make.trim() : undefined;
+  const model = typeof raw.model === "string" ? raw.model.trim() : undefined;
+  if (!year && !make && !model) return null;
+  return {
+    id: String(raw.id || uuid()),
+    year,
+    make: make || undefined,
+    model: model || undefined,
+  };
+}
+
+function normalizeVehicles(raw: any, legacyVehicle?: string | null): VehicleEntry[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const normalized = list
+    .map(normalizeVehicleEntry)
+    .filter((x): x is VehicleEntry => x !== null);
+
+  if (normalized.length > 0) {
+    return normalized.slice(0, MAX_VEHICLES);
+  }
+
+  const legacy = typeof legacyVehicle === "string" ? legacyVehicle.trim() : "";
+  if (!legacy) return [];
+  return [
+    {
+      id: uuid(),
+      model: legacy,
+    },
+  ];
+}
+
+function summarizeVehicles(list: VehicleEntry[]): string | undefined {
+  if (!list || list.length === 0) return undefined;
+  const labels = list
+    .map((v) => [v.year, v.make, v.model].filter(Boolean).join(" "))
+    .filter(Boolean);
+  if (labels.length === 0) return undefined;
+  return labels.join("; ");
+}
+
 function writeLS<T>(key: string, value: T, schemaVersion: number) {
   writeStore(key, schemaVersion, value);
 }
@@ -368,6 +471,7 @@ function migrateLegacySeekers(): Seeker[] | null {
     id: raw.id ?? uuid(),
     role: "SEEKER",
     status: (raw.status as Status) ?? "PENDING",
+    approvedAt: raw.approvedAt ?? (raw.status === "APPROVED" ? raw.createdAt ?? now() : undefined),
     firstName: raw.firstName ?? raw.name?.split(" ")[0] ?? "Seeker",
     lastName: raw.lastName ?? raw.name?.split(" ").slice(1).join(" ") ?? "User",
     companyName: raw.companyName ?? raw.companyDba ?? null,
@@ -378,7 +482,12 @@ function migrateLegacySeekers(): Seeker[] | null {
     yearsInBusiness: raw.yearsInBusiness ?? null,
     deliveryVerticals: asArray(raw.deliveryVerticals),
     vehicle: raw.vehicle ?? null,
+    vehicles: normalizeVehicles(raw.vehicles, raw.vehicle ?? null),
+    notes: raw.notes ?? raw.about ?? null,
     insuranceType: raw.insuranceType ?? null,
+    vehiclePhoto1: raw.vehiclePhoto1 ?? null,
+    vehiclePhoto2: raw.vehiclePhoto2 ?? null,
+    vehiclePhoto3: raw.vehiclePhoto3 ?? null,
     ref1: raw.ref1 ?? null,
     ref2: raw.ref2 ?? null,
     createdAt: raw.createdAt ?? now(),
@@ -397,6 +506,7 @@ function migrateLegacyRetainers(): Retainer[] | null {
     id: raw.id ?? uuid(),
     role: "RETAINER",
     status: (raw.status as Status) ?? "PENDING",
+    approvedAt: raw.approvedAt ?? (raw.status === "APPROVED" ? raw.createdAt ?? now() : undefined),
     companyName: raw.companyName ?? "Retainer",
     ceoName: raw.ceoName ?? raw.name ?? null,
     city: raw.city ?? null,
@@ -475,7 +585,16 @@ export function getSeekers(): Seeker[] {
     ...s,
     role: "SEEKER",
     status: s.status ?? "PENDING",
+    approvedAt: (s as any).approvedAt ?? (s.status === "APPROVED" ? s.createdAt ?? now() : undefined),
     createdAt: s.createdAt ?? now(),
+    vehicles: normalizeVehicles((s as any).vehicles, (s as any).vehicle ?? null),
+    vehicle:
+      (s as any).vehicle ??
+      summarizeVehicles(normalizeVehicles((s as any).vehicles, (s as any).vehicle ?? null)),
+    notes: (s as any).notes ?? (s as any).about ?? undefined,
+    vehiclePhoto1: (s as any).vehiclePhoto1 ?? undefined,
+    vehiclePhoto2: (s as any).vehiclePhoto2 ?? undefined,
+    vehiclePhoto3: (s as any).vehiclePhoto3 ?? undefined,
     availability: normalizeAvailability((s as any).availability),
     subcontractors: normalizeSubcontractors((s as any).subcontractors, s.id),
     hierarchyNodes: normalizeHierarchyNodes((s as any).hierarchyNodes),
@@ -492,6 +611,7 @@ export function getRetainers(): Retainer[] {
     ...r,
     role: "RETAINER",
     status: r.status ?? "PENDING",
+    approvedAt: (r as any).approvedAt ?? (r.status === "APPROVED" ? r.createdAt ?? now() : undefined),
     createdAt: r.createdAt ?? now(),
     users: normalizeRetainerUsers((r as any).users, r.id),
     userLevelLabels: (r as any).userLevelLabels ?? DEFAULT_RETAINER_LEVEL_LABELS,
@@ -527,7 +647,16 @@ function saveRetainers(next: Retainer[]) {
 export function setSeekerStatus(id: string, status: Status) {
   const all = getSeekers();
   const next = all.map((s) =>
-    s.id === id ? { ...s, status } : s
+    s.id === id
+      ? {
+          ...s,
+          status,
+          approvedAt:
+            status === "APPROVED"
+              ? s.approvedAt ?? now()
+              : s.approvedAt,
+        }
+      : s
   );
   saveSeekers(next);
   notifySubscribers();
@@ -561,7 +690,16 @@ export function setSeekerStatus(id: string, status: Status) {
 export function setRetainerStatus(id: string, status: Status) {
   const all = getRetainers();
   const next = all.map((r) =>
-    r.id === id ? { ...r, status } : r
+    r.id === id
+      ? {
+          ...r,
+          status,
+          approvedAt:
+            status === "APPROVED"
+              ? r.approvedAt ?? now()
+              : r.approvedAt,
+        }
+      : r
   );
   saveRetainers(next);
   notifySubscribers();
@@ -607,10 +745,14 @@ export function setRetainerStatusGuarded(id: string, status: Status) {
 export function addSeeker(input: Partial<Seeker>): Seeker {
   const all = getSeekers();
   const id = uuid();
+  const vehicles = normalizeVehicles((input as any).vehicles, (input as any).vehicle ?? null);
+  const vehicleSummary = summarizeVehicles(vehicles);
   const seeker: Seeker = {
     id,
     role: "SEEKER",
     status: input.status ?? "PENDING",
+    approvedAt:
+      input.status === "APPROVED" ? now() : (input as any).approvedAt,
     firstName: input.firstName ?? "New",
     lastName: input.lastName ?? "Seeker",
     companyName: input.companyName,
@@ -624,8 +766,13 @@ export function addSeeker(input: Partial<Seeker>): Seeker {
     zip: input.zip,
     yearsInBusiness: input.yearsInBusiness,
     deliveryVerticals: input.deliveryVerticals ?? [],
-    vehicle: input.vehicle,
+    vehicle: input.vehicle ?? vehicleSummary,
+    vehicles,
+    notes: (input as any).notes,
     insuranceType: input.insuranceType,
+    vehiclePhoto1: (input as any).vehiclePhoto1,
+    vehiclePhoto2: (input as any).vehiclePhoto2,
+    vehiclePhoto3: (input as any).vehiclePhoto3,
     ref1: input.ref1,
     ref2: input.ref2,
     createdAt: now(),
@@ -645,6 +792,8 @@ export function addRetainer(input: Partial<Retainer>): Retainer {
     id,
     role: "RETAINER",
     status: input.status ?? "PENDING",
+    approvedAt:
+      input.status === "APPROVED" ? now() : (input as any).approvedAt,
     companyName: input.companyName ?? "New Retainer",
     ceoName: input.ceoName,
     email: input.email,

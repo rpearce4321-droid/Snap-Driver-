@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "concurrently -k -n WEB,API -c blue,green \"vite\" \"npm:server\"",
     "build": "tsc -b && vite build",
+    "test": "npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "nodemon --watch server --ext js --signal SIGINT server/index.js",

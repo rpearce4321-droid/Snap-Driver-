@@ -48,7 +48,7 @@ function normalize(raw: any): RetainerBroadcast | null {
   if (!raw || typeof raw !== "object") return null;
   if (!raw.retainerId) return null;
 
-  const audience: RetainerBroadcastAudience = raw.audience === "PUBLIC" ? "PUBLIC" : "LINKED_ONLY";
+  const audience: RetainerBroadcastAudience = "LINKED_ONLY";
   const status: RetainerBroadcastStatus = raw.status === "ARCHIVED" ? "ARCHIVED" : "ACTIVE";
 
   return {
@@ -92,14 +92,11 @@ function countBroadcastsThisMonth(retainerId: string): number {
   }).length;
 }
 
-function assertBroadcastAllowed(retainerId: string, audience: RetainerBroadcastAudience) {
+function assertBroadcastAllowed(retainerId: string) {
   const ent = getRetainerEntitlements(retainerId);
   const used = countBroadcastsThisMonth(retainerId);
   if (Number.isFinite(ent.maxBroadcastsPerMonth) && used >= ent.maxBroadcastsPerMonth) {
     throw new Error("Monthly broadcast limit reached for this tier.");
-  }
-  if (audience === "PUBLIC" && !ent.canPostPublic) {
-    throw new Error("Public broadcasts require a higher tier.");
   }
 }
 
@@ -116,8 +113,8 @@ export function createRetainerBroadcast(input: {
   if (!subject) throw new Error("subject is required");
   if (!body) throw new Error("body is required");
 
-  const audience: RetainerBroadcastAudience = input.audience === "PUBLIC" ? "PUBLIC" : "LINKED_ONLY";
-  assertBroadcastAllowed(retainerId, audience);
+  const audience: RetainerBroadcastAudience = "LINKED_ONLY";
+  assertBroadcastAllowed(retainerId);
 
   const msg: RetainerBroadcast = {
     id: makeId("broadcast"),
@@ -145,16 +142,7 @@ export function updateRetainerBroadcast(
   if (idx < 0) return null;
 
   const current = all[idx];
-  const nextAudience: RetainerBroadcastAudience =
-    patch.audience === "PUBLIC"
-      ? "PUBLIC"
-      : patch.audience === "LINKED_ONLY"
-        ? "LINKED_ONLY"
-        : current.audience;
-
-  if (current.audience !== "PUBLIC" && nextAudience === "PUBLIC") {
-    assertBroadcastAllowed(current.retainerId, "PUBLIC");
-  }
+  const nextAudience: RetainerBroadcastAudience = current.audience;
 
   const nextStatus: RetainerBroadcastStatus =
     patch.status === "ARCHIVED" || patch.status === "ACTIVE"
@@ -173,4 +161,3 @@ export function updateRetainerBroadcast(
   saveAll(all);
   return next;
 }
-
