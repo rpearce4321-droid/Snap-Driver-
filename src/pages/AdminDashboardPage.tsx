@@ -2214,12 +2214,7 @@ const AdminUserManagementPanel: React.FC<{ role: AdminUserRole }> = ({ role }) =
 
   return (
     <div className="p-6 space-y-6">
-      {isServerMode ? (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/70">
-          Server sync and seed tools are disabled in production.
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
         <div>
           <div className="text-sm font-semibold">User Management</div>
           <div className="text-xs text-white/60">
@@ -3085,13 +3080,18 @@ const AdminServerPanel: React.FC = () => {
         )}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
-        <div>
-          <div className="text-sm font-semibold">Server Seed (D1)</div>
-          <div className="text-xs text-white/60">
-            Push your local demo data to Cloudflare. Use seed batches so you can purge later.
-          </div>
+      {isServerMode ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/70">
+          Server sync and seed tools are disabled in production.
         </div>
+      ) : (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
+          <div>
+            <div className="text-sm font-semibold">Server Seed (D1)</div>
+            <div className="text-xs text-white/60">
+              Push your local demo data to Cloudflare. Use seed batches so you can purge later.
+            </div>
+          </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn" onClick={handlePullFromServer} disabled={seedBusy}>
