@@ -157,6 +157,7 @@ type KPIProps = {
   onClick?: () => void;
 };
 
+const FORCE_ADMIN_LOGIN_KEY = "snapdriver_force_admin_login_v1";
 const LOCAL_ADMIN_KEY = "snapdriver_local_admin_v1";
 
 type LocalAdminRecord = {
@@ -326,6 +327,7 @@ export default function AdminDashboardPage() {
     clearSession();
     clearPortalContext();
     if (typeof window !== "undefined") {
+      window.sessionStorage.setItem(FORCE_ADMIN_LOGIN_KEY, "1");
       window.localStorage.removeItem("snapdriver_current_seeker_id");
       window.localStorage.removeItem("snapdriver_current_retainer_id");
     }
@@ -334,6 +336,16 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     let active = true;
+    if (typeof window !== "undefined") {
+      const forced = window.sessionStorage.getItem(FORCE_ADMIN_LOGIN_KEY);
+      if (forced) {
+        window.sessionStorage.removeItem(FORCE_ADMIN_LOGIN_KEY);
+        setAuthStatus("unauth");
+        return () => {
+          active = false;
+        };
+      }
+    }
     const existing = getSession();
     if (existing?.role === "ADMIN") {
       setAuthStatus("authed");
