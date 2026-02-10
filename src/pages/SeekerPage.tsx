@@ -7578,8 +7578,15 @@ const SeekerLinkingView: React.FC<{
           <div className="flex items-start gap-3 min-w-0">
             <ProfileAvatar role="RETAINER" profile={r} name={retainerName} />
             <div className="min-w-0">
-              <div className="text-lg font-semibold text-slate-50 truncate">
-                {retainerName}
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="text-lg font-semibold text-slate-50 truncate">
+                  {retainerName}
+                </div>
+                {r.isDemo && (
+                  <span className="shrink-0 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-200">
+                    Demo
+                  </span>
+                )}
               </div>
               <div className="text-xs text-slate-400 mt-1">
                 {(r.city || r.state) && (

@@ -1,5 +1,8 @@
 import { badRequest, json, requireDb, serverError } from "../_db";
 
+import { getCookie, loadSession } from "../_auth";
+import { badRequest, json, requireDb, serverError } from "../_db";
+
 type SeedPayload = {
   batchId?: string;
   seekers?: any[];
@@ -20,8 +23,18 @@ type SeedPayload = {
   recordHallEntries?: any[];
 };
 
+async function requireAdmin(request: Request, env: any) {
+  const token = getCookie(request, "sd_session");
+  if (!token) return null;
+  const session = await loadSession(env as any, token);
+  if (!session || session.role !== "ADMIN") return null;
+  return session;
+}
+
 export const onRequestPost: PagesFunction = async ({ request, env }) => {
   const db = requireDb(env as any);
+  const admin = await requireAdmin(request, env as any);
+  if (!admin) return json({ ok: false, error: "Unauthorized" }, { status: 401 });
   let payload: SeedPayload = {};
   try {
     payload = (await request.json()) as SeedPayload;

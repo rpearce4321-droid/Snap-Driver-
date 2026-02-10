@@ -72,6 +72,8 @@ export type Seeker = {
   id: string;
   role: "SEEKER";
   status: Status;
+  isDemo?: boolean;
+  demoLabel?: string;
   approvedAt?: number;
   firstName: string;
   lastName: string;
@@ -152,6 +154,8 @@ export type Retainer = {
   id: string;
   role: "RETAINER";
   status: Status;
+  isDemo?: boolean;
+  demoLabel?: string;
   approvedAt?: number;
   companyName: string;
   ceoName?: string;

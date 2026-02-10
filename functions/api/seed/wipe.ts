@@ -1,5 +1,6 @@
 import { badRequest, json, requireDb, serverError } from "../_db";
 import { getCookie, loadSession } from "../_auth";
+import { badRequest, json, requireDb, serverError } from "../_db";
 
 const WIPE_TABLES = [
   "record_hall_entries",

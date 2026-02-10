@@ -122,11 +122,12 @@ type Panel =
   | "system:badgeAudit"
   | "system:workUnits"
   | "system:server"
+  | "seed:data"
   | "messages:external"
   | "messages:retainerStaff"
   | "messages:subcontractors";
 
-type NavSectionKey = "seekers" | "retainers" | "users" | "messaging" | "content" | "badges";
+type NavSectionKey = "seekers" | "retainers" | "users" | "messaging" | "content" | "badges" | "seed";
 
 const SECTION_DEFAULTS: Record<NavSectionKey, Panel> = {
   seekers: "seekers:pending",
@@ -135,6 +136,7 @@ const SECTION_DEFAULTS: Record<NavSectionKey, Panel> = {
   messaging: "messages:external",
   content: "routes",
   badges: "system:badges",
+  seed: "seed:data",
 };
 
 const sectionForPanel = (value: Panel): NavSectionKey | null => {
@@ -144,6 +146,7 @@ const sectionForPanel = (value: Panel): NavSectionKey | null => {
   if (value.startsWith("messages:")) return "messaging";
   if (value === "routes" || value === "content:posts") return "content";
   if (value.startsWith("system:")) return "badges";
+  if (value === "seed:data") return "seed";
   return null;
 };
 
@@ -525,6 +528,7 @@ export default function AdminDashboardPage() {
     messaging: false,
     content: false,
     badges: false,
+    seed: false,
   }));
   const activeSection = sectionForPanel(panel);
 
@@ -665,6 +669,7 @@ export default function AdminDashboardPage() {
     if (panel === "system:badgeAudit") return "Badge Audit";
     if (panel === "system:workUnits") return "Work Units";
     if (panel === "system:server") return "Server & Seed";
+    if (panel === "seed:data") return "Seed Data";
     if (panel === "messages:external") return "Message Traffic (Seeker and Retainer)";
     if (panel === "messages:retainerStaff") return "Retainer Staff Messages";
     if (panel === "messages:subcontractors") return "Subcontractor Messages";
@@ -720,6 +725,10 @@ export default function AdminDashboardPage() {
         { label: "Routes", value: "routes" },
         { label: "Posts", value: "content:posts" },
       ],
+    },
+    {
+      label: "Seed Data",
+      items: [{ label: "Seed Data", value: "seed:data" }],
     },
     {
       label: "Badges",
@@ -885,6 +894,24 @@ export default function AdminDashboardPage() {
                 </NavButton>
                 <NavButton active={panel === "content:posts"} onClick={() => setPanel("content:posts")}>
                   Posts & Broadcasts
+                </NavButton>
+              </div>
+            )}
+          </section>
+
+          <div className="h-px bg-white/10" />
+
+          <section className="space-y-2">
+            <NavSectionHeader
+              title="Seed Data"
+              open={openSections.seed}
+              active={activeSection === "seed"}
+              onClick={() => handleSectionClick("seed")}
+            />
+            {openSections.seed && (
+              <div className="space-y-2 pl-2">
+                <NavButton active={panel === "seed:data"} onClick={() => setPanel("seed:data")}>
+                  Seed Data
                 </NavButton>
               </div>
             )}
@@ -1269,6 +1296,8 @@ export default function AdminDashboardPage() {
           {panel === "content:posts" && (
             <AdminPostsPanel retainers={retainers} />
           )}
+
+          {panel === "seed:data" && <AdminSeedDataPanel />}
 
           {panel === "system:badges" && <AdminBadgeRulesPanel />}
           {panel === "system:badgeScoring" && <AdminBadgeScoringPanel />}
@@ -2743,6 +2772,258 @@ const AdminWorkUnitsPanel: React.FC<{
         </div>
       )}
     </section>
+  );
+};
+
+const SEED_PRESETS = {
+  small: { label: "Small", seekers: 25, retainers: 5 },
+  medium: { label: "Medium", seekers: 100, retainers: 20 },
+  large: { label: "Large", seekers: 300, retainers: 50 },
+};
+
+const AdminSeedDataPanel: React.FC = () => {
+  const [seedBatches, setSeedBatches] = useState<
+    Array<{ id: string; label: string; createdAt: string }>
+  >([]);
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [seedLabel, setSeedLabel] = useState("");
+  const [seedPreset, setSeedPreset] = useState<keyof typeof SEED_PRESETS>("medium");
+  const [seedConfirm, setSeedConfirm] = useState("");
+  const [purgeConfirm, setPurgeConfirm] = useState("");
+  const [seedStatus, setSeedStatus] = useState<string | null>(null);
+  const [seedError, setSeedError] = useState<string | null>(null);
+  const [seedBusy, setSeedBusy] = useState(false);
+
+  const formatError = (err: any) =>
+    err?.response?.data?.error || err?.message || "Request failed";
+
+  const refreshBatches = async () => {
+    setSeedBusy(true);
+    setSeedError(null);
+    try {
+      const res = await listSeedBatches();
+      setSeedBatches(res.items);
+      if (!selectedBatchId && res.items.length > 0) {
+        setSelectedBatchId(res.items[0].id);
+      }
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshBatches();
+  }, []);
+
+  useEffect(() => {
+    if (seedBatches.length === 0) return;
+    if (!selectedBatchId || !seedBatches.some((batch) => batch.id === selectedBatchId)) {
+      setSelectedBatchId(seedBatches[0].id);
+    }
+  }, [seedBatches, selectedBatchId]);
+
+  const labelSeedPayload = (payload: ReturnType<typeof buildServerSeedPayload>, label: string) => {
+    const tag = (item: any) => ({ ...item, isDemo: true, demoLabel: label });
+    return {
+      ...payload,
+      seekers: payload.seekers?.map(tag),
+      retainers: payload.retainers?.map(tag),
+    };
+  };
+
+  const handleGenerateDemo = async () => {
+    if (seedConfirm.trim() !== "SEED DEMO") {
+      setSeedError("Type SEED DEMO to confirm.");
+      return;
+    }
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      const preset = SEED_PRESETS[seedPreset];
+      const existingSession = getSession();
+
+      autoSeedComprehensive({
+        retainers: preset.retainers,
+        seekers: preset.seekers,
+        force: true,
+      });
+
+      if (existingSession) {
+        setSession(existingSession);
+        setPortalContext("ADMIN");
+      }
+
+      const label =
+        seedLabel.trim() ||
+        `demo_${new Date().toISOString().slice(0, 10)}_${seedPreset}`;
+      const res = await createSeedBatch(label);
+      setSelectedBatchId(res.seedBatchId);
+      setSeedBatches((prev) => [
+        { id: res.seedBatchId, label: res.label, createdAt: new Date().toISOString() },
+        ...prev,
+      ]);
+      const payload = labelSeedPayload(buildServerSeedPayload(res.seedBatchId), res.label);
+      const importRes = await importSeedData(payload);
+      setSeedStatus(
+        `Seeded ${importRes.inserted} rows for ${preset.seekers} seekers / ${preset.retainers} retainers.`
+      );
+      setSeedConfirm("");
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handlePurgeSelected = async () => {
+    const targetBatchId = selectedBatchId || seedBatches[0]?.id;
+    if (!targetBatchId) {
+      setSeedError("Select a seed batch to purge.");
+      return;
+    }
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      await purgeSeedBatch({ batchId: targetBatchId });
+      setSeedStatus("Purged selected seed batch.");
+      setSelectedBatchId("");
+      await refreshBatches();
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  const handlePurgeAll = async () => {
+    if (purgeConfirm.trim() !== "PURGE SEED") {
+      setSeedError("Type PURGE SEED to confirm.");
+      return;
+    }
+    setSeedBusy(true);
+    setSeedError(null);
+    setSeedStatus(null);
+    try {
+      await purgeSeedBatch({ all: true });
+      setSeedStatus("Purged all seed data.");
+      setSelectedBatchId("");
+      setPurgeConfirm("");
+      await refreshBatches();
+    } catch (err: any) {
+      setSeedError(formatError(err));
+    } finally {
+      setSeedBusy(false);
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3">
+        <div>
+          <div className="text-sm font-semibold">Seed Data (Production Demo)</div>
+          <div className="text-xs text-white/60">
+            Generates demo profiles and content in Cloudflare D1. Seeded profiles are labeled as Demo.
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">
+          <div className="space-y-2">
+            <div className="text-xs uppercase tracking-wider text-white/60">Demo Size</div>
+            <select
+              className="input w-full"
+              value={seedPreset}
+              onChange={(e) => setSeedPreset(e.target.value as keyof typeof SEED_PRESETS)}
+            >
+              {Object.entries(SEED_PRESETS).map(([key, preset]) => (
+                <option key={key} value={key}>
+                  {preset.label} ({preset.seekers} seekers / {preset.retainers} retainers)
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs uppercase tracking-wider text-white/60">Seed Label (optional)</div>
+            <input
+              className="input w-full"
+              placeholder="demo_YYYY-MM-DD_medium"
+              value={seedLabel}
+              onChange={(e) => setSeedLabel(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="text-xs text-white/70">
+          Includes profiles, links, conversations, messages, routes, interests, posts, broadcasts, badges, and
+          reputation history.
+        </div>
+        <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
+          <input
+            className="input w-full"
+            placeholder="Type SEED DEMO to confirm"
+            value={seedConfirm}
+            onChange={(e) => setSeedConfirm(e.target.value)}
+          />
+          <button
+            className="btn"
+            onClick={handleGenerateDemo}
+            disabled={seedBusy || seedConfirm.trim() !== "SEED DEMO"}
+          >
+            Generate Demo Data
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3">
+        <div className="text-sm font-semibold">Seed Batches</div>
+        <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
+          <select
+            className="input w-full"
+            value={selectedBatchId}
+            onChange={(e) => setSelectedBatchId(e.target.value)}
+          >
+            <option value="">Select a seed batch</option>
+            {seedBatches.map((batch) => (
+              <option key={batch.id} value={batch.id}>
+                {batch.label} ({new Date(batch.createdAt).toLocaleDateString()})
+              </option>
+            ))}
+          </select>
+          <button className="btn" onClick={refreshBatches} disabled={seedBusy}>
+            Refresh
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn" onClick={handlePurgeSelected} disabled={seedBusy}>
+            Purge Selected
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-5 space-y-3">
+        <div className="text-xs uppercase tracking-wider text-rose-200">Danger Zone</div>
+        <div className="text-sm text-rose-100">Purge all seed data from production.</div>
+        <div className="grid gap-3 md:grid-cols-[2fr_1fr]">
+          <input
+            className="input w-full"
+            placeholder="Type PURGE SEED to confirm"
+            value={purgeConfirm}
+            onChange={(e) => setPurgeConfirm(e.target.value)}
+          />
+          <button
+            className="btn border-rose-500/40 text-rose-100 bg-rose-500/15 hover:bg-rose-500/25"
+            onClick={handlePurgeAll}
+            disabled={seedBusy || purgeConfirm.trim() !== "PURGE SEED"}
+          >
+            Purge All Seed Data
+          </button>
+        </div>
+      </div>
+
+      {seedStatus && <div className="text-sm text-emerald-200">{seedStatus}</div>}
+      {seedError && <div className="text-sm text-rose-200">{seedError}</div>}
+    </div>
   );
 };
 

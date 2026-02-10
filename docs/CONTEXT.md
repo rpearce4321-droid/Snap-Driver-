@@ -133,8 +133,12 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
 - **Route Notices**: bad-exit penalties for dedicated routes (15/25/35% for 30/60/90 days), with suspension/blacklist logic (`src/lib/routeNotices.ts`).
 - **Server sync**: `/api/sync/pull` and `/api/sync/upsert` (Cloudflare Pages Functions + D1).
   - Mode controlled by `VITE_SERVER_SYNC_MODE` (`server` in production, `local` in staging).
-  - In production, seed/reset tools are disabled; server data is authoritative.
+  - In production, server sync tools are disabled; server data is authoritative.
   - Sync flags: `snapdriver_server_sync_enabled`, `snapdriver_seed_mode`. Seeded rows are marked with `__seed` for purge.
+- **Seed Data (Admin tab)**: production demo tooling to generate and purge seed data in D1.
+  - Default preset: **Medium** (100 seekers / 20 retainers).
+  - Seeded profiles are labeled **Demo** via `isDemo` + `demoLabel` in `data_json`.
+  - Seed endpoints (`/api/seed/load`, `/api/seed/import`, `/api/seed/batches`) require **ADMIN** session.
 - **Admin bootstrap**: `/api/auth/bootstrap` is enabled only with `ADMIN_BOOTSTRAP_TOKEN` and UI gated by `VITE_ENABLE_ADMIN_BOOTSTRAP` for first admin creation.
 
 ## Alignment Tasks
