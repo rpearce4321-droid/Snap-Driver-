@@ -6,7 +6,7 @@ import { createAccount, getAccountByEmail } from "../lib/accounts";
 import { getRetainerById } from "../lib/data";
 import { setSession } from "../lib/session";
 import { register, syncUpsert } from "../lib/api";
-import { queueServerSync } from "../lib/serverSync";
+import { isServerAuthoritative, queueServerSync } from "../lib/serverSync";
 
 export default function SignupRetainerPage() {
   const navigate = useNavigate();
@@ -16,6 +16,7 @@ export default function SignupRetainerPage() {
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const allowLocalAccounts = !isServerAuthoritative();
 
   const initialProfile = useMemo(
     () => (email ? ({ email } as any) : undefined),
@@ -37,7 +38,7 @@ export default function SignupRetainerPage() {
       setError("Passwords do not match.");
       return;
     }
-    if (getAccountByEmail(trimmed)) {
+    if (allowLocalAccounts && getAccountByEmail(trimmed)) {
       setError("An account already exists for that email.");
       return;
     }
@@ -56,12 +57,14 @@ export default function SignupRetainerPage() {
     }
     const finalEmail = (retainer as any)?.email || email.trim();
     try {
-      createAccount({
-        role: "RETAINER",
-        email: finalEmail,
-        password,
-        retainerId: id,
-      });
+      if (allowLocalAccounts) {
+        createAccount({
+          role: "RETAINER",
+          email: finalEmail,
+          password,
+          retainerId: id,
+        });
+      }
       await register({ email: finalEmail, password, role: "RETAINER" });
       await syncUpsert({ retainers: [retainer] });
       window.localStorage.setItem("snapdriver_current_retainer_id", id);

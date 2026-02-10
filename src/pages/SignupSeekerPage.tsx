@@ -6,7 +6,7 @@ import { createAccount, getAccountByEmail } from "../lib/accounts";
 import { getSeekerById } from "../lib/data";
 import { setSession } from "../lib/session";
 import { register, syncUpsert } from "../lib/api";
-import { queueServerSync } from "../lib/serverSync";
+import { isServerAuthoritative, queueServerSync } from "../lib/serverSync";
 
 export default function SignupSeekerPage() {
   const navigate = useNavigate();
@@ -16,6 +16,7 @@ export default function SignupSeekerPage() {
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const allowLocalAccounts = !isServerAuthoritative();
 
   const initialProfile = useMemo(
     () => (email ? ({ email } as any) : undefined),
@@ -37,7 +38,7 @@ export default function SignupSeekerPage() {
       setError("Passwords do not match.");
       return;
     }
-    if (getAccountByEmail(trimmed)) {
+    if (allowLocalAccounts && getAccountByEmail(trimmed)) {
       setError("An account already exists for that email.");
       return;
     }
@@ -56,12 +57,14 @@ export default function SignupSeekerPage() {
     }
     const finalEmail = (seeker as any)?.email || email.trim();
     try {
-      createAccount({
-        role: "SEEKER",
-        email: finalEmail,
-        password,
-        seekerId: id,
-      });
+      if (allowLocalAccounts) {
+        createAccount({
+          role: "SEEKER",
+          email: finalEmail,
+          password,
+          seekerId: id,
+        });
+      }
       await register({ email: finalEmail, password, role: "SEEKER" });
       await syncUpsert({ seekers: [{ ...seeker, email: finalEmail }] });
       window.localStorage.setItem("snapdriver_current_seeker_id", id);

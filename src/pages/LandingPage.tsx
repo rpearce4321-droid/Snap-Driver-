@@ -8,7 +8,7 @@ import {
 } from "../lib/accounts";
 import { getRetainers, getSeekers } from "../lib/data";
 import { setSession } from "../lib/session";
-import { pullFromServer, pauseServerSync } from "../lib/serverSync";
+import { pullFromServer, pauseServerSync, isServerAuthoritative } from "../lib/serverSync";
 import { login, resetPassword, lookupProfile, register } from "../lib/api";
 
 const DISPLAY_FONT = {
@@ -53,6 +53,7 @@ const RoleCard: React.FC<RoleCardProps> = ({
     const rawEmail = (emailRef.current?.value ?? email).trim();
     const normEmail = rawEmail.toLowerCase();
     const pwd = passwordRef.current?.value ?? password;
+    const allowLocalFallback = !isServerAuthoritative();
     try {
       pauseServerSync(4000);
       await login({ email: normEmail, password: pwd });
@@ -117,21 +118,26 @@ const RoleCard: React.FC<RoleCardProps> = ({
       } catch {
         // ignore register fallback
       }
-      try {
-        const account = authenticateAccount({ email: normEmail, password: pwd, role });
-        const profileId = getAccountProfileId(account);
-        if (!profileId) throw new Error("Account has no linked profile.");
-        if (role === "SEEKER") {
-          window.localStorage.setItem("snapdriver_current_seeker_id", profileId);
-          setSession({ role, seekerId: profileId, email: normEmail });
-        } else {
-          window.localStorage.setItem("snapdriver_current_retainer_id", profileId);
-          setSession({ role, retainerId: profileId, email: normEmail });
+      if (allowLocalFallback) {
+        try {
+          const account = authenticateAccount({ email: normEmail, password: pwd, role });
+          const profileId = getAccountProfileId(account);
+          if (!profileId) throw new Error("Account has no linked profile.");
+          if (role === "SEEKER") {
+            window.localStorage.setItem("snapdriver_current_seeker_id", profileId);
+            setSession({ role, seekerId: profileId, email: normEmail });
+          } else {
+            window.localStorage.setItem("snapdriver_current_retainer_id", profileId);
+            setSession({ role, retainerId: profileId, email: normEmail });
+          }
+          navigate(role === "SEEKER" ? "/seekers" : "/retainers");
+          return;
+        } catch (localErr: any) {
+          setError(localErr?.message || err?.response?.data?.error || "Unable to sign in.");
+          return;
         }
-        navigate(role === "SEEKER" ? "/seekers" : "/retainers");
-      } catch (localErr: any) {
-        setError(localErr?.message || err?.response?.data?.error || "Unable to sign in.");
       }
+      setError(err?.response?.data?.error || "Unable to sign in.");
     }
   };
 

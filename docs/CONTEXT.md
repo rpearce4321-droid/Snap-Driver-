@@ -111,6 +111,7 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
 ## Implementation Reality (Current Code)
 - **Frontend**: React + Vite, local-first. All core domain data stored in localStorage with `schemaVersion` envelopes (`src/lib/storage.ts`).
 - **Portals**: session stored in localStorage; portal context stored per-tab in `sessionStorage` (`snapdriver_portal_context_v1`).
+- **Production auth**: when server sync mode is `server`, login/signup require the server; local-only fallback accounts are disabled.
 - **Core stores (local-first)**:
   - Seekers: `demo_seekers_v2`; Retainers: `demo_retainers_v2`.
   - Links: `snapdriver_links_v1`; Conversations: `snapdriver_conversations_v1`; Messages: `snapdriver_messages_v1`.

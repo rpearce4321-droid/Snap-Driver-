@@ -388,7 +388,7 @@ export async function pullFromServer(options?: {
   pullInFlight = true;
   const mode = options?.mode ?? getServerSyncMode();
   const allowEmptyOverwrite =
-    options?.allowEmptyOverwrite ?? mode === "local";
+    options?.allowEmptyOverwrite ?? mode === "server";
   try {
     const data = await syncPull();
 
