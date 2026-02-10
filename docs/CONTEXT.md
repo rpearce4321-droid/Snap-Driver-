@@ -140,6 +140,7 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
   - Seeded profiles are labeled **Demo** via `isDemo` + `demoLabel` in `data_json`.
   - Seed endpoints (`/api/seed/load`, `/api/seed/import`, `/api/seed/batches`) require **ADMIN** session.
 - **Admin bootstrap**: `/api/auth/bootstrap` is enabled only with `ADMIN_BOOTSTRAP_TOKEN` and UI gated by `VITE_ENABLE_ADMIN_BOOTSTRAP` for first admin creation.
+- **Emergency admin bootstrap** (temporary): `/api/auth/emergency-bootstrap` requires `EMERGENCY_BOOTSTRAP_TOKEN` and only works if no admin exists.
 
 ## Alignment Tasks
 - Update `docs/badges-spec.md` and `docs/decision-log.md` to reflect new production badge policies.

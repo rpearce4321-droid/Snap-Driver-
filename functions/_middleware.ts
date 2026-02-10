@@ -30,7 +30,7 @@ function buildCorsHeaders(origin: string | null, request: Request) {
   );
   headers.set(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Requested-With"
+    "Content-Type, Authorization, X-Requested-With, X-Bootstrap-Token, X-Emergency-Bootstrap-Token"
   );
   headers.set("Access-Control-Max-Age", "86400");
   return headers;
