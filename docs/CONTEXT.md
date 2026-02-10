@@ -27,7 +27,8 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
 
 
 ## Decisions (Non-Negotiables)
-- **Local-first** for now: data is stored locally; APIs/Prisma are not the primary runtime path yet.
+- **Local-first in staging**: data is stored locally; APIs/Prisma are not the primary runtime path yet.
+- **Production is server-authoritative**: Cloudflare D1 is the source of truth; local storage is only a cache.
 - **Do not break existing portals**: new features must be additive (new keys/optional fields) and guarded.
 - **Linking approval** requires **both parties**:
   - Seeker and Retainer each have a manual toggle confirming the video conference occurred.
@@ -130,7 +131,10 @@ Reference business plan: `Buisness Plan Docs/Project Snap Driver Copy.docx`.
   - PRS: 200-900, 90-day window, k=0.56, level multipliers default [0.85, 0.95, 1.0, 1.1, 1.25].
   - **Current implementation recomputes levels from yes/no counts; levels can decrease** (see conflict below).
 - **Route Notices**: bad-exit penalties for dedicated routes (15/25/35% for 30/60/90 days), with suspension/blacklist logic (`src/lib/routeNotices.ts`).
-- **Server sync**: `/api/sync/pull` and `/api/sync/upsert` (Cloudflare Pages Functions + D1). Sync flags: `snapdriver_server_sync_enabled`, `snapdriver_seed_mode`. Seeded rows are marked with `__seed` for purge.
+- **Server sync**: `/api/sync/pull` and `/api/sync/upsert` (Cloudflare Pages Functions + D1).
+  - Mode controlled by `VITE_SERVER_SYNC_MODE` (`server` in production, `local` in staging).
+  - In production, seed/reset tools are disabled; server data is authoritative.
+  - Sync flags: `snapdriver_server_sync_enabled`, `snapdriver_seed_mode`. Seeded rows are marked with `__seed` for purge.
 - **Admin bootstrap**: `/api/auth/bootstrap` is enabled only with `ADMIN_BOOTSTRAP_TOKEN` and UI gated by `VITE_ENABLE_ADMIN_BOOTSTRAP` for first admin creation.
 
 ## Alignment Tasks

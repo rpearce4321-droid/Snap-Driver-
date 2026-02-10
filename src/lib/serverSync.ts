@@ -24,6 +24,18 @@ import {
 const SERVER_SYNC_ENABLED_KEY = "snapdriver_server_sync_enabled";
 const SEED_MODE_KEY = "snapdriver_seed_mode";
 
+export type ServerSyncMode = "server" | "local";
+const SERVER_SYNC_MODE: ServerSyncMode =
+  import.meta.env.VITE_SERVER_SYNC_MODE === "server" ? "server" : "local";
+
+export function getServerSyncMode(): ServerSyncMode {
+  return SERVER_SYNC_MODE;
+}
+
+export function isServerAuthoritative(): boolean {
+  return SERVER_SYNC_MODE === "server";
+}
+
 const CURRENT_SEEKER_KEY = "snapdriver_current_seeker_id";
 const CURRENT_RETAINER_KEY = "snapdriver_current_retainer_id";
 
@@ -89,6 +101,10 @@ export function isServerSyncEnabled(): boolean {
 }
 
 export function setServerSyncEnabled(next: boolean): void {
+  if (isServerAuthoritative()) {
+    setLocalFlag(SERVER_SYNC_ENABLED_KEY, true);
+    return;
+  }
   setLocalFlag(SERVER_SYNC_ENABLED_KEY, next);
 }
 
@@ -362,11 +378,17 @@ function buildBadgeStoreFromRows(args: {
 
   return { selections, progress, checkins };
 }
-export async function pullFromServer(): Promise<boolean> {
+export async function pullFromServer(options?: {
+  mode?: ServerSyncMode;
+  allowEmptyOverwrite?: boolean;
+}): Promise<boolean> {
   if (pullInFlight) return false;
   const now = Date.now();
   if (now - lastPullAt < 4000) return false;
   pullInFlight = true;
+  const mode = options?.mode ?? getServerSyncMode();
+  const allowEmptyOverwrite =
+    options?.allowEmptyOverwrite ?? mode === "local";
   try {
     const data = await syncPull();
 
@@ -376,6 +398,29 @@ export async function pullFromServer(): Promise<boolean> {
     const retainers = data.retainers ?? [];
     const previousSeekers = readStoreData<any[]>(KEY_SEEKERS) ?? [];
     const previousRetainers = readStoreData<any[]>(KEY_RETAINERS) ?? [];
+    const localHasCoreData =
+      previousSeekers.length > 0 ||
+      previousRetainers.length > 0 ||
+      (readStoreData<any[]>(KEY_LINKS) ?? []).length > 0 ||
+      (readStoreData<any[]>(KEY_CONVERSATIONS) ?? []).length > 0 ||
+      (readStoreData<any[]>(KEY_MESSAGES) ?? []).length > 0 ||
+      (readStoreData<any[]>(KEY_ROUTES) ?? []).length > 0 ||
+      (readStoreData<any[]>(KEY_POSTS) ?? []).length > 0 ||
+      (readStoreData<any[]>(KEY_BROADCASTS) ?? []).length > 0;
+    const serverHasCoreData =
+      seekers.length > 0 ||
+      retainers.length > 0 ||
+      (data.links ?? []).length > 0 ||
+      (data.conversations ?? []).length > 0 ||
+      (data.messages ?? []).length > 0 ||
+      (data.routes ?? []).length > 0 ||
+      (data.posts ?? []).length > 0 ||
+      (data.broadcasts ?? []).length > 0;
+    if (!serverHasCoreData && localHasCoreData && !allowEmptyOverwrite) {
+      setServerSyncMuted(false);
+      lastPullAt = Date.now();
+      return false;
+    }
     const currentSeekerId = typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_SEEKER_KEY) : null;
     const currentRetainerId = typeof window !== "undefined" ? window.localStorage.getItem(CURRENT_RETAINER_KEY) : null;
     const retainerUsers = data.retainerUsers ?? [];
@@ -404,17 +449,18 @@ export async function pullFromServer(): Promise<boolean> {
       subcontractors: subsBySeeker.get(s.id) ?? s.subcontractors,
     }));
 
-
-    if (currentSeekerId && !nextSeekers.some((s: any) => s.id === currentSeekerId)) {
-      const fallbackSeeker = previousSeekers.find((s: any) => s.id === currentSeekerId);
-      if (fallbackSeeker) {
-        nextSeekers = [fallbackSeeker, ...nextSeekers];
+    if (mode === "local") {
+      if (currentSeekerId && !nextSeekers.some((s: any) => s.id === currentSeekerId)) {
+        const fallbackSeeker = previousSeekers.find((s: any) => s.id === currentSeekerId);
+        if (fallbackSeeker) {
+          nextSeekers = [fallbackSeeker, ...nextSeekers];
+        }
       }
-    }
-    if (currentRetainerId && !nextRetainers.some((r: any) => r.id === currentRetainerId)) {
-      const fallbackRetainer = previousRetainers.find((r: any) => r.id === currentRetainerId);
-      if (fallbackRetainer) {
-        nextRetainers = [fallbackRetainer, ...nextRetainers];
+      if (currentRetainerId && !nextRetainers.some((r: any) => r.id === currentRetainerId)) {
+        const fallbackRetainer = previousRetainers.find((r: any) => r.id === currentRetainerId);
+        if (fallbackRetainer) {
+          nextRetainers = [fallbackRetainer, ...nextRetainers];
+        }
       }
     }
     writeStore(KEY_SEEKERS, 1, nextSeekers);
@@ -493,12 +539,19 @@ export async function pullFromServer(): Promise<boolean> {
 }
 
 export async function initServerSync(): Promise<void> {
-  setServerSyncEnabled(true);
   setStoreListener((key) => queueServerSync(key));
   if (typeof window === "undefined") return;
   try {
-    await pullFromServer();
-    setServerSyncEnabled(true);
+    const mode = getServerSyncMode();
+    if (mode === "server") {
+      setServerSyncEnabled(true);
+      await pullFromServer({ mode });
+      setServerSyncEnabled(true);
+      return;
+    }
+    if (isServerSyncEnabled()) {
+      await pullFromServer({ mode });
+    }
   } catch {
     // ignore
   }

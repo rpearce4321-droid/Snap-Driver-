@@ -21,6 +21,7 @@ import {
 } from "../lib/data";
 import type { Seeker, Retainer } from "../lib/data";
 import { autoSeed } from "../lib/seed";
+import { getServerSyncMode } from "../lib/serverSync";
 import type { Conversation, ChatMessage } from "../lib/messages";
 import {
   getAllConversations,
@@ -269,8 +270,8 @@ export default function AdminPage() {
     navigate(`/retainers/${id}`);
   }
 
-  // Always allow reset + reseed from Admin
-  const showSeedButton = true;
+  // Always allow reset + reseed from Admin (except production server mode)
+  const showSeedButton = getServerSyncMode() !== "server";
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col lg:flex-row overflow-x-hidden">

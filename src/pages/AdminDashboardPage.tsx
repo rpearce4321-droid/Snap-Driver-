@@ -31,7 +31,14 @@ import {
   setUserPassword,
   setUserStatus,
 } from "../lib/api";
-import { getServerSyncStatus, pullFromServer, setSeedModeEnabled, setServerSyncEnabled, syncToServer } from "../lib/serverSync";
+import {
+  getServerSyncMode,
+  getServerSyncStatus,
+  pullFromServer,
+  setSeedModeEnabled,
+  setServerSyncEnabled,
+  syncToServer,
+} from "../lib/serverSync";
 import {
   getRetainerEntitlements,
   getSeekerEntitlements,
@@ -2207,7 +2214,12 @@ const AdminUserManagementPanel: React.FC<{ role: AdminUserRole }> = ({ role }) =
 
   return (
     <div className="p-6 space-y-6">
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
+      {isServerMode ? (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/70">
+          Server sync and seed tools are disabled in production.
+        </div>
+      ) : (
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
         <div>
           <div className="text-sm font-semibold">User Management</div>
           <div className="text-xs text-white/60">
@@ -2750,6 +2762,7 @@ const AdminServerPanel: React.FC = () => {
   const [seedError, setSeedError] = useState<string | null>(null);
   const [seedBusy, setSeedBusy] = useState(false);
   const serverStatus = getServerSyncStatus();
+  const isServerMode = getServerSyncMode() === "server";
   const [serverSyncEnabled, setServerSyncEnabledState] = useState(serverStatus.enabled);
   const [seedModeEnabled, setSeedModeEnabledState] = useState(serverStatus.seedMode);
   const [seedIncludes, setSeedIncludes] = useState({
@@ -3233,6 +3246,7 @@ const AdminServerPanel: React.FC = () => {
         {seedStatus && <div className="text-sm text-emerald-200">{seedStatus}</div>}
         {seedError && <div className="text-sm text-rose-200">{seedError}</div>}
       </div>
+      )}
     </div>
 
   );

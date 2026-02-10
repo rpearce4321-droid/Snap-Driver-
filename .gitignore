@@ -29,6 +29,7 @@ dist-ssr
 /src/generated/prisma
 
 checkpoints/
+checkpoint-before-removals-2026-02-06.zip
 server/.env
 server/.env.local
 
