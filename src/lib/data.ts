@@ -746,12 +746,14 @@ export function setRetainerStatusGuarded(id: string, status: Status) {
 
 // === Add / update helpers ===================================================
 
-export function addSeeker(input: Partial<Seeker>): Seeker {
-  const all = getSeekers();
-  const id = uuid();
+export function buildSeekerRecord(
+  input: Partial<Seeker>,
+  options?: { id?: string; createdAt?: number }
+): Seeker {
+  const id = options?.id ?? input.id ?? uuid();
   const vehicles = normalizeVehicles((input as any).vehicles, (input as any).vehicle ?? null);
   const vehicleSummary = summarizeVehicles(vehicles);
-  const seeker: Seeker = {
+  return {
     id,
     role: "SEEKER",
     status: input.status ?? "PENDING",
@@ -779,20 +781,18 @@ export function addSeeker(input: Partial<Seeker>): Seeker {
     vehiclePhoto3: (input as any).vehiclePhoto3,
     ref1: input.ref1,
     ref2: input.ref2,
-    createdAt: now(),
+    createdAt: options?.createdAt ?? (input.createdAt ?? now()),
     subcontractors: normalizeSubcontractors((input as any).subcontractors, id),
     hierarchyNodes: normalizeHierarchyNodes((input as any).hierarchyNodes),
   };
-  const next = [...all, seeker];
-  saveSeekers(next);
-  notifySubscribers();
-  return seeker;
 }
 
-export function addRetainer(input: Partial<Retainer>): Retainer {
-  const all = getRetainers();
-  const id = uuid();
-  const retainer: Retainer = {
+export function buildRetainerRecord(
+  input: Partial<Retainer>,
+  options?: { id?: string; createdAt?: number }
+): Retainer {
+  const id = options?.id ?? input.id ?? uuid();
+  return {
     id,
     role: "RETAINER",
     status: input.status ?? "PENDING",
@@ -819,15 +819,39 @@ export function addRetainer(input: Partial<Retainer>): Retainer {
     payCycleFrequency: input.payCycleFrequency,
     payCycleTimezone: input.payCycleTimezone ?? "EST",
     feeSchedule: input.feeSchedule ?? [],
-    createdAt: now(),
+    createdAt: options?.createdAt ?? (input.createdAt ?? now()),
     users: normalizeRetainerUsers((input as any).users, id),
     userLevelLabels: (input as any).userLevelLabels ?? DEFAULT_RETAINER_LEVEL_LABELS,
     hierarchyNodes: normalizeHierarchyNodes((input as any).hierarchyNodes),
   };
-  const next = [...all, retainer];
+}
+
+export function upsertSeekerRecord(seeker: Seeker): Seeker {
+  const all = getSeekers();
+  const idx = all.findIndex((s) => s.id === seeker.id);
+  const next = idx === -1 ? [...all, seeker] : all.map((s, i) => (i === idx ? seeker : s));
+  saveSeekers(next);
+  notifySubscribers();
+  return seeker;
+}
+
+export function upsertRetainerRecord(retainer: Retainer): Retainer {
+  const all = getRetainers();
+  const idx = all.findIndex((r) => r.id === retainer.id);
+  const next = idx === -1 ? [...all, retainer] : all.map((r, i) => (i === idx ? retainer : r));
   saveRetainers(next);
   notifySubscribers();
   return retainer;
+}
+
+export function addSeeker(input: Partial<Seeker>): Seeker {
+  const seeker = buildSeekerRecord(input);
+  return upsertSeekerRecord(seeker);
+}
+
+export function addRetainer(input: Partial<Retainer>): Retainer {
+  const retainer = buildRetainerRecord(input);
+  return upsertRetainerRecord(retainer);
 }
 
 /** Wrapper: always creates a PENDING seeker */

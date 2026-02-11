@@ -2815,6 +2815,36 @@ const AdminSeedDataPanel: React.FC = () => {
   const formatError = (err: any) =>
     err?.response?.data?.error || err?.message || "Request failed";
 
+  const snapshotLocalStorage = () => {
+    if (typeof window === "undefined") return null as null | Record<string, string>;
+    const snapshot: Record<string, string> = {};
+    try {
+      const storage = window.localStorage;
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (!key) continue;
+        const value = storage.getItem(key);
+        if (value != null) snapshot[key] = value;
+      }
+    } catch {
+      return null;
+    }
+    return snapshot;
+  };
+
+  const restoreLocalStorage = (snapshot: Record<string, string>) => {
+    if (typeof window === "undefined") return;
+    try {
+      const storage = window.localStorage;
+      storage.clear();
+      Object.entries(snapshot).forEach(([key, value]) => {
+        storage.setItem(key, value);
+      });
+    } catch {
+      // ignore
+    }
+  };
+
   const refreshBatches = async () => {
     setSeedBusy(true);
     setSeedError(null);
@@ -2859,9 +2889,15 @@ const AdminSeedDataPanel: React.FC = () => {
     setSeedBusy(true);
     setSeedError(null);
     setSeedStatus(null);
+    let localSnapshot: Record<string, string> | null = null;
+    let restored = false;
     try {
       const preset = SEED_PRESETS[seedPreset];
       const existingSession = getSession();
+
+      if (getServerSyncMode() === "server") {
+        localSnapshot = snapshotLocalStorage();
+      }
 
       autoSeedComprehensive({
         retainers: preset.retainers,
@@ -2883,7 +2919,14 @@ const AdminSeedDataPanel: React.FC = () => {
         { id: res.seedBatchId, label: res.label, createdAt: new Date().toISOString() },
         ...prev,
       ]);
-      const payload = labelSeedPayload(buildServerSeedPayload(res.seedBatchId), res.label);
+      const payload = {
+        ...labelSeedPayload(buildServerSeedPayload(res.seedBatchId), res.label),
+        label: res.label,
+      };
+      if (localSnapshot) {
+        restoreLocalStorage(localSnapshot);
+        restored = true;
+      }
       const importRes = await importSeedData(payload);
       setSeedStatus(
         `Seeded ${importRes.inserted} rows for ${preset.seekers} seekers / ${preset.retainers} retainers.`
@@ -2892,6 +2935,9 @@ const AdminSeedDataPanel: React.FC = () => {
     } catch (err: any) {
       setSeedError(formatError(err));
     } finally {
+      if (localSnapshot && !restored) {
+        restoreLocalStorage(localSnapshot);
+      }
       setSeedBusy(false);
     }
   };

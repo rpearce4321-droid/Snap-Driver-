@@ -13,7 +13,8 @@ import {
   VEHICLE_MODELS_BY_MAKE,
   getSeekers,
   getRetainers,
-  addSeekerForcePending,
+  buildSeekerRecord,
+  upsertSeekerRecord,
   addSubcontractor,
   removeSubcontractor,
   setSeekerHierarchyNodes,
@@ -117,6 +118,7 @@ import {
 import { badgeIconFor } from "../components/badgeIcons";
 import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
 import { changePassword, logout, resetPassword, syncUpsert } from "../lib/api";
+import { isServerAuthoritative } from "../lib/serverSync";
 import { getRetainerPosts, type RetainerPost } from "../lib/posts";
 import { getStockImageUrl } from "../lib/stockImages";
 import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
@@ -6036,7 +6038,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
@@ -6097,13 +6099,28 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
           ...initial,
           ...payload,
         };
+        if (isServerAuthoritative()) {
+          try {
+            await syncUpsert({ seekers: [updated] });
+          } catch (err: any) {
+            setError(err?.message || "Server save failed. Please try again.");
+            return;
+          }
+        }
         updateSeekerInStorage(updated);
-        syncUpsert({ seekers: [updated] }).catch(() => undefined);
         setSuccessMsg("Profile updated. Admin and other views will see your latest info.");
         onSaved(updated.id);
       } else {
-        const created = addSeekerForcePending(payload as any);
-        syncUpsert({ seekers: [created] }).catch(() => undefined);
+        const created = buildSeekerRecord({ ...(payload as any), status: "PENDING" });
+        if (isServerAuthoritative()) {
+          try {
+            await syncUpsert({ seekers: [created] });
+          } catch (err: any) {
+            setError(err?.message || "Server save failed. Please try again.");
+            return;
+          }
+        }
+        upsertSeekerRecord(created);
         setSuccessMsg(
           "Profile created and set to Pending. Head to Badges to choose your badges while you wait for approval."
         );

@@ -21,7 +21,8 @@ import {
 
   getSeekers,
 
-  addRetainerForcePending,
+  buildRetainerRecord,
+  upsertRetainerRecord,
 
   addRetainerUser,
 
@@ -184,7 +185,7 @@ import ProfileAvatar from "../components/ProfileAvatar";
 
 import { getStockImageUrl } from "../lib/stockImages";
 import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
-import { pullFromServer } from "../lib/serverSync";
+import { pullFromServer, isServerAuthoritative } from "../lib/serverSync";
 
 import {
 
@@ -8810,7 +8811,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 
     e.preventDefault();
 
@@ -8881,8 +8882,15 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
         const updated: any = { ...(initial as any), ...payload };
 
+        if (isServerAuthoritative()) {
+          try {
+            await syncUpsert({ retainers: [updated] });
+          } catch (err: any) {
+            setError(err?.message || "Server save failed. Please try again.");
+            return;
+          }
+        }
         updateRetainerInStorage(updated);
-        syncUpsert({ retainers: [updated] }).catch(() => undefined);
 
         setSuccessMsg("Profile updated.");
 
@@ -8890,8 +8898,16 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
       } else {
 
-        const created = addRetainerForcePending(payload as any);
-        syncUpsert({ retainers: [created] }).catch(() => undefined);
+        const created = buildRetainerRecord({ ...(payload as any), status: "PENDING" });
+        if (isServerAuthoritative()) {
+          try {
+            await syncUpsert({ retainers: [created] });
+          } catch (err: any) {
+            setError(err?.message || "Server save failed. Please try again.");
+            return;
+          }
+        }
+        upsertRetainerRecord(created);
 
         setSuccessMsg("Profile created and set to Pending.");
 

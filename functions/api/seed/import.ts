@@ -5,6 +5,7 @@ import { badRequest, json, requireDb, serverError } from "../_db";
 
 type SeedPayload = {
   batchId?: string;
+  label?: string;
   seekers?: any[];
   retainers?: any[];
   retainerUsers?: any[];
@@ -44,12 +45,22 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
 
   const batchId = payload.batchId?.trim();
   if (!batchId) return badRequest("batchId is required");
+  const label = payload.label?.trim();
 
   const inserts: Array<{ stmt: string; values: any[] }> = [];
 
   const push = (stmt: string, values: any[]) => inserts.push({ stmt, values });
 
   const nowIso = new Date().toISOString();
+
+  try {
+    await db
+      .prepare("INSERT OR IGNORE INTO seed_batches (id, label) VALUES (?, ?)")
+      .bind(batchId, label || `seed_${nowIso.slice(0, 10)}`)
+      .run();
+  } catch (err: any) {
+    return serverError(err?.message || "Failed to record seed batch");
+  }
 
   for (const item of payload.seekers ?? []) {
     const id = item.id || crypto.randomUUID();
