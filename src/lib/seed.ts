@@ -29,11 +29,18 @@ import {
   setLinkApproved,
   setLinkVideoConfirmed,
   setWorkingTogether,
+  getAllLinks,
 } from "./linking";
 import { createRetainerPost } from "./posts";
 import { createRetainerBroadcast } from "./broadcasts";
 import { deliverRetainerBroadcastToLinkedSeekers } from "./broadcastDelivery";
-import { createRoute, toggleInterest } from "./routes";
+import { createRoute, toggleInterest, getAllRoutes } from "./routes";
+import {
+  createRouteAssignment,
+  createWorkUnitPeriod,
+  submitWorkUnitCounts,
+  respondToWorkUnitPeriod,
+} from "./workUnits";
 import {
   getActiveBadges,
   getBackgroundBadges,
@@ -100,6 +107,10 @@ type ComprehensiveSeedOptions = {
    * If true, wipes existing local demo data before seeding.
    */
   force?: boolean;
+  /**
+   * If true, seed work history (route assignments + periods).
+   */
+  workHistory?: boolean;
 };
 
 /* ===== Random data pools ===== */
@@ -1211,6 +1222,7 @@ function updateProfileInStorage(
 export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void {
   const retainerCount = opts.retainers ?? 5;
   const seekerCount = opts.seekers ?? 5;
+  const includeWorkHistory = opts.workHistory ?? false;
 
   const retainersSmallTeams = Math.min(opts.retainersSmallTeams ?? 10, retainerCount);
   const retainersLargeTeams = Math.min(opts.retainersLargeTeams ?? 10, Math.max(0, retainerCount - retainersSmallTeams));
@@ -2087,6 +2099,145 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
         for (const s of sampleSeekers) {
           if (randomInt(0, 1) === 0) continue;
           toggleInterest(String((s as any).id), route.id);
+        }
+      }
+    }
+
+    if (includeWorkHistory) {
+      const approvedSeekers = getSeekers().filter((s: any) => s.status === "APPROVED");
+      const approvedRetainers = getRetainers().filter((r: any) => r.status === "APPROVED");
+      const allRoutes = getAllRoutes();
+      const routesByRetainer = new Map<string, any[]>();
+      for (const route of allRoutes) {
+        const list = routesByRetainer.get(route.retainerId) ?? [];
+        list.push(route);
+        routesByRetainer.set(route.retainerId, list);
+      }
+
+      for (const r of approvedRetainers as any[]) {
+        const retainerId = String(r.id);
+        const list = routesByRetainer.get(retainerId) ?? [];
+        if (list.length > 0) continue;
+        const city = r.city ?? pick(CITY_NAMES);
+        const state = r.state ?? pick(statePool);
+        const sched = randomRouteScheduleV2();
+        const route = createRoute({
+          retainerId,
+          title: ROUTE_TITLES[randomInt(0, ROUTE_TITLES.length - 1)],
+          audience: "LINKED_ONLY",
+          vertical: pick(VERTICALS),
+          city,
+          state,
+          schedule: sched.scheduleLabel,
+          scheduleDays: sched.scheduleDays,
+          scheduleStart: sched.scheduleStart,
+          scheduleEnd: sched.scheduleEnd,
+          scheduleTimezone: defaultTimezone(),
+          payModel: pick(["Per day", "Per stop", "Hourly"]),
+          payMin: randomInt(140, 240),
+          payMax: randomInt(260, 420),
+          openings: randomInt(1, 4),
+          requirements: pick([
+            "Valid license and insurance; smartphone required.",
+            "Must be able to meet cutoff daily; strong communication required.",
+            "Experience with scanners preferred; punctual start time required.",
+          ]),
+        });
+        list.push(route);
+        routesByRetainer.set(retainerId, list);
+      }
+
+      const activeLinks = getAllLinks().filter((l: any) => l.status === "ACTIVE");
+      const buildPeriodDates = (count: number, cadence: string) => {
+        const dates: Date[] = [];
+        const cursor = new Date();
+        for (let i = 0; i < count; i++) {
+          dates.push(new Date(cursor.getTime()));
+          if (cadence === "MONTHLY") {
+            cursor.setMonth(cursor.getMonth() - 1);
+          } else if (cadence === "BIWEEKLY") {
+            cursor.setDate(cursor.getDate() - 14);
+          } else {
+            cursor.setDate(cursor.getDate() - 7);
+          }
+        }
+        return dates.reverse();
+      };
+      const periodKeyForDate = (date: Date, cadence: string) => {
+        if (cadence === "MONTHLY") {
+          const mm = String(date.getMonth() + 1).padStart(2, "0");
+          return `${date.getFullYear()}-${mm}`;
+        }
+        return isoWeekKeyForDate(date);
+      };
+
+      for (const link of activeLinks as any[]) {
+        if (randomInt(0, 99) > 75) continue;
+        const retainerId = String(link.retainerId);
+        const seekerId = String(link.seekerId);
+        const routes = routesByRetainer.get(retainerId) ?? [];
+        if (routes.length === 0) continue;
+        const route = routes[randomInt(0, routes.length - 1)];
+        const retainer = approvedRetainers.find((r: any) => String(r.id) === retainerId) as any;
+        const cadence = retainer?.payCycleFrequency ?? "WEEKLY";
+        const assignmentType = randomInt(0, 9) < 7 ? "DEDICATED" : "ON_DEMAND";
+        const expectedUnits =
+          assignmentType === "DEDICATED" ? randomInt(3, 6) : undefined;
+        const startDaysBack = randomInt(30, 120);
+        const startDate = new Date(Date.now() - startDaysBack * 86400000).toISOString();
+        const assignment = createRouteAssignment({
+          routeId: route.id,
+          retainerId,
+          seekerId,
+          assignmentType,
+          unitType: assignmentType === "ON_DEMAND" ? "JOB" : "DAY",
+          cadence,
+          expectedUnitsPerPeriod: expectedUnits,
+          startDate,
+        });
+
+        const periodCount = randomInt(4, 8);
+        const dates = buildPeriodDates(periodCount, cadence);
+        const usedKeys = new Set<string>();
+        for (const date of dates) {
+          const periodKey = periodKeyForDate(date, cadence);
+          if (usedKeys.has(periodKey)) continue;
+          usedKeys.add(periodKey);
+          const period = createWorkUnitPeriod({
+            assignmentId: assignment.id,
+            periodKey,
+            cadence,
+            expectedUnits: assignmentType === "DEDICATED" ? expectedUnits : undefined,
+            acceptedUnits: assignmentType === "ON_DEMAND" ? randomInt(4, 10) : undefined,
+          });
+
+          if (assignmentType === "DEDICATED") {
+            const expected = expectedUnits ?? randomInt(3, 6);
+            const completed = Math.max(0, expected - randomInt(0, 2));
+            submitWorkUnitCounts({
+              periodId: period.id,
+              completedUnits: completed,
+              missedUnits: Math.max(0, expected - completed),
+              expectedUnits: expected,
+              submittedAt: date.toISOString(),
+            });
+          } else {
+            const accepted = randomInt(4, 10);
+            const completed = Math.max(0, accepted - randomInt(0, 3));
+            submitWorkUnitCounts({
+              periodId: period.id,
+              completedUnits: completed,
+              missedUnits: Math.max(0, accepted - completed),
+              acceptedUnits: accepted,
+              submittedAt: date.toISOString(),
+            });
+          }
+
+          if (randomInt(0, 99) < 80) {
+            respondToWorkUnitPeriod({ periodId: period.id, response: "CONFIRM" });
+          } else {
+            respondToWorkUnitPeriod({ periodId: period.id, response: "NEUTRAL" });
+          }
         }
       }
     }

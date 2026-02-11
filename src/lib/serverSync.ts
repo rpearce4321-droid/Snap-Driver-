@@ -470,6 +470,8 @@ export async function pullFromServer(options?: {
     writeStore(KEY_MESSAGES, 1, data.messages ?? []);
     writeStore(KEY_ROUTES, 1, data.routes ?? []);
     writeStore(KEY_ROUTE_INTERESTS, 1, data.routeInterests ?? []);
+    writeStore("snapdriver_route_assignments_v1", 1, data.routeAssignments ?? []);
+    writeStore("snapdriver_work_unit_periods_v1", 1, data.workUnitPeriods ?? []);
     writeStore(KEY_POSTS, 1, data.posts ?? []);
     writeStore(KEY_BROADCASTS, 1, data.broadcasts ?? []);
 
@@ -481,6 +483,8 @@ export async function pullFromServer(options?: {
       ...(data.messages ?? []),
       ...(data.routes ?? []),
       ...(data.routeInterests ?? []),
+      ...(data.routeAssignments ?? []),
+      ...(data.workUnitPeriods ?? []),
       ...(data.posts ?? []),
       ...(data.broadcasts ?? []),
       ...(data.badgeDefinitions ?? []),

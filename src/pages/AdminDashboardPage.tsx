@@ -2903,6 +2903,7 @@ const AdminSeedDataPanel: React.FC = () => {
         retainers: preset.retainers,
         seekers: preset.seekers,
         force: true,
+        workHistory: seedPreset === "small",
       });
 
       if (existingSession) {

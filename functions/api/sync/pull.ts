@@ -168,6 +168,52 @@ export const onRequestGet: PagesFunction = async ({ env }) => {
     })
   );
 
+  const routeAssignmentsRows = await db
+    .prepare("SELECT id, route_id, retainer_id, seeker_id, assignment_type, unit_type, cadence, expected_units_per_period, start_date, status, data_json, is_seed, seed_batch_id, created_at, updated_at FROM route_assignments")
+    .all<Row>();
+  const routeAssignments = routeAssignmentsRows.results.map((row) =>
+    mergeRow(row, {
+      id: row.id,
+      routeId: row.route_id,
+      retainerId: row.retainer_id,
+      seekerId: row.seeker_id,
+      assignmentType: row.assignment_type,
+      unitType: row.unit_type,
+      cadence: row.cadence,
+      expectedUnitsPerPeriod: row.expected_units_per_period ?? undefined,
+      startDate: row.start_date ?? undefined,
+      status: row.status,
+      createdAt: row.created_at ?? undefined,
+      updatedAt: row.updated_at ?? undefined,
+    })
+  );
+
+  const workUnitPeriodsRows = await db
+    .prepare("SELECT id, assignment_id, period_key, cadence, expected_units, accepted_units, completed_units, missed_units, status, seeker_response, admin_resolution, dispute_note, admin_note, retainer_submitted_at, seeker_responded_at, window_closes_at, data_json, is_seed, seed_batch_id, created_at, updated_at FROM work_unit_periods")
+    .all<Row>();
+  const workUnitPeriods = workUnitPeriodsRows.results.map((row) =>
+    mergeRow(row, {
+      id: row.id,
+      assignmentId: row.assignment_id,
+      periodKey: row.period_key,
+      cadence: row.cadence,
+      expectedUnits: row.expected_units ?? undefined,
+      acceptedUnits: row.accepted_units ?? undefined,
+      completedUnits: row.completed_units ?? undefined,
+      missedUnits: row.missed_units ?? undefined,
+      status: row.status,
+      seekerResponse: row.seeker_response ?? undefined,
+      adminResolution: row.admin_resolution ?? undefined,
+      disputeNote: row.dispute_note ?? undefined,
+      adminNote: row.admin_note ?? undefined,
+      retainerSubmittedAt: row.retainer_submitted_at ?? undefined,
+      seekerRespondedAt: row.seeker_responded_at ?? undefined,
+      windowClosesAt: row.window_closes_at ?? undefined,
+      createdAt: row.created_at ?? undefined,
+      updatedAt: row.updated_at ?? undefined,
+    })
+  );
+
   const postsRows = await db
     .prepare("SELECT id, retainer_id, type, status, data_json, is_seed, seed_batch_id, created_at, updated_at FROM posts")
     .all<Row>();
@@ -292,6 +338,8 @@ export const onRequestGet: PagesFunction = async ({ env }) => {
     messages,
     routes,
     routeInterests,
+    routeAssignments,
+    workUnitPeriods,
     posts,
     broadcasts,
     badgeDefinitions,

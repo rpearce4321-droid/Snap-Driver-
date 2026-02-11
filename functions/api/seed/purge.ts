@@ -80,6 +80,8 @@ const seedTables = [
   "posts",
   "route_interests",
   "routes",
+  "route_assignments",
+  "work_unit_periods",
   "messages",
   "conversations",
   "links",

@@ -5,6 +5,7 @@ import { getAllConversations, getAllMessages } from "./messages";
 import { getAllRoutes, getAllRouteInterests } from "./routes";
 import { getAllRetainerPosts } from "./posts";
 import { getAllRetainerBroadcasts } from "./broadcasts";
+import { getRouteAssignments, getWorkUnitPeriods } from "./workUnits";
 import {
   getBadgeCheckins,
   getBadgeDefinitions,
@@ -26,6 +27,8 @@ export type ServerSeedPayload = {
   messages?: any[];
   routes?: any[];
   routeInterests?: any[];
+  routeAssignments?: any[];
+  workUnitPeriods?: any[];
   posts?: any[];
   broadcasts?: any[];
   badgeDefinitions?: any[];
@@ -112,6 +115,8 @@ export function buildServerSeedPayload(batchId: string): ServerSeedPayload {
   const conversations = getAllConversations();
   const routes = getAllRoutes();
   const routeInterests = getAllRouteInterests();
+  const routeAssignments = getRouteAssignments();
+  const workUnitPeriods = getWorkUnitPeriods();
   const posts = getAllRetainerPosts();
   const broadcasts = getAllRetainerBroadcasts();
   const badgeDefinitions = [
@@ -175,6 +180,8 @@ export function buildServerSeedPayload(batchId: string): ServerSeedPayload {
     messages,
     routes,
     routeInterests,
+    routeAssignments,
+    workUnitPeriods,
     posts,
     broadcasts,
     badgeDefinitions,
