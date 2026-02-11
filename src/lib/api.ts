@@ -73,7 +73,7 @@ export async function importSeedData(payload: any) {
   return r.data as { ok: boolean; inserted: number };
 }
 
-export async function purgeSeedBatch(payload: { batchId?: string; all?: boolean }) {
+export async function purgeSeedBatch(payload: { batchId?: string; all?: boolean; wipeAll?: boolean }) {
   const r = await api.post('/seed/purge', payload);
   return r.data as { ok: boolean; batchId: string | null };
 }

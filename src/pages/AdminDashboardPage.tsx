@@ -2975,7 +2975,7 @@ const AdminSeedDataPanel: React.FC = () => {
     setSeedError(null);
     setSeedStatus(null);
     try {
-      await purgeSeedBatch({ all: true });
+      await purgeSeedBatch({ all: true, wipeAll: true });
       setSeedStatus("Purged all seed data.");
       setSelectedBatchId("");
       setPurgeConfirm("");

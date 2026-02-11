@@ -6,6 +6,7 @@ type PurgeRequest = {
   batchId?: string;
   all?: boolean;
   legacy?: boolean;
+  wipeAll?: boolean;
 };
 
 const LEGACY_JSON_PATTERNS = [
@@ -25,6 +26,14 @@ const LEGACY_NAME_PATTERN = "%*%";
 async function getTableColumns(db: D1Database, table: string): Promise<Set<string>> {
   const info = await db.prepare(`PRAGMA table_info(${table})`).all<any>();
   return new Set((info.results ?? []).map((row: any) => row.name));
+}
+
+async function tableExists(db: D1Database, table: string): Promise<boolean> {
+  const res = await db
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .bind(table)
+    .first();
+  return Boolean(res?.name);
 }
 
 async function deleteLegacyRows(db: D1Database, table: string) {
@@ -62,6 +71,21 @@ async function deleteBatchRows(db: D1Database, table: string, batchId: string) {
   const columns = await getTableColumns(db, table);
   if (!columns.has("seed_batch_id")) return;
   await db.prepare(`DELETE FROM ${table} WHERE seed_batch_id = ?`).bind(batchId).run();
+}
+
+async function deleteAllRows(db: D1Database, table: string) {
+  if (!(await tableExists(db, table))) return;
+  await db.prepare(`DELETE FROM ${table}`).run();
+}
+
+async function deleteNonAdminUsers(db: D1Database) {
+  if (!(await tableExists(db, "users"))) return;
+  const columns = await getTableColumns(db, "users");
+  if (columns.has("role")) {
+    await db.prepare("DELETE FROM users WHERE role != 'ADMIN'").run();
+    return;
+  }
+  await db.prepare("DELETE FROM users").run();
 }
 
 
@@ -108,11 +132,23 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
 
   const batchId = payload.batchId?.trim();
   const legacy = payload.legacy ?? true;
+  const wipeAll = payload.wipeAll ?? false;
   if (!batchId && !payload.all) {
     return badRequest("Provide batchId or set all=true");
   }
 
   try {
+    if (wipeAll) {
+      for (const table of seedTables) {
+        if (table === "users") continue;
+        await deleteAllRows(db, table);
+      }
+      await deleteAllRows(db, "sessions");
+      await deleteAllRows(db, "magic_links");
+      await deleteNonAdminUsers(db);
+      await deleteAllRows(db, "seed_batches");
+      return json({ ok: true, batchId: null, wipeAll: true });
+    }
     if (batchId) {
       for (const table of seedTables) {
         await deleteBatchRows(db, table, batchId);
