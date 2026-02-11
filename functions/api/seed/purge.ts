@@ -12,6 +12,13 @@ const LEGACY_JSON_PATTERNS = [
   '%"isDemo":true%',
   '%"isDemo": true%',
   '%"demoLabel"%',
+  '%"photoUrl":"data:image%',
+  '%"profileImageUrl":"data:image%',
+  '%"logoUrl":"data:image%',
+  '%"companyPhotoUrl":"data:image%',
+  '%"vehiclePhoto1":"data:image%',
+  '%"vehiclePhoto2":"data:image%',
+  '%"vehiclePhoto3":"data:image%',
 ];
 const LEGACY_NAME_PATTERN = "%*%";
 
