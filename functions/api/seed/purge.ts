@@ -43,6 +43,9 @@ async function deleteLegacyRows(db: D1Database, table: string) {
       params.push(pattern);
     }
   }
+  if (columns.has("user_id")) {
+    clauses.push("user_id IS NULL");
+  }
   if (columns.has("last_name")) {
     clauses.push("last_name LIKE ?");
     params.push(LEGACY_NAME_PATTERN);
