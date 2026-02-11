@@ -2955,6 +2955,9 @@ const AdminSeedDataPanel: React.FC = () => {
       await purgeSeedBatch({ batchId: targetBatchId });
       setSeedStatus("Purged selected seed batch.");
       setSelectedBatchId("");
+      if (getServerSyncMode() === "server") {
+        await pullFromServer({ mode: "server", allowEmptyOverwrite: true });
+      }
       await refreshBatches();
     } catch (err: any) {
       setSeedError(formatError(err));
@@ -2976,6 +2979,9 @@ const AdminSeedDataPanel: React.FC = () => {
       setSeedStatus("Purged all seed data.");
       setSelectedBatchId("");
       setPurgeConfirm("");
+      if (getServerSyncMode() === "server") {
+        await pullFromServer({ mode: "server", allowEmptyOverwrite: true });
+      }
       await refreshBatches();
     } catch (err: any) {
       setSeedError(formatError(err));
