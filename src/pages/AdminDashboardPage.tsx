@@ -2990,6 +2990,15 @@ const AdminSeedDataPanel: React.FC = () => {
     }
   };
 
+  const handleClearLocalCache = () => {
+    const ok = window.confirm(
+      "This will clear all local browser data for SnapDriver. Continue?"
+    );
+    if (!ok) return;
+    wipeLocalDataComprehensive();
+    setSeedStatus("Local cache cleared.");
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3">
@@ -3067,6 +3076,13 @@ const AdminSeedDataPanel: React.FC = () => {
         <div className="flex flex-wrap gap-2">
           <button className="btn" onClick={handlePurgeSelected} disabled={seedBusy}>
             Purge Selected
+          </button>
+          <button
+            className="btn border-slate-600/60 bg-slate-800/40 text-slate-100 hover:bg-slate-800/60"
+            onClick={handleClearLocalCache}
+            disabled={seedBusy}
+          >
+            Clear Local Cache
           </button>
         </div>
       </div>
