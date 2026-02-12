@@ -4,6 +4,8 @@ import { readStoreData, writeStore } from "./storage";
 
 export type SenderRole = "SEEKER" | "RETAINER" | "ADMIN";
 
+export const ADMIN_THREAD_ID = "snap_admin";
+
 export type Conversation = {
   id: string;
   seekerId: string;

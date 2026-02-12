@@ -5,6 +5,7 @@ import { getAllConversations, getAllMessages } from "./messages";
 import { getAllRoutes, getAllRouteInterests } from "./routes";
 import { getAllRetainerPosts } from "./posts";
 import { getAllRetainerBroadcasts } from "./broadcasts";
+import { getAllMeetings } from "./meetings";
 import { getRouteAssignments, getWorkUnitPeriods } from "./workUnits";
 import {
   getBadgeCheckins,
@@ -31,6 +32,7 @@ export type ServerSeedPayload = {
   workUnitPeriods?: any[];
   posts?: any[];
   broadcasts?: any[];
+  meetings?: any[];
   badgeDefinitions?: any[];
   badgeSelections?: any[];
   badgeCheckins?: any[];
@@ -50,6 +52,7 @@ type SeedSummary = {
   routeInterests: number;
   posts: number;
   broadcasts: number;
+  meetings: number;
   badgeDefinitions: number;
   badgeSelections: number;
   badgeCheckins: number;
@@ -119,6 +122,7 @@ export function buildServerSeedPayload(batchId: string): ServerSeedPayload {
   const workUnitPeriods = getWorkUnitPeriods();
   const posts = getAllRetainerPosts();
   const broadcasts = getAllRetainerBroadcasts();
+  const meetings = getAllMeetings();
   const badgeDefinitions = [
     ...getBadgeDefinitions("SEEKER"),
     ...getBadgeDefinitions("RETAINER"),
@@ -184,6 +188,7 @@ export function buildServerSeedPayload(batchId: string): ServerSeedPayload {
     workUnitPeriods,
     posts,
     broadcasts,
+    meetings,
     badgeDefinitions,
     badgeSelections,
     badgeCheckins,
@@ -201,6 +206,7 @@ export function getLocalSeedSummary(): SeedSummary {
   const routeInterests = getAllRouteInterests();
   const posts = getAllRetainerPosts();
   const broadcasts = getAllRetainerBroadcasts();
+  const meetings = getAllMeetings();
   const badgeDefinitions =
     getBadgeDefinitions("SEEKER").length + getBadgeDefinitions("RETAINER").length;
   const badgeSelections = getBadgeSelections().reduce(
@@ -233,6 +239,7 @@ export function getLocalSeedSummary(): SeedSummary {
     routeInterests: routeInterests.length,
     posts: posts.length,
     broadcasts: broadcasts.length,
+    meetings: meetings.length,
     badgeDefinitions,
     badgeSelections,
     badgeCheckins,

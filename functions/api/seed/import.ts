@@ -19,6 +19,7 @@ type SeedPayload = {
   workUnitPeriods?: any[];
   posts?: any[];
   broadcasts?: any[];
+  meetings?: any[];
   badgeDefinitions?: any[];
   badgeSelections?: any[];
   badgeCheckins?: any[];
@@ -284,6 +285,21 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
         id,
         item.retainerId,
         (item.status || "ACTIVE").toUpperCase(),
+        JSON.stringify({ ...item, id }),
+        batchId,
+      ]
+    );
+  }
+
+  for (const item of payload.meetings ?? []) {
+    const id = item.id || crypto.randomUUID();
+    push(
+      "INSERT INTO interview_meetings (id, retainer_id, status, title, data_json, is_seed, seed_batch_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?, datetime('now'), datetime('now'))",
+      [
+        id,
+        item.retainerId,
+        (item.status || "DRAFT").toUpperCase(),
+        item.title ?? null,
         JSON.stringify({ ...item, id }),
         batchId,
       ]

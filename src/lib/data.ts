@@ -61,6 +61,8 @@ export type VehicleEntry = {
   model?: string;
 };
 
+export type VideoApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
+
 export type SeekerRef = {
   name: string;
   phone?: string;
@@ -82,6 +84,18 @@ export type Seeker = {
   phone?: string;
   photoUrl?: string;
   profileImageUrl?: string;
+  introVideoUrl?: string;
+  introVideoStatus?: VideoApprovalStatus;
+  introVideoSubmittedAt?: string;
+  introVideoApprovedAt?: string;
+  introVideoApprovedBy?: string;
+  introVideoApprovedByEmail?: string;
+  introVideoRejectedAt?: string;
+  introVideoRejectedBy?: string;
+  introVideoRejectedByEmail?: string;
+  introVideoDurationSec?: number;
+  introVideoSizeBytes?: number;
+  introVideoMime?: string;
   birthday?: string;
   city?: string;
   state?: string;
@@ -165,6 +179,18 @@ export type Retainer = {
   companyPhotoUrl?: string;
   photoUrl?: string;
   profileImageUrl?: string;
+  introVideoUrl?: string;
+  introVideoStatus?: VideoApprovalStatus;
+  introVideoSubmittedAt?: string;
+  introVideoApprovedAt?: string;
+  introVideoApprovedBy?: string;
+  introVideoApprovedByEmail?: string;
+  introVideoRejectedAt?: string;
+  introVideoRejectedBy?: string;
+  introVideoRejectedByEmail?: string;
+  introVideoDurationSec?: number;
+  introVideoSizeBytes?: number;
+  introVideoMime?: string;
   city?: string;
   state?: string;
   zip?: string;
@@ -766,6 +792,18 @@ export function buildSeekerRecord(
     phone: input.phone,
     photoUrl: input.photoUrl,
     profileImageUrl: input.profileImageUrl,
+    introVideoUrl: (input as any).introVideoUrl,
+    introVideoStatus: (input as any).introVideoStatus,
+    introVideoSubmittedAt: (input as any).introVideoSubmittedAt,
+    introVideoApprovedAt: (input as any).introVideoApprovedAt,
+    introVideoApprovedBy: (input as any).introVideoApprovedBy,
+    introVideoApprovedByEmail: (input as any).introVideoApprovedByEmail,
+    introVideoRejectedAt: (input as any).introVideoRejectedAt,
+    introVideoRejectedBy: (input as any).introVideoRejectedBy,
+    introVideoRejectedByEmail: (input as any).introVideoRejectedByEmail,
+    introVideoDurationSec: (input as any).introVideoDurationSec,
+    introVideoSizeBytes: (input as any).introVideoSizeBytes,
+    introVideoMime: (input as any).introVideoMime,
     birthday: input.birthday,
     city: input.city,
     state: input.state,
@@ -806,6 +844,18 @@ export function buildRetainerRecord(
     companyPhotoUrl: input.companyPhotoUrl,
     photoUrl: input.photoUrl,
     profileImageUrl: input.profileImageUrl,
+    introVideoUrl: (input as any).introVideoUrl,
+    introVideoStatus: (input as any).introVideoStatus,
+    introVideoSubmittedAt: (input as any).introVideoSubmittedAt,
+    introVideoApprovedAt: (input as any).introVideoApprovedAt,
+    introVideoApprovedBy: (input as any).introVideoApprovedBy,
+    introVideoApprovedByEmail: (input as any).introVideoApprovedByEmail,
+    introVideoRejectedAt: (input as any).introVideoRejectedAt,
+    introVideoRejectedBy: (input as any).introVideoRejectedBy,
+    introVideoRejectedByEmail: (input as any).introVideoRejectedByEmail,
+    introVideoDurationSec: (input as any).introVideoDurationSec,
+    introVideoSizeBytes: (input as any).introVideoSizeBytes,
+    introVideoMime: (input as any).introVideoMime,
     city: input.city,
     state: input.state,
     zip: input.zip,

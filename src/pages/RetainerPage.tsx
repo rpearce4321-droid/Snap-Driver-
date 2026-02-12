@@ -34,6 +34,7 @@ import {
 
   type PaymentTerm,
   type PayCycleFrequency,
+  type VideoApprovalStatus,
 
 } from "../lib/data";
 
@@ -50,12 +51,6 @@ import {
   getLinksForRetainer,
 
   requestLink,
-
-  addLinkMeetingProposal,
-
-  acceptLinkMeetingProposal,
-
-  clearLinkMeetingSchedule,
 
   resetLink,
 
@@ -169,23 +164,29 @@ import {
 } from "../lib/feedReactions";
 
 const LazyHierarchyCanvas = lazy(() => import("../components/HierarchyCanvas"));
-import {
-
-  type HierarchyItem,
-
-  type HierarchyNode,
-
-} from "../components/HierarchyCanvas";
+import { type HierarchyNode } from "../components/HierarchyCanvas";
 
 const LazyBadgesCenter = lazy(() => import("../components/BadgesCenter"));
 
 const LazyRetainerMessagingCenter = lazy(() => import("../components/RetainerMessagingCenter"));
 
 import ProfileAvatar from "../components/ProfileAvatar";
+import ProfileVideoSection from "../components/ProfileVideoSection";
 
 import { getStockImageUrl } from "../lib/stockImages";
 import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
 import { pullFromServer, isServerAuthoritative } from "../lib/serverSync";
+import {
+  addMeetingProposal,
+  cancelMeeting,
+  createInterviewMeeting,
+  finalizeMeeting,
+  getMeetingsForRetainer,
+  markMeetingOutcome,
+  requestMeetingReschedule,
+  type InterviewMeeting,
+} from "../lib/meetings";
+import { disconnectGoogleOAuth, getGoogleOAuthStatus } from "../lib/api";
 
 import {
 
@@ -225,17 +226,12 @@ import { clearPortalContext, clearSession, getSession, setPortalContext, setSess
 import { getRetainerEntitlements } from "../lib/entitlements";
 
 import {
-
   DAYS,
-
   type DayOfWeek,
-
   formatDaysShort,
-
   bestMatchForRoutes,
-
   type ScheduleMatch,
-
+  type WeeklyAvailability,
 } from "../lib/schedule";
 
 // Derive types from data helpers
@@ -2083,7 +2079,6 @@ const RetainerPage: React.FC = () => {
       </main>
 
     </div>
-
   );
 
 };
@@ -3256,6 +3251,8 @@ const DashboardView: React.FC<{
 
   }, [retainerId]);
 
+  const [meetingTick, setMeetingTick] = useState(0);
+
   const stats = useMemo(() => {
 
     if (!retainerId) {
@@ -3309,20 +3306,11 @@ const DashboardView: React.FC<{
     }).count;
 
     const now = Date.now();
-
-    const scheduledEvents = links.reduce((sum, link) => {
-
-      const acceptedId = link.meetingAcceptedProposalId;
-
-      if (!acceptedId) return sum;
-
-      const proposal = (link.meetingProposals || []).find((p) => p.id === acceptedId);
-
-      if (!proposal) return sum;
-
-      return Date.parse(proposal.startAt) > now ? sum + 1 : sum;
-
-    }, 0);
+    const scheduledEvents = getMeetingsForRetainer(retainerId).filter((meeting) => {
+      if (meeting.status !== "FINALIZED") return false;
+      if (!meeting.startsAt) return false;
+      return Date.parse(meeting.startsAt) > now;
+    }).length;
 
     const approvalTotals = (() => {
 
@@ -3378,7 +3366,7 @@ const DashboardView: React.FC<{
 
     };
 
-  }, [retainerId, retainerRoutes]);
+  }, [retainerId, retainerRoutes, meetingTick]);
 
   const [feedTick, setFeedTick] = useState(0);
   const [feedFilters, setFeedFilters] = useState<Set<FeedFilterKey>>(
@@ -4081,20 +4069,7 @@ const DashboardView: React.FC<{
 
     : null;
 
-  const [scheduleLink, setScheduleLink] = useState<LinkingLink | null>(null);
-
-  const [proposalAt, setProposalAt] = useState("");
-
-  const [proposalDuration, setProposalDuration] = useState<number>(20);
-
-  const [proposalNote, setProposalNote] = useState("");
-
-  const [scheduleError, setScheduleError] = useState<string | null>(null);
-
-  
-  
-
-  const [linkTick, setLinkTick] = useState(0);
+  const [linkTick] = useState(0);
 
   const pendingLinks = useMemo(() => {
 
@@ -4127,6 +4102,190 @@ const DashboardView: React.FC<{
     [seekers]
 
   );
+
+  const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
+  const [meetingTitle, setMeetingTitle] = useState("Interview");
+  const [meetingNote, setMeetingNote] = useState("");
+  const [meetingDuration, setMeetingDuration] = useState(30);
+  const [meetingTimezone, setMeetingTimezone] = useState(() => {
+    if (currentRetainer?.payCycleTimezone) return currentRetainer.payCycleTimezone;
+    if (typeof window === "undefined") return "America/New_York";
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+  });
+  const [meetingSlotInput, setMeetingSlotInput] = useState("");
+  const [meetingSlots, setMeetingSlots] = useState<
+    Array<{ startAt: string; durationMinutes: number }>
+  >([]);
+  const [meetingInviteIds, setMeetingInviteIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [inviteQuery, setInviteQuery] = useState("");
+  const [meetingError, setMeetingError] = useState<string | null>(null);
+  const [googleStatus, setGoogleStatus] = useState<{
+    connected: boolean;
+    expiresAt?: string | null;
+  } | null>(null);
+
+  const refreshGoogleStatus = async () => {
+    if (!retainerId) {
+      setGoogleStatus(null);
+      return;
+    }
+    try {
+      const status = await getGoogleOAuthStatus();
+      if (status && status.ok) {
+        setGoogleStatus({ connected: status.connected, expiresAt: status.expiresAt });
+      } else {
+        setGoogleStatus({ connected: false });
+      }
+    } catch {
+      setGoogleStatus({ connected: false });
+    }
+  };
+
+  useEffect(() => {
+    refreshGoogleStatus();
+  }, [retainerId]);
+
+  useEffect(() => {
+    if (!retainerId) return;
+    setMeetingInviteIds(new Set());
+    setMeetingSlots([]);
+    setMeetingSlotInput("");
+    setMeetingError(null);
+    setMeetingNote("");
+    setMeetingTitle("Interview");
+  }, [retainerId]);
+
+  useEffect(() => {
+    if (!activeMeetingId) return;
+    setMeetingSlotInput("");
+    setMeetingError(null);
+  }, [activeMeetingId]);
+
+  useEffect(() => {
+    if (currentRetainer?.payCycleTimezone) {
+      setMeetingTimezone((prev) => prev || currentRetainer.payCycleTimezone || prev);
+    }
+  }, [currentRetainer?.payCycleTimezone]);
+
+  const meetings = useMemo(
+    () => (retainerId ? getMeetingsForRetainer(retainerId) : []),
+    [retainerId, meetingTick]
+  );
+
+  const activeMeeting = useMemo(
+    () => meetings.find((m) => m.id === activeMeetingId) ?? null,
+    [meetings, activeMeetingId]
+  );
+
+  useEffect(() => {
+    if (activeMeetingId && !activeMeeting) setActiveMeetingId(null);
+  }, [activeMeetingId, activeMeeting]);
+
+  const scheduledMeetings = useMemo(
+    () => meetings.filter((m) => m.status === "FINALIZED"),
+    [meetings]
+  );
+  const pendingMeetings = useMemo(
+    () => meetings.filter((m) => m.status !== "FINALIZED" && m.status !== "CANCELED"),
+    [meetings]
+  );
+  const canceledMeetings = useMemo(
+    () => meetings.filter((m) => m.status === "CANCELED"),
+    [meetings]
+  );
+
+  const inviteCandidates = useMemo(() => {
+    if (!retainerId) return [];
+    return seekers
+      .filter((s) => (s as any).status === "APPROVED")
+      .sort((a, b) => formatSeekerName(a).localeCompare(formatSeekerName(b)));
+  }, [seekers, retainerId]);
+
+  const filteredInviteCandidates = useMemo(() => {
+    const needle = inviteQuery.trim().toLowerCase();
+    if (!needle) return inviteCandidates;
+    return inviteCandidates.filter((s) => {
+      const name = formatSeekerName(s).toLowerCase();
+      const email = String((s as any).email ?? "").toLowerCase();
+      return name.includes(needle) || email.includes(needle);
+    });
+  }, [inviteCandidates, inviteQuery]);
+
+  const formatMeetingTime = (iso: string, timezone?: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    try {
+      return new Intl.DateTimeFormat("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: timezone || undefined,
+      }).format(d);
+    } catch {
+      return d.toLocaleString();
+    }
+  };
+
+  const renderMeetingCard = (meeting: InterviewMeeting) => {
+    const confirmed = meeting.attendees.filter((a) => a.responseStatus === "CONFIRMED")
+      .length;
+    const reschedules = meeting.attendees.filter((a) => a.rescheduleRequested).length;
+    const total = meeting.attendees.length;
+    const timeLabel = meeting.startsAt
+      ? formatMeetingTime(meeting.startsAt, meeting.timezone)
+      : meeting.proposals[0]
+        ? formatMeetingTime(meeting.proposals[0].startAt, meeting.timezone)
+        : "Awaiting time slots";
+
+    return (
+      <button
+        key={meeting.id}
+        type="button"
+        onClick={() => setActiveMeetingId(meeting.id)}
+        className="text-left rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 hover:bg-slate-900/70 transition"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-100">
+                        {meeting.title || "Interview"}{" - "}
+            </div>
+            <div className="text-[11px] text-slate-500">{timeLabel}</div>
+          </div>
+          <div className="text-[11px] text-slate-400">{meeting.status}</div>
+        </div>
+        <div className="mt-2 text-[11px] text-slate-500">
+          {confirmed}/{total} confirmed{reschedules ? ` · ${reschedules} reschedule` : ""}
+        </div>
+      </button>
+    );
+  };
+
+  const handleGoogleConnect = () => {
+    if (typeof window === "undefined") return;
+    const url = new URL("/api/google/oauth/start", window.location.origin);
+    window.location.assign(url.toString());
+  };
+
+  const handleGoogleDisconnect = async () => {
+    try {
+      await disconnectGoogleOAuth();
+      await refreshGoogleStatus();
+      onToast("Google Calendar disconnected.");
+    } catch {
+      onToast("Unable to disconnect Google Calendar.");
+    }
+  };
+
+  const handleMeetingRefresh = async () => {
+    try {
+      await pullFromServer();
+    } catch {
+      // ignore
+    }
+    setMeetingTick((n) => n + 1);
+    await refreshGoogleStatus();
+  };
 
   const retainerDisplayName = currentRetainer ? formatRetainerName(currentRetainer) : "Retainer";
 
@@ -4197,8 +4356,8 @@ const DashboardView: React.FC<{
   );
 
   return (
-
-    <div className="grid grid-cols-1 gap-0 sm:gap-4 lg:gap-6 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 lg:h-full w-full max-w-full">
+    <>
+      <div className="grid grid-cols-1 gap-0 sm:gap-4 lg:gap-6 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 lg:h-full w-full max-w-full">
 
       <div className="flex flex-col gap-6 min-h-0 order-2 lg:order-1 w-full max-w-full">
         {!isDesktop && profileCard}
@@ -4464,8 +4623,6 @@ const DashboardView: React.FC<{
                 </button>
               );
             })}
-
-          </div>
 
           {!retainerId ? (
 
@@ -5008,2210 +5165,1330 @@ const DashboardView: React.FC<{
         </div>
 
       </aside>
+      <div className="lg:col-span-2 space-y-4">
+        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-400">
+                Interview scheduling
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                Connect Google Calendar to send Meet invites.
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {googleStatus?.connected ? (
+                <button
+                  type="button"
+                  onClick={handleGoogleDisconnect}
+                  disabled={!retainerId}
+                  className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Disconnect Google
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGoogleConnect}
+                  disabled={!retainerId}
+                  className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Connect Google
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleMeetingRefresh}
+                disabled={!retainerId}
+                className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Refresh
+              </button>
+            </div>
+          </div>
+          {!googleStatus?.connected && (
+            <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+              Google Calendar is required to send interview invites.
+            </div>
+          )}
+        </div>
 
-      {scheduleLink && retainerId && (
-
-        <div className="fixed inset-0 z-50">
-
-          <div
-
-            className="absolute inset-0 bg-black/70"
-
-            onClick={() => setScheduleLink(null)}
-
-          />
-
-          <div className="relative h-full w-full p-6 md:p-10 flex items-center justify-center overflow-y-auto">
-
-            <div className="w-full max-w-xl rounded-3xl border border-slate-700 bg-slate-950 shadow-2xl overflow-hidden">
-
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-
-                <div className="min-w-0">
-
-                  <div className="text-xs uppercase tracking-wide text-slate-400">
-
-                    Schedule video call
-
+        {!retainerId ? (
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+              Select or create a Retainer profile first.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-slate-400">
+                      New interview
+                    </div>
+                    <div className="text-sm text-slate-300 mt-1">
+                      Invite multiple seekers to a single meeting and propose time slots.
+                    </div>
                   </div>
-
-                  <div className="text-sm font-semibold text-slate-100 truncate">
-
-                    {(() => {
-
-                      const s = seekerById.get(String(scheduleLink.seekerId)) as any;
-
-                      return s ? formatSeekerName(s) : `Seeker (${scheduleLink.seekerId})`;
-
-                    })()}
-
-                  </div>
-
                 </div>
 
+                {meetingError && (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
+                    {meetingError}
+                  </div>
+                )}
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="space-y-1">
+                    <div className="text-xs font-medium text-slate-200">Title</div>
+                    <input
+                      value={meetingTitle}
+                      onChange={(e) => setMeetingTitle(e.target.value)}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      placeholder="Interview"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <div className="text-xs font-medium text-slate-200">Duration</div>
+                    <select
+                      value={meetingDuration}
+                      onChange={(e) => setMeetingDuration(Number(e.target.value) || 30)}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    >
+                      <option value={15}>15 minutes</option>
+                      <option value={20}>20 minutes</option>
+                      <option value={30}>30 minutes</option>
+                      <option value={45}>45 minutes</option>
+                    </select>
+                  </label>
+                </div>
+
+                <label className="space-y-1">
+                  <div className="text-xs font-medium text-slate-200">Timezone</div>
+                  <input
+                    value={meetingTimezone}
+                    onChange={(e) => setMeetingTimezone(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="America/New_York"
+                  />
+                </label>
+
+                <label className="space-y-1">
+                  <div className="text-xs font-medium text-slate-200">Note (optional)</div>
+                  <input
+                    value={meetingNote}
+                    onChange={(e) => setMeetingNote(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="Example: Intro + route fit"
+                  />
+                </label>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">
+                    Invite seekers
+                  </div>
+                  <input
+                    value={inviteQuery}
+                    onChange={(e) => setInviteQuery(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    placeholder="Search by name or email"
+                  />
+                  <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
+                    {filteredInviteCandidates.length === 0 ? (
+                      <div className="text-xs text-slate-400">No seekers found.</div>
+                    ) : (
+                      filteredInviteCandidates.map((s) => {
+                        const name = formatSeekerName(s);
+                        const email = String((s as any).email ?? "");
+                        const hasEmail = Boolean(email);
+                        return (
+                          <label
+                            key={s.id}
+                            className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-200"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={meetingInviteIds.has(s.id)}
+                              onChange={() => {
+                                setMeetingInviteIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(s.id)) next.delete(s.id);
+                                  else next.add(s.id);
+                                  return next;
+                                });
+                              }}
+                              disabled={!hasEmail}
+                              className="mt-1 h-3.5 w-3.5 rounded border-slate-600 bg-slate-900"
+                            />
+                            <div className="min-w-0">
+                              <div className="font-semibold text-slate-100 truncate">{name}</div>
+                              <div className="text-[11px] text-slate-500 truncate">
+                                {hasEmail ? email : "Email required to invite"}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Selected: {meetingInviteIds.size}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">
+                    Time slots
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                    <input
+                      type="datetime-local"
+                      value={meetingSlotInput}
+                      onChange={(e) => setMeetingSlotInput(e.target.value)}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMeetingError(null);
+                        if (!meetingSlotInput) {
+                          setMeetingError("Pick a time slot first.");
+                          return;
+                        }
+                        const dt = new Date(meetingSlotInput);
+                        if (Number.isNaN(dt.getTime())) {
+                          setMeetingError("Invalid date/time.");
+                          return;
+                        }
+                        const iso = dt.toISOString();
+                        const dayKey = (() => {
+                          try {
+                            return new Intl.DateTimeFormat("en-CA", {
+                              timeZone: meetingTimezone || undefined,
+                            }).format(new Date(iso));
+                          } catch {
+                            return iso.slice(0, 10);
+                          }
+                        })();
+                        const sameDayCount = meetingSlots.filter((slot) => {
+                          const key = (() => {
+                            try {
+                              return new Intl.DateTimeFormat("en-CA", {
+                                timeZone: meetingTimezone || undefined,
+                              }).format(new Date(slot.startAt));
+                            } catch {
+                              return slot.startAt.slice(0, 10);
+                            }
+                          })();
+                          return key === dayKey;
+                        }).length;
+                        if (sameDayCount >= 3) {
+                          setMeetingError("Limit 3 slots per day.");
+                          return;
+                        }
+                        setMeetingSlots((prev) => [
+                          ...prev,
+                          { startAt: iso, durationMinutes: meetingDuration },
+                        ]);
+                        setMeetingSlotInput("");
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs bg-emerald-500/80 hover:bg-emerald-400 text-slate-950 transition"
+                    >
+                      Add slot
+                    </button>
+                  </div>
+                  {meetingSlots.length === 0 ? (
+                    <div className="text-xs text-slate-500">No slots added yet.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {meetingSlots.map((slot, idx) => (
+                        <div
+                          key={`${slot.startAt}_${idx}`}
+                          className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between text-xs text-slate-200"
+                        >
+                          <div>
+                            {formatMeetingTime(slot.startAt, meetingTimezone)} ·{" "}
+                            {slot.durationMinutes}m
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMeetingSlots((prev) => prev.filter((_, i) => i !== idx))
+                            }
+                            className="px-2 py-1 rounded-full text-[10px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!retainerId) return;
+                      setMeetingError(null);
+                      const selected = inviteCandidates.filter((s) =>
+                        meetingInviteIds.has(s.id)
+                      );
+                      if (selected.length === 0) {
+                        setMeetingError("Select at least one seeker to invite.");
+                        return;
+                      }
+                      if (meetingSlots.length === 0) {
+                        setMeetingError("Add at least one time slot.");
+                        return;
+                      }
+                      const missingEmails = selected.filter(
+                        (s) => !String((s as any).email ?? "").includes("@")
+                      );
+                      if (missingEmails.length > 0) {
+                        setMeetingError(
+                          `Missing email for ${missingEmails
+                            .map((s) => formatSeekerName(s))
+                            .join(", ")}.`
+                        );
+                        return;
+                      }
+                      try {
+                        createInterviewMeeting({
+                          retainerId,
+                          title: meetingTitle.trim() || "Interview",
+                          note: meetingNote,
+                          timezone: meetingTimezone,
+                          durationMinutes: meetingDuration,
+                          proposals: meetingSlots,
+                          attendees: selected.map((s) => ({
+                            seekerId: s.id,
+                            seekerName: formatSeekerName(s),
+                            seekerEmail: (s as any).email,
+                          })),
+                        });
+                        setMeetingInviteIds(new Set());
+                        setMeetingSlots([]);
+                        setMeetingSlotInput("");
+                        setMeetingNote("");
+                        setMeetingTitle("Interview");
+                        setMeetingTick((n) => n + 1);
+                        onToast("Interview created.");
+                      } catch (err: any) {
+                        setMeetingError(err?.message || "Unable to create interview.");
+                      }
+                    }}
+                    className="px-4 py-2 rounded-full text-sm font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition"
+                  >
+                    Create interview
+                  </button>
+                  <div className="text-[11px] text-slate-500">
+                    Max 3 slots per day.
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:gap-4 md:grid-cols-2 min-h-0 flex-1 w-full">
+                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">
+                        Scheduled
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        Meetings with a finalized slot.
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-400">{scheduledMeetings.length}</div>
+                  </div>
+                  {scheduledMeetings.length === 0 ? (
+                    <div className="mt-3 text-xs text-slate-400">
+                      No scheduled interviews yet.
+                    </div>
+                  ) : (
+                    <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
+                      {scheduledMeetings.map(renderMeetingCard)}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-slate-400">
+                        Pending
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        Meetings waiting on confirmations.
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-400">{pendingMeetings.length}</div>
+                  </div>
+                  {pendingMeetings.length === 0 ? (
+                    <div className="mt-3 text-xs text-slate-400">
+                      No pending meetings.
+                    </div>
+                  ) : (
+                    <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
+                      {pendingMeetings.map(renderMeetingCard)}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {canceledMeetings.length > 0 && (
+                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">
+                    Canceled
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {canceledMeetings.map((meeting) => (
+                      <div
+                        key={meeting.id}
+                        className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs text-slate-400"
+                      >
+                        {meeting.title || "Interview"}{" - "}
+                        {meeting.attendees.length} attendees
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {activeMeeting && retainerId && (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setActiveMeetingId(null)}
+          />
+          <div className="relative h-full w-full p-6 md:p-10 flex items-center justify-center overflow-y-auto">
+            <div className="w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-950 shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+                <div className="min-w-0">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">
+                    Interview details
+                  </div>
+                  <div className="text-sm font-semibold text-slate-100 truncate">
+                    {activeMeeting.title || "Interview"}
+                  </div>
+                </div>
                 <button
-
                   type="button"
-
-                  onClick={() => setScheduleLink(null)}
-
+                  onClick={() => setActiveMeetingId(null)}
                   className="h-9 w-9 rounded-full border border-slate-700 text-slate-200 hover:bg-slate-900 transition"
-
                   title="Close"
-
                 >
-
                   x
-
                 </button>
-
               </div>
 
               <div className="p-4 space-y-4">
-
-                {scheduleError && (
-
-                  <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
-
-                    {scheduleError}
-
+                {meetingError && (
+                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
+                    {meetingError}
                   </div>
-
                 )}
 
-                {(() => {
-
-                  const proposals = (scheduleLink.meetingProposals || [])
-
-                    .slice()
-
-                    .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
-
-                  const accepted =
-
-                    scheduleLink.meetingAcceptedProposalId &&
-
-                    proposals.find((p) => p.id === scheduleLink.meetingAcceptedProposalId);
-
-                  return (
-
-                    <div className="space-y-3">
-
-                      {accepted ? (
-
-                        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3">
-
-                          <div className="text-sm font-semibold text-emerald-100">
-
-                            Scheduled
-
-                          </div>
-
-                          <div className="text-sm text-slate-50 mt-1">
-
-                            {new Date(accepted.startAt).toLocaleString()} -{" "}
-
-                            {accepted.durationMinutes} minutes
-
-                          </div>
-
-                          <div className="text-[11px] text-emerald-200/80 mt-1">
-
-                            Proposed by {accepted.by === "RETAINER" ? "you" : "Seeker"}
-
-                          </div>
-
-                          <div className="mt-3">
-
-                            <button
-
-                              type="button"
-
-                              onClick={() => {
-
-                                if (!canInteract) return;
-
-                                try {
-                                  const next = clearLinkMeetingSchedule({
-                                    seekerId: scheduleLink.seekerId,
-                                    retainerId,
-                                  });
-                                  if (next) setScheduleLink(next);
-                                  setLinkTick((x) => x + 1);
-                                  onToast("Scheduled call cleared.");
-                                } catch (err: any) {
-                                  onToast(err?.message || "Unable to clear schedule.");
-                                }
-                              }}
-
-                              disabled={!canInteract}
-
-                              className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
-
-                            >
-
-                              Clear schedule
-
-                            </button>
-
-                          </div>
-
-                        </div>
-
-                      ) : (
-
-                        <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-
-                          <div className="text-xs uppercase tracking-wide text-slate-400">
-
-                            Proposed times
-
-                          </div>
-
-                          {proposals.length === 0 ? (
-
-                            <div className="text-sm text-slate-400 mt-2">
-
-                              No times proposed yet.
-
-                            </div>
-
-                          ) : (
-
-                            <div className="mt-2 space-y-2">
-
-                              {proposals.slice(0, 6).map((p) => (
-
-                                <div
-
-                                  key={p.id}
-
-                                  className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between gap-2"
-
-                                >
-
-                                  <div className="min-w-0">
-
-                                    <div className="text-sm text-slate-100 truncate">
-
-                                      {new Date(p.startAt).toLocaleString()}
-
-                                    </div>
-
-                                    <div className="text-[11px] text-slate-500">
-
-                                      {p.durationMinutes}m - Proposed by{" "}
-
-                                      {p.by === "RETAINER" ? "you" : "Seeker"}
-
-                                      {p.note ? ` - ${p.note}` : ""}
-
-                                    </div>
-
-                                  </div>
-
-                                  <button
-
-                                    type="button"
-
-                                    onClick={() => {
-
-                                      if (!canInteract) return;
-
-                                      try {
-                                        const next = acceptLinkMeetingProposal({
-                                          seekerId: scheduleLink.seekerId,
-                                          retainerId,
-                                          proposalId: p.id,
-                                        });
-                                        if (next) setScheduleLink(next);
-                                        setLinkTick((x) => x + 1);
-                                        onToast("Video call time confirmed.");
-                                      } catch (err: any) {
-                                        onToast(err?.message || "Unable to confirm video call.");
-                                      }
-                                    }}
-
-                                    disabled={!canInteract}
-
-                                    className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-
-                                  >
-
-                                    Accept
-
-                                  </button>
-
-                                </div>
-
-                              ))}
-
-                            </div>
-
-                          )}
-
-                        </div>
-
-                      )}
-
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-1">
+                  <div className="text-xs text-slate-400">
+                    Status: <span className="text-slate-200">{activeMeeting.status}</span>
+                  </div>
+                  {activeMeeting.startsAt && (
+                    <div className="text-sm text-slate-100">
+                      {formatMeetingTime(activeMeeting.startsAt, activeMeeting.timezone)} ·{" "}
+                      {activeMeeting.durationMinutes}m
                     </div>
-
-                  );
-
-                })()}
-
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
-
-                  <div className="text-xs uppercase tracking-wide text-slate-400">
-
-                    Propose a time
-
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-
-                    <label className="space-y-1">
-
-                      <div className="text-xs font-medium text-slate-200">Start</div>
-
-                      <input
-
-                        type="datetime-local"
-
-                        value={proposalAt}
-
-                        onChange={(e) => setProposalAt(e.target.value)}
-
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-
-                      />
-
-                    </label>
-
-                    <label className="space-y-1">
-
-                      <div className="text-xs font-medium text-slate-200">
-
-                        Duration
-
-                      </div>
-
-                      <select
-
-                        value={proposalDuration}
-
-                        onChange={(e) => setProposalDuration(Number(e.target.value) || 20)}
-
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-
-                      >
-
-                        <option value={10}>10 minutes</option>
-
-                        <option value={20}>20 minutes</option>
-
-                        <option value={30}>30 minutes</option>
-
-                      </select>
-
-                    </label>
-
-                  </div>
-
-                  <label className="space-y-1">
-
-                    <div className="text-xs font-medium text-slate-200">Note (optional)</div>
-
-                    <input
-
-                      value={proposalNote}
-
-                      onChange={(e) => setProposalNote(e.target.value)}
-
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-
-                      placeholder="Example: Quick intro + route fit"
-
-                    />
-
-                  </label>
-
-                  <div className="flex items-center justify-between gap-3">
-
-                    <button
-
-                      type="button"
-
-                      onClick={() => {
-
-                        if (!canInteract) return;
-
-                        setScheduleError(null);
-
-                        if (!proposalAt) {
-
-                          setScheduleError("Pick a start time first.");
-
-                          return;
-
-                        }
-
-                        const d = new Date(proposalAt);
-
-                        if (Number.isNaN(d.getTime())) {
-
-                          setScheduleError("Invalid date/time.");
-
-                          return;
-
-                        }
-
-                        try {
-                          const next = addLinkMeetingProposal({
-                            seekerId: scheduleLink.seekerId,
-                            retainerId,
-                            by: "RETAINER",
-                            startAt: d.toISOString(),
-                            durationMinutes: proposalDuration,
-                            note: proposalNote,
-                          });
-                          setScheduleLink(next);
-                          setProposalAt("");
-                          setProposalNote("");
-                          setLinkTick((x) => x + 1);
-                          onToast("Proposed a video call time.");
-                        } catch (err: any) {
-                          onToast(err?.message || "Unable to propose a time.");
-                        }
-                      }}
-
-                      disabled={!canInteract}
-
-                      className="px-4 py-2 rounded-full text-sm font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition disabled:opacity-60 disabled:cursor-not-allowed"
-
+                  )}
+                  {activeMeeting.meetLink ? (
+                    <a
+                      href={activeMeeting.meetLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-emerald-200 underline"
                     >
-
-                      Add proposal
-
-                    </button>
-
+                      Open Meet link
+                    </a>
+                  ) : activeMeeting.status === "FINALIZED" ? (
                     <div className="text-[11px] text-slate-500">
-
-                      Times use the selected route timezone.
-
+                      Meet link pending. Refresh in a moment.
                     </div>
-
-                  </div>
-
+                  ) : null}
                 </div>
 
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">
+                    Proposed slots
+                  </div>
+                  {activeMeeting.proposals.length === 0 ? (
+                    <div className="text-xs text-slate-500">No slots yet.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {activeMeeting.proposals
+                        .slice()
+                        .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt))
+                        .map((p) => {
+                          const confirmed = activeMeeting.attendees.filter(
+                            (a) =>
+                              a.responseStatus === "CONFIRMED" &&
+                              a.selectedProposalId === p.id
+                          ).length;
+                          const isFinal = activeMeeting.finalizedProposalId === p.id;
+                          return (
+                            <div
+                              key={p.id}
+                              className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between gap-2"
+                            >
+                              <div>
+                                <div className="text-sm text-slate-100">
+                                  {formatMeetingTime(p.startAt, activeMeeting.timezone)}
+                                </div>
+                                <div className="text-[11px] text-slate-500">
+                                  {p.durationMinutes}m · {confirmed} confirmed
+                                </div>
+                              </div>
+                              {isFinal ? (
+                                <span className="text-[11px] text-emerald-200">Finalized</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!googleStatus?.connected) {
+                                      onToast("Connect Google Calendar first.");
+                                      return;
+                                    }
+                                    const next = finalizeMeeting({
+                                      meetingId: activeMeeting.id,
+                                      proposalId: p.id,
+                                    });
+                                    if (next) {
+                                      setActiveMeetingId(next.id);
+                                      setMeetingTick((n) => n + 1);
+                                      onToast("Meeting finalized.");
+                                      await pullFromServer();
+                                    }
+                                  }}
+                                  disabled={!googleStatus?.connected || confirmed === 0}
+                                  className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                  Finalize
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                    <input
+                      type="datetime-local"
+                      value={meetingSlotInput}
+                      onChange={(e) => setMeetingSlotInput(e.target.value)}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMeetingError(null);
+                        if (!meetingSlotInput) {
+                          setMeetingError("Pick a time slot first.");
+                          return;
+                        }
+                        const dt = new Date(meetingSlotInput);
+                        if (Number.isNaN(dt.getTime())) {
+                          setMeetingError("Invalid date/time.");
+                          return;
+                        }
+                        const iso = dt.toISOString();
+                        const dayKey = (() => {
+                          try {
+                            return new Intl.DateTimeFormat("en-CA", {
+                              timeZone: activeMeeting.timezone || undefined,
+                            }).format(new Date(iso));
+                          } catch {
+                            return iso.slice(0, 10);
+                          }
+                        })();
+                        const sameDayCount = activeMeeting.proposals.filter((slot) => {
+                          const key = (() => {
+                            try {
+                              return new Intl.DateTimeFormat("en-CA", {
+                                timeZone: activeMeeting.timezone || undefined,
+                              }).format(new Date(slot.startAt));
+                            } catch {
+                              return slot.startAt.slice(0, 10);
+                            }
+                          })();
+                          return key === dayKey;
+                        }).length;
+                        if (sameDayCount >= 3) {
+                          setMeetingError("Limit 3 slots per day.");
+                          return;
+                        }
+                        const next = addMeetingProposal({
+                          meetingId: activeMeeting.id,
+                          startAt: iso,
+                          durationMinutes: activeMeeting.durationMinutes,
+                        });
+                        if (next) {
+                          setActiveMeetingId(next.id);
+                          setMeetingSlotInput("");
+                          setMeetingTick((n) => n + 1);
+                        }
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                    >
+                      Add slot
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">
+                    Attendees
+                  </div>
+                  <div className="space-y-2">
+                    {activeMeeting.attendees.map((a) => {
+                      const name =
+                        a.seekerName ||
+                        formatSeekerName(seekerById.get(a.seekerId) as any);
+                      return (
+                        <div
+                          key={a.id}
+                          className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex flex-col gap-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-sm text-slate-100 truncate">{name}</div>
+                            <div className="text-[11px] text-slate-500">
+                              {a.responseStatus}
+                              {a.rescheduleRequested ? " · Reschedule requested" : ""}
+                            </div>
+                          </div>
+                          {activeMeeting.status === "FINALIZED" && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = markMeetingOutcome({
+                                    meetingId: activeMeeting.id,
+                                    seekerId: a.seekerId,
+                                    by: "RETAINER",
+                                    outcome: "MET",
+                                  });
+                                  if (next) {
+                                    setActiveMeetingId(next.id);
+                                    setMeetingTick((n) => n + 1);
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition"
+                              >
+                                Met
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = markMeetingOutcome({
+                                    meetingId: activeMeeting.id,
+                                    seekerId: a.seekerId,
+                                    by: "RETAINER",
+                                    outcome: "NO_SHOW",
+                                  });
+                                  if (next) {
+                                    setActiveMeetingId(next.id);
+                                    setMeetingTick((n) => n + 1);
+                                  }
+                                }}
+                                className="px-2.5 py-1 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                              >
+                                No-show
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {activeMeeting.status === "FINALIZED" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = requestMeetingReschedule({
+                            meetingId: activeMeeting.id,
+                            by: "RETAINER",
+                          });
+                          if (next) {
+                            setActiveMeetingId(next.id);
+                            setMeetingTick((n) => n + 1);
+                          }
+                        }}
+                        className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                      >
+                        Reopen scheduling
+                      </button>
+                    )}
+                    {activeMeeting.status !== "CANCELED" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = cancelMeeting({ meetingId: activeMeeting.id });
+                          if (next) {
+                            setActiveMeetingId(next.id);
+                            setMeetingTick((n) => n + 1);
+                          }
+                        }}
+                        className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                      >
+                        Cancel meeting
+                      </button>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Outcomes are admin-visible only.
+                  </div>
+                </div>
               </div>
-
             </div>
-
           </div>
-
         </div>
-
       )}
 
     </div>
-
+    </>
   );
 
 };
 
 /* ------------------------------------------------------------------ */
-
 /* Action tab                                                         */
-
 /* ------------------------------------------------------------------ */
 
 const ActionView: React.FC<{
-
   actionTab: ActionTabKey;
-
   noticeTick: number;
-
   onChangeTab: (tab: ActionTabKey) => void;
-
   retainerId: string | null;
-
   currentRetainer?: Retainer;
-
   seekers: Seeker[];
-
   wheelSeekers: Seeker[];
-  visibleTabs?: ActionTabKey[];
-
   excellentSeekers: Seeker[];
-
   possibleSeekers: Seeker[];
-
   notNowSeekers: Seeker[];
-
   selectedSeekerIds: Set<string>;
-
   onToggleSelectedSeeker: (seekerId: string) => void;
-
   onSelectAllSeekers: () => void;
-
   onClearSelectedSeekers: () => void;
-
   onBulkMessageSelected: () => void;
-
   onBulkRequestLinkSelected: () => void;
-
   onBulkReturnToWheelSelected: () => void;
-
   onClassifySeeker: (seeker: Seeker, bucket: SeekerBucketKey) => void;
-
-  onOpenProfile: (s: Seeker) => void;
-
-  onReturnToWheel: (s: Seeker) => void;
-
+  onOpenProfile: (seeker: Seeker) => void;
+  onReturnToWheel: (seeker: Seeker) => void;
   onRebucketById: (seekerId: string, targetBucket: SeekerBucketKey) => void;
-
-  onMessage: (s: Seeker) => void;
-
+  onMessage: (seeker: Seeker) => void;
+  visibleTabs?: ActionTabKey[];
   retainerRoutes: Route[];
-
   canInteract?: boolean;
-
   retainerUsers: RetainerUser[];
-
   retainerLevelLabels: RetainerUserLevelLabels;
-
   canManageUsers: boolean;
-
   onCreateUser: (input: Partial<RetainerUser> & { level: RetainerUserLevel }) => void;
-
   onRemoveUser: (id: string) => void;
-
   onUpdateUserLabels: (labels: RetainerUserLevelLabels) => void;
-
   onUpdateHierarchyNodes: (nodes: HierarchyNode[]) => void;
-
-  onRetainerCreated: (id?: string) => void;
-
-  onRetainerUpdated: (id?: string) => void;
-
+  onRetainerCreated: () => void;
+  onRetainerUpdated: () => void;
   onToast: (msg: string) => void;
-
 }> = ({
-
   actionTab,
-
   noticeTick,
-
   onChangeTab,
-
   retainerId,
-
   currentRetainer,
-
   seekers,
-
   wheelSeekers,
-
-  visibleTabs,
-
   excellentSeekers,
-
   possibleSeekers,
-
   notNowSeekers,
-
   selectedSeekerIds,
-
   onToggleSelectedSeeker,
-
   onSelectAllSeekers,
-
   onClearSelectedSeekers,
-
   onBulkMessageSelected,
-
   onBulkRequestLinkSelected,
-
   onBulkReturnToWheelSelected,
-
   onClassifySeeker,
-
   onOpenProfile,
-
   onReturnToWheel,
-
   onRebucketById,
-
   onMessage,
-
+  visibleTabs,
   retainerRoutes,
-
   canInteract = true,
-
   retainerUsers,
-
   retainerLevelLabels,
-
   canManageUsers,
-
   onCreateUser,
-
   onRemoveUser,
-
   onUpdateUserLabels,
-
   onUpdateHierarchyNodes,
-
   onRetainerCreated,
-
   onRetainerUpdated,
-
   onToast,
-
 }) => {
-
   const selectedCount = selectedSeekerIds.size;
   const [seekerSort, setSeekerSort] = useState<"default" | "match">("default");
 
-  const activeRoutes = useMemo(
-
-    () => (retainerRoutes || []).filter((r) => r.status === "ACTIVE"),
-
-    [retainerRoutes]
-
-  );
-
-  const bucketSeekers = useMemo(
-
-    () => [...excellentSeekers, ...possibleSeekers, ...notNowSeekers],
-
-    [excellentSeekers, possibleSeekers, notNowSeekers]
-
-  );
-
-  const matchSeekers = useMemo(
-
-    () => [...wheelSeekers, ...bucketSeekers],
-
-    [wheelSeekers, bucketSeekers]
-
-  );
-
   const scheduleMatchBySeekerId = useMemo(() => {
-
     const map = new Map<string, ScheduleMatch>();
-
-    if (activeRoutes.length === 0) return map;
-
-    for (const s of matchSeekers) {
-
-      const availability = (s as any)?.availability;
-
-      if (!availability?.blocks?.length) continue;
-
-      const m = bestMatchForRoutes({ availability, routes: activeRoutes as any });
-
-      if (m.percent > 0) map.set(String((s as any).id), m);
-
+    if (!retainerId || retainerRoutes.length === 0) return map;
+    for (const seeker of seekers) {
+      const availability = (seeker as any)?.availability as
+        | WeeklyAvailability
+        | undefined;
+      if (!availability || !availability.blocks?.length) continue;
+      const match = bestMatchForRoutes({
+        availability,
+        routes: retainerRoutes as any,
+      });
+      if (match.percent > 0) map.set(String(seeker.id), match);
     }
-
     return map;
+  }, [retainerId, retainerRoutes, seekers]);
 
-  }, [activeRoutes, matchSeekers]);
-
-  const sortSeekers = (list: Seeker[]) => {
-
+  const sortByMatch = (list: Seeker[]) => {
     if (seekerSort !== "match") return list;
-
-    return [...list].sort((a, b) => {
-
-      const aMatch = scheduleMatchBySeekerId.get(String((a as any).id))?.percent ?? 0;
-
-      const bMatch = scheduleMatchBySeekerId.get(String((b as any).id))?.percent ?? 0;
-
-      if (bMatch !== aMatch) return bMatch - aMatch;
-
-      return formatSeekerName(a).localeCompare(formatSeekerName(b));
-
-    });
-
+    const next = [...list];
+    next.sort(
+      (a, b) =>
+        (scheduleMatchBySeekerId.get(String(b.id))?.percent ?? 0) -
+        (scheduleMatchBySeekerId.get(String(a.id))?.percent ?? 0)
+    );
+    return next;
   };
 
   const sortedWheelSeekers = useMemo(
-
-    () => sortSeekers(wheelSeekers),
-
+    () => sortByMatch(wheelSeekers),
     [wheelSeekers, seekerSort, scheduleMatchBySeekerId]
-
   );
-
   const sortedExcellentSeekers = useMemo(
-
-    () => sortSeekers(excellentSeekers),
-
+    () => sortByMatch(excellentSeekers),
     [excellentSeekers, seekerSort, scheduleMatchBySeekerId]
-
   );
-
   const sortedPossibleSeekers = useMemo(
-
-    () => sortSeekers(possibleSeekers),
-
+    () => sortByMatch(possibleSeekers),
     [possibleSeekers, seekerSort, scheduleMatchBySeekerId]
-
   );
-
   const sortedNotNowSeekers = useMemo(
-
-    () => sortSeekers(notNowSeekers),
-
+    () => sortByMatch(notNowSeekers),
     [notNowSeekers, seekerSort, scheduleMatchBySeekerId]
-
   );
 
   const getScheduleMatch = (seekerId: string): ScheduleMatch | undefined =>
-
     scheduleMatchBySeekerId.get(seekerId);
 
-  const [scheduleTick, setScheduleTick] = useState(0);
-
-  const [scheduleLink, setScheduleLink] = useState<LinkingLink | null>(null);
-
-  const [proposalAt, setProposalAt] = useState("");
-
-  const [proposalDuration, setProposalDuration] = useState<number>(20);
-
-  const [proposalNote, setProposalNote] = useState("");
-
-  const [scheduleError, setScheduleError] = useState<string | null>(null);
-
-  const scheduleLinks = useMemo(
-
-    () => (retainerId ? getLinksForRetainer(retainerId) : []),
-
-    [retainerId, scheduleTick]
-
-  );
-
-  const seekerById = useMemo(
-
-    () => new Map<string, Seeker>(seekers.map((s) => [s.id, s])),
-
-    [seekers]
-
-  );
-
-  const scheduledLinks = useMemo(
-
-    () => scheduleLinks.filter((link) => link.meetingAcceptedProposalId),
-
-    [scheduleLinks]
-
-  );
-
-  const pendingScheduleLinks = useMemo(
-
-    () => scheduleLinks.filter((link) => !link.meetingAcceptedProposalId),
-
-    [scheduleLinks]
-
-  );
-
-  const [level1Label, setLevel1Label] = useState(retainerLevelLabels.level1);
-
-  const [level2Label, setLevel2Label] = useState(retainerLevelLabels.level2);
-
-  const [level3Label, setLevel3Label] = useState(retainerLevelLabels.level3);
-
-  useEffect(() => {
-
-    setLevel1Label(retainerLevelLabels.level1);
-
-    setLevel2Label(retainerLevelLabels.level2);
-
-    setLevel3Label(retainerLevelLabels.level3);
-
-  }, [retainerLevelLabels]);
-
-  const [newFirstName, setNewFirstName] = useState("");
-
-  const [newLastName, setNewLastName] = useState("");
-
-  const [newTitle, setNewTitle] = useState("");
-
-  const [newEmail, setNewEmail] = useState("");
-
-  const [newPhone, setNewPhone] = useState("");
-
-  const [newLevel, setNewLevel] = useState<RetainerUserLevel>(1);
-
-  const handleOpenSchedule = (link: LinkingLink) => {
-
-    setScheduleLink(link);
-
-    setScheduleError(null);
-
-    setProposalAt("");
-
-    setProposalNote("");
-
-  };
-
   const actionTabs: { key: ActionTabKey; label: string }[] = useMemo(
-
     () => [
-
       { key: "wheel", label: "Wheel" },
-
       { key: "lists", label: "Sorting Lists" },
-
       { key: "routes", label: "Routes" },
-
       { key: "schedule", label: "Scheduling" },
-
       { key: "editProfile", label: "Edit Profile" },
-
-      { key: "addUsers", label: "Add User" },
-
+      { key: "addUsers", label: "User access" },
       { key: "hierarchy", label: "Hierarchy" },
-
     ],
-
     []
-
   );
 
   const visibleTabKeys = useMemo(
-
     () => (visibleTabs && visibleTabs.length ? visibleTabs : actionTabs.map((tab) => tab.key)),
-
     [visibleTabs, actionTabs]
-
   );
 
   const filteredTabs = useMemo(
-
     () => actionTabs.filter((tab) => visibleTabKeys.includes(tab.key)),
-
     [actionTabs, visibleTabKeys]
-
   );
 
   useEffect(() => {
-
     if (!visibleTabKeys.includes(actionTab) && filteredTabs.length) {
-
       onChangeTab(filteredTabs[0].key);
-
     }
-
   }, [actionTab, filteredTabs, visibleTabKeys, onChangeTab]);
 
   const tabButtonClass = (isActive: boolean) =>
-
     [
-
       "px-3 py-1.5 rounded-full text-sm border transition",
-
       isActive
-
         ? "bg-white/15 border-white/30 text-white"
-
         : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10",
-
     ].join(" ");
 
   const actionContentClass =
-
     actionTab === "wheel" || actionTab === "lists"
-
       ? "flex-1 min-h-0 overflow-hidden flex flex-col"
-
       : "flex-1 min-h-0 overflow-y-auto pr-1";
 
-  const hierarchyOwner: HierarchyItem = {
-
-    id: retainerId ?? "retainer",
-
-    name: currentRetainer ? formatRetainerName(currentRetainer) : "Retainer",
-
-    title: "Company",
-
-  };
-
-  const hierarchyItems: HierarchyItem[] = retainerUsers.map((u) => ({
-
-    id: u.id,
-
-    name: `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() || "User",
-
-    title:
-
-      u.title ||
-
-      retainerLevelLabels[`level${u.level}` as keyof RetainerUserLevelLabels] ||
-
-      `Level ${u.level}`,
-
-    meta: u.email,
-
-    photoUrl: u.photoUrl,
-
-  }));
-
-  const hierarchyNodes = (currentRetainer?.hierarchyNodes ?? []) as HierarchyNode[];
-
-  const renderScheduleCard = (link: LinkingLink) => {
-
-    const seeker = seekerById.get(String(link.seekerId));
-
-    const name = seeker ? formatSeekerName(seeker) : `Seeker (${link.seekerId})`;
-
-    const proposals = (link.meetingProposals || [])
-
-      .slice()
-
-      .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
-
-    const accepted =
-
-      link.meetingAcceptedProposalId &&
-
-      proposals.find((p) => p.id === link.meetingAcceptedProposalId);
-
-    const nextProposal = proposals[0];
-
-    return (
-
-      <div
-
-        key={link.seekerId}
-
-        className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3"
-
-      >
-
-        <div className="flex items-start justify-between gap-3">
-
-          <div className="flex items-start gap-3 min-w-0">
-
-            <ProfileAvatar
-
-              role="SEEKER"
-
-              profile={seeker ?? ({ id: link.seekerId } as any)}
-
-              name={name}
-
-            />
-
-            <div className="min-w-0">
-
-              <div className="text-lg font-semibold text-slate-50 truncate">{name}</div>
-
-              <div className="text-xs text-slate-400 mt-1">
-
-                Link status: <span className="text-slate-200">{link.status}</span>
-
-              </div>
-
-              <div className="text-xs text-slate-400 mt-1">
-
-                {accepted
-
-                  ? `Scheduled: ${new Date(accepted.startAt).toLocaleString()} (${accepted.durationMinutes}m)`
-
-                  : nextProposal
-
-                    ? `Next proposal: ${new Date(nextProposal.startAt).toLocaleString()}`
-
-                    : "No proposed times yet."}
-
-              </div>
-
-            </div>
-
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-
-            <button
-
-              type="button"
-
-              onClick={() => handleOpenSchedule(link)}
-
-              disabled={!canInteract}
-
-              className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
-              Schedule
-
-            </button>
-
-            <button
-
-              type="button"
-
-              onClick={() => seeker && onMessage(seeker)}
-
-              disabled={!seeker || !canInteract}
-
-              className="px-3 py-2 rounded-xl text-xs bg-emerald-500/15 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
-              Direct message
-
-            </button>
-
-          </div>
-
-        </div>
-
-      </div>
-
-    );
-
-  };
+  const normalizedLabels = useMemo(
+    () => ({
+      level1: retainerLevelLabels?.level1 || "Level 1",
+      level2: retainerLevelLabels?.level2 || "Level 2",
+      level3: retainerLevelLabels?.level3 || "Level 3",
+    }),
+    [retainerLevelLabels]
+  );
+
+  const [level1Label, setLevel1Label] = useState(normalizedLabels.level1);
+  const [level2Label, setLevel2Label] = useState(normalizedLabels.level2);
+  const [level3Label, setLevel3Label] = useState(normalizedLabels.level3);
+  const [newFirstName, setNewFirstName] = useState("");
+  const [newLastName, setNewLastName] = useState("");
+  const [newTitle, setNewTitle] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newLevel, setNewLevel] = useState<RetainerUserLevel>(1);
+
+  useEffect(() => {
+    setLevel1Label(normalizedLabels.level1);
+    setLevel2Label(normalizedLabels.level2);
+    setLevel3Label(normalizedLabels.level3);
+  }, [normalizedLabels.level1, normalizedLabels.level2, normalizedLabels.level3]);
+
+  const effectiveCanManageUsers = canManageUsers && Boolean(currentRetainer);
 
   return (
-
     <div className="flex flex-col gap-4 min-h-0">
-
       <div className="flex flex-wrap gap-2">
-
         {filteredTabs.map((tab) => (
-
           <button
-
             key={tab.key}
-
             type="button"
-
             onClick={() => onChangeTab(tab.key)}
-
             className={tabButtonClass(actionTab === tab.key)}
-
           >
-
             {tab.label}
-
           </button>
-
         ))}
-
       </div>
 
       <div className={actionContentClass}>
-
         {actionTab === "wheel" && (
+          <ViewSeekersView
+            wheelSeekers={sortedWheelSeekers}
+            excellentSeekers={sortedExcellentSeekers}
+            possibleSeekers={sortedPossibleSeekers}
+            notNowSeekers={sortedNotNowSeekers}
+            seekerSort={seekerSort}
+            onChangeSeekerSort={setSeekerSort}
+            scheduleMatchBySeekerId={scheduleMatchBySeekerId}
+            onClassify={onClassifySeeker}
+            onOpenProfile={onOpenProfile}
+            onMessage={onMessage}
+            retainerRoutes={retainerRoutes}
+            canInteract={canInteract}
+          />
+        )}
 
-        <ViewSeekersView
+        {actionTab === "lists" && (
+          <div className="flex flex-col gap-6 min-h-0 flex-1 overflow-hidden">
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <h3 className="text-lg font-semibold text-slate-50 mb-1">Your Seeker lists</h3>
+              <p className="text-sm text-slate-300">
+                Save approved Seekers into Excellent, Possible, or Not now. Drag cards between lists and message directly.
+              </p>
+            </div>
 
-          wheelSeekers={sortedWheelSeekers}
-          excellentSeekers={sortedExcellentSeekers}
-          possibleSeekers={sortedPossibleSeekers}
-          notNowSeekers={sortedNotNowSeekers}
-          seekerSort={seekerSort}
-          onChangeSeekerSort={setSeekerSort}
-          scheduleMatchBySeekerId={scheduleMatchBySeekerId}
-
-          onClassify={onClassifySeeker}
-
-          onOpenProfile={onOpenProfile}
-
-          onMessage={onMessage}
-
-          retainerRoutes={retainerRoutes}
-
-          canInteract={canInteract}
-
-        />
-
-      )}
-
-      {actionTab === "lists" && (
-
-        <div className="flex flex-col gap-6 min-h-0 flex-1 overflow-hidden">
-
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
-
-            <h3 className="text-lg font-semibold text-slate-50 mb-1">Your Seeker lists</h3>
-
-            <p className="text-sm text-slate-300">
-
-              Save approved Seekers into Excellent, Possible, or Not now. You can drag
-
-              cards between lists and message directly.
-
-            </p>
-
-          </div>
-
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-wrap items-center justify-between gap-3">
-
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="text-sm font-semibold text-slate-100">Bulk actions</div>
                 <span className="text-xs text-slate-400">{selectedCount} selected</span>
               </div>
-              <div className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-[11px] text-slate-300">
-                <span className="text-slate-400">Sort</span>
-                <select
-                  value={seekerSort}
-                  onChange={(e) => setSeekerSort(e.target.value as "default" | "match")}
-                  className="bg-transparent text-[11px] text-slate-100 focus:outline-none"
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onSelectAllSeekers}
+                  className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
                 >
-                  <option value="default">Default order</option>
-                  <option value="match">Schedule match</option>
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={onClearSelectedSeekers}
+                  disabled={selectedCount === 0}
+                  className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={onBulkMessageSelected}
+                  disabled={selectedCount === 0 || !retainerId || !canInteract}
+                  className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  title={!retainerId ? "Select a Retainer profile first" : "Send one message to all selected"}
+                >
+                  Message all
+                </button>
+                <button
+                  type="button"
+                  onClick={onBulkRequestLinkSelected}
+                  disabled={selectedCount === 0 || !retainerId || !canInteract}
+                  className="px-3 py-1.5 rounded-full text-[11px] bg-sky-500/15 border border-sky-500/40 text-sky-100 hover:bg-sky-500/20 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  title={!retainerId ? "Select a Retainer profile first" : "Request links for all selected"}
+                >
+                  Request to link
+                </button>
+                <button
+                  type="button"
+                  onClick={onBulkReturnToWheelSelected}
+                  disabled={selectedCount === 0}
+                  className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  title="Move selected back to the wheel"
+                >
+                  Return to wheel
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0 grid-rows-1 h-full overflow-hidden">
+              <SeekerBucketPanel
+                title="Excellent"
+                color="emerald"
+                seekers={sortedExcellentSeekers}
+                bucketKey="excellent"
+                selectedSeekerIds={selectedSeekerIds}
+                onToggleSelectedSeeker={onToggleSelectedSeeker}
+                onOpenProfile={onOpenProfile}
+                onReturnToWheel={onReturnToWheel}
+                onDropToBucket={onRebucketById}
+                onMessage={onMessage}
+                canInteract={canInteract}
+                getScheduleMatch={getScheduleMatch}
+              />
+              <SeekerBucketPanel
+                title="Possible"
+                color="sky"
+                seekers={sortedPossibleSeekers}
+                bucketKey="possible"
+                selectedSeekerIds={selectedSeekerIds}
+                onToggleSelectedSeeker={onToggleSelectedSeeker}
+                onOpenProfile={onOpenProfile}
+                onReturnToWheel={onReturnToWheel}
+                onDropToBucket={onRebucketById}
+                onMessage={onMessage}
+                canInteract={canInteract}
+                getScheduleMatch={getScheduleMatch}
+              />
+              <SeekerBucketPanel
+                title="Not now"
+                color="rose"
+                seekers={sortedNotNowSeekers}
+                bucketKey="notNow"
+                selectedSeekerIds={selectedSeekerIds}
+                onToggleSelectedSeeker={onToggleSelectedSeeker}
+                onOpenProfile={onOpenProfile}
+                onReturnToWheel={onReturnToWheel}
+                onDropToBucket={onRebucketById}
+                onMessage={onMessage}
+                canInteract={canInteract}
+                getScheduleMatch={getScheduleMatch}
+              />
+            </div>
+          </div>
+        )}
+
+        {actionTab === "routes" && (
+          <RetainerRoutesView
+            retainer={currentRetainer}
+            seekers={seekers}
+            canEdit={canInteract}
+            noticeTick={noticeTick}
+            onToast={onToast}
+          />
+        )}
+
+        {actionTab === "schedule" && (
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 space-y-3 text-sm text-slate-300">
+            <div className="text-xs uppercase tracking-wide text-slate-400">Scheduling</div>
+            <div>
+              Route schedules are managed per route. Update the schedule on each route to influence matching.
+            </div>
+            <button
+              type="button"
+              onClick={() => onChangeTab("routes")}
+              className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+            >
+              Go to routes
+            </button>
+          </div>
+        )}
+
+        {actionTab === "editProfile" && (
+          <div className="space-y-4">
+            <RetainerProfileForm
+              mode={currentRetainer ? "edit" : "create"}
+              initial={currentRetainer}
+              onSaved={currentRetainer ? onRetainerUpdated : onRetainerCreated}
+              readOnly={!canInteract}
+            />
+            <ChangePasswordPanel email={(currentRetainer as any)?.email ?? null} />
+          </div>
+        )}
+
+        {actionTab === "addUsers" && (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <h3 className="text-lg font-semibold text-slate-50 mb-1">User access</h3>
+              <p className="text-sm text-slate-300">
+                Add team members and manage their permission levels.
+              </p>
+              <ul className="mt-2 text-xs text-slate-400 space-y-1">
+                <li>Level 1: View-only access, internal notes, no external messaging.</li>
+                <li>Level 2: Can post, broadcast, route, and message external Seekers.</li>
+                <li>Level 3: Full access including user management and hierarchy edits.</li>
+              </ul>
+
+              {!effectiveCanManageUsers && (
+                <div className="text-xs text-amber-300 mt-2">
+                  View-only access. Level 3 required to manage users.
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+              <div className="text-xs uppercase tracking-wide text-slate-400">Level labels</div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="space-y-1 text-xs text-slate-300">
+                  <span>Level 1</span>
+                  <input
+                    value={level1Label}
+                    onChange={(e) => setLevel1Label(e.target.value)}
+                    disabled={!effectiveCanManageUsers}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </label>
+
+                <label className="space-y-1 text-xs text-slate-300">
+                  <span>Level 2</span>
+                  <input
+                    value={level2Label}
+                    onChange={(e) => setLevel2Label(e.target.value)}
+                    disabled={!effectiveCanManageUsers}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </label>
+
+                <label className="space-y-1 text-xs text-slate-300">
+                  <span>Level 3</span>
+                  <input
+                    value={level3Label}
+                    onChange={(e) => setLevel3Label(e.target.value)}
+                    disabled={!effectiveCanManageUsers}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  />
+                </label>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  onUpdateUserLabels({
+                    level1: level1Label,
+                    level2: level2Label,
+                    level3: level3Label,
+                  })
+                }
+                disabled={!effectiveCanManageUsers}
+                className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Save labels
+              </button>
+            </div>
+
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+              <div className="text-xs uppercase tracking-wide text-slate-400">Add user</div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <input
+                  value={newFirstName}
+                  onChange={(e) => setNewFirstName(e.target.value)}
+                  placeholder="First name"
+                  disabled={!effectiveCanManageUsers}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                />
+                <input
+                  value={newLastName}
+                  onChange={(e) => setNewLastName(e.target.value)}
+                  placeholder="Last name"
+                  disabled={!effectiveCanManageUsers}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                />
+                <input
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="Title"
+                  disabled={!effectiveCanManageUsers}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                />
+                <input
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  placeholder="Email"
+                  disabled={!effectiveCanManageUsers}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                />
+                <input
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="Phone"
+                  disabled={!effectiveCanManageUsers}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                />
+                <select
+                  value={newLevel}
+                  onChange={(e) => setNewLevel(Number(e.target.value) as RetainerUserLevel)}
+                  disabled={!effectiveCanManageUsers}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <option value={1}>{normalizedLabels.level1}</option>
+                  <option value={2}>{normalizedLabels.level2}</option>
+                  <option value={3}>{normalizedLabels.level3}</option>
                 </select>
               </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
 
               <button
-
                 type="button"
-
-                onClick={onSelectAllSeekers}
-
-                className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
-
-              >
-
-                Select all
-
-              </button>
-
-              <button
-
-                type="button"
-
-                onClick={onClearSelectedSeekers}
-
-                disabled={selectedCount == 0}
-
-                className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
-
-              >
-
-                Clear
-
-              </button>
-
-              <button
-
-                type="button"
-
-                onClick={onBulkMessageSelected}
-
-                disabled={selectedCount == 0 || !retainerId}
-
+                onClick={() => {
+                  if (!effectiveCanManageUsers) return;
+                  onCreateUser({
+                    firstName: newFirstName.trim() || "New",
+                    lastName: newLastName.trim() || "User",
+                    title: newTitle.trim() || undefined,
+                    email: newEmail.trim() || undefined,
+                    phone: newPhone.trim() || undefined,
+                    level: newLevel,
+                  });
+                  setNewFirstName("");
+                  setNewLastName("");
+                  setNewTitle("");
+                  setNewEmail("");
+                  setNewPhone("");
+                  setNewLevel(1);
+                }}
+                disabled={!effectiveCanManageUsers}
                 className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
-
-                title={!retainerId ? "Select a Retainer profile first" : "Send one message to all selected"}
-
               >
-
-                Message all
-
+                Add user
               </button>
-
-              <button
-
-                type="button"
-
-                onClick={onBulkRequestLinkSelected}
-
-                disabled={selectedCount == 0 || !retainerId}
-
-                className="px-3 py-1.5 rounded-full text-[11px] bg-sky-500/15 border border-sky-500/40 text-sky-100 hover:bg-sky-500/20 transition disabled:opacity-60 disabled:cursor-not-allowed"
-
-                title={!retainerId ? "Select a Retainer profile first" : "Request links for all selected"}
-
-              >
-
-                Request to link
-
-              </button>
-
-              <button
-
-                type="button"
-
-                onClick={onBulkReturnToWheelSelected}
-
-                disabled={selectedCount == 0}
-
-                className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
-
-                title="Move selected back to the wheel"
-
-              >
-
-                Return to wheel
-
-              </button>
-
             </div>
 
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 flex-1 min-h-0 grid-rows-1 h-full overflow-hidden">
-
-            <SeekerBucketPanel
-
-              title="Excellent"
-
-              color="emerald"
-
-              seekers={sortedExcellentSeekers}
-
-              bucketKey="excellent"
-
-              selectedSeekerIds={selectedSeekerIds}
-
-              onToggleSelectedSeeker={onToggleSelectedSeeker}
-
-              onOpenProfile={onOpenProfile}
-
-              onReturnToWheel={onReturnToWheel}
-
-              onDropToBucket={onRebucketById}
-
-              onMessage={onMessage}
-
-              canInteract={canInteract}
-
-              getScheduleMatch={getScheduleMatch}
-
-            />
-
-            <SeekerBucketPanel
-
-              title="Possible"
-
-              color="sky"
-
-              seekers={sortedPossibleSeekers}
-
-              bucketKey="possible"
-
-              selectedSeekerIds={selectedSeekerIds}
-
-              onToggleSelectedSeeker={onToggleSelectedSeeker}
-
-              onOpenProfile={onOpenProfile}
-
-              onReturnToWheel={onReturnToWheel}
-
-              onDropToBucket={onRebucketById}
-
-              onMessage={onMessage}
-
-              canInteract={canInteract}
-
-              getScheduleMatch={getScheduleMatch}
-
-            />
-
-            <SeekerBucketPanel
-
-              title="Not now"
-
-              color="rose"
-
-              seekers={sortedNotNowSeekers}
-
-              bucketKey="notNow"
-
-              selectedSeekerIds={selectedSeekerIds}
-
-              onToggleSelectedSeeker={onToggleSelectedSeeker}
-
-              onOpenProfile={onOpenProfile}
-
-              onReturnToWheel={onReturnToWheel}
-
-              onDropToBucket={onRebucketById}
-
-              onMessage={onMessage}
-
-              canInteract={canInteract}
-
-              getScheduleMatch={getScheduleMatch}
-
-            />
-
-          </div>
-
-        </div>
-
-      )}
-
-      {actionTab === "routes" && (
-
-        <RetainerRoutesView
-
-          retainer={currentRetainer}
-
-          seekers={seekers}
-
-          canEdit={canInteract}
-
-          noticeTick={noticeTick}
-
-          onToast={onToast}
-
-        />
-
-      )}
-
-      {actionTab === "schedule" && (
-
-        <div className="space-y-4">
-
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
-
-            <div className="flex flex-wrap items-start justify-between gap-3">
-
-              <div>
-
-                <div className="text-xs uppercase tracking-wide text-slate-400">Scheduling</div>
-
-                <div className="text-sm text-slate-300 mt-1">
-
-                  Propose and confirm video call times with linked Seekers.
-
-                </div>
-
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <div className="text-xs uppercase tracking-wide text-slate-400 mb-3">
+                Current users
               </div>
-
-              <button
-
-                type="button"
-
-                onClick={() => setScheduleTick((n) => n + 1)}
-
-                className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
-
-              >
-
-                Refresh
-
-              </button>
-
-            </div>
-
-          </div>
-
-          {!retainerId ? (
-
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
-
-              Select or create a Retainer profile first.
-
-            </div>
-
-          ) : scheduleLinks.length === 0 ? (
-
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
-
-              No link requests yet. Start by requesting a link from a Seeker.
-
-            </div>
-
-          ) : (
-
-            <div className="grid gap-3 md:gap-4 md:grid-cols-2 min-h-0 flex-1 w-full">
-
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full">
-
-                <div className="flex items-start justify-between gap-3">
-
-                  <div>
-
-                    <div className="text-xs uppercase tracking-wide text-slate-400">Scheduled</div>
-
-                    <div className="text-[11px] text-slate-500 mt-1">
-
-                      Links with an accepted time.
-
-                    </div>
-
-                  </div>
-
-                  <div className="text-xs text-slate-400">{scheduledLinks.length}</div>
-
-                </div>
-
-                {scheduledLinks.length === 0 ? (
-
-                  <div className="mt-3 text-xs text-slate-400">No scheduled calls yet.</div>
-
-                ) : (
-
-                  <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
-
-                    {scheduledLinks.map(renderScheduleCard)}
-
-                  </div>
-
-                )}
-
-              </div>
-
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
-
-                <div className="flex items-start justify-between gap-3">
-
-                  <div>
-
-                    <div className="text-xs uppercase tracking-wide text-slate-400">Pending</div>
-
-                    <div className="text-[11px] text-slate-500 mt-1">
-
-                      Links waiting for a confirmed time.
-
-                    </div>
-
-                  </div>
-
-                  <div className="text-xs text-slate-400">{pendingScheduleLinks.length}</div>
-
-                </div>
-
-                {pendingScheduleLinks.length === 0 ? (
-
-                  <div className="mt-3 text-xs text-slate-400">No pending schedules.</div>
-
-                ) : (
-
-                  <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
-
-                    {pendingScheduleLinks.map(renderScheduleCard)}
-
-                  </div>
-
-                )}
-
-              </div>
-
-            </div>
-
-          )}
-
-        </div>
-
-      )}
-
-      {actionTab === "editProfile" && (
-
-        <div className="space-y-4">
-
-          <RetainerProfileForm
-
-            mode={currentRetainer ? "edit" : "create"}
-
-            initial={currentRetainer}
-
-            onSaved={currentRetainer ? onRetainerUpdated : onRetainerCreated}
-
-            readOnly={!canInteract}
-
-          />
-
-          <ChangePasswordPanel email={(currentRetainer as any)?.email ?? null} />
-
-        </div>
-
-      )}
-
-      {actionTab === "addUsers" && (
-
-        <div className="space-y-4">
-
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
-
-            <h3 className="text-lg font-semibold text-slate-50 mb-1">User access</h3>
-
-            <p className="text-sm text-slate-300">
-
-              Add team members and manage their permission levels.
-
-            </p>
-            <ul className="mt-2 text-xs text-slate-400 space-y-1">
-              <li>Level 1: View-only access, internal notes, no external messaging.</li>
-              <li>Level 2: Can post, broadcast, route, and message external Seekers.</li>
-              <li>Level 3: Full access including user management and hierarchy edits.</li>
-            </ul>
-
-            {!canManageUsers && (
-
-              <div className="text-xs text-amber-300 mt-2">
-
-                View-only access. Level 3 required to manage users.
-
-              </div>
-
-            )}
-
-          </div>
-
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
-
-            <div className="text-xs uppercase tracking-wide text-slate-400">Level labels</div>
-
-            <div className="grid gap-3 md:grid-cols-3">
-
-              <label className="space-y-1 text-xs text-slate-300">
-
-                <span>Level 1</span>
-
-                <input
-
-                  value={level1Label}
-
-                  onChange={(e) => setLevel1Label(e.target.value)}
-
-                  disabled={!canManageUsers}
-
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
-
-                />
-
-              </label>
-
-              <label className="space-y-1 text-xs text-slate-300">
-
-                <span>Level 2</span>
-
-                <input
-
-                  value={level2Label}
-
-                  onChange={(e) => setLevel2Label(e.target.value)}
-
-                  disabled={!canManageUsers}
-
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
-
-                />
-
-              </label>
-
-              <label className="space-y-1 text-xs text-slate-300">
-
-                <span>Level 3</span>
-
-                <input
-
-                  value={level3Label}
-
-                  onChange={(e) => setLevel3Label(e.target.value)}
-
-                  disabled={!canManageUsers}
-
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
-
-                />
-
-              </label>
-
-            </div>
-
-            <button
-
-              type="button"
-
-              onClick={() =>
-
-                onUpdateUserLabels({ level1: level1Label, level2: level2Label, level3: level3Label })
-
-              }
-
-              disabled={!canManageUsers}
-
-              className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
-              Save labels
-
-            </button>
-
-          </div>
-
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
-
-            <div className="text-xs uppercase tracking-wide text-slate-400">Add user</div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-
-              <input
-
-                value={newFirstName}
-
-                onChange={(e) => setNewFirstName(e.target.value)}
-
-                placeholder="First name"
-
-                disabled={!canManageUsers}
-
-                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
-
-              />
-
-              <input
-
-                value={newLastName}
-
-                onChange={(e) => setNewLastName(e.target.value)}
-
-                placeholder="Last name"
-
-                disabled={!canManageUsers}
-
-                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
-
-              />
-
-              <input
-
-                value={newTitle}
-
-                onChange={(e) => setNewTitle(e.target.value)}
-
-                placeholder="Title"
-
-                disabled={!canManageUsers}
-
-                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
-
-              />
-
-              <input
-
-                value={newEmail}
-
-                onChange={(e) => setNewEmail(e.target.value)}
-
-                placeholder="Email"
-
-                disabled={!canManageUsers}
-
-                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
-
-              />
-
-              <input
-
-                value={newPhone}
-
-                onChange={(e) => setNewPhone(e.target.value)}
-
-                placeholder="Phone"
-
-                disabled={!canManageUsers}
-
-                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
-
-              />
-
-              <select
-
-                value={newLevel}
-
-                onChange={(e) => setNewLevel(Number(e.target.value) as RetainerUserLevel)}
-
-                disabled={!canManageUsers}
-
-                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed"
-
-              >
-
-                <option value={1}>{retainerLevelLabels.level1}</option>
-
-                <option value={2}>{retainerLevelLabels.level2}</option>
-
-                <option value={3}>{retainerLevelLabels.level3}</option>
-
-              </select>
-
-            </div>
-
-            <button
-
-              type="button"
-
-              onClick={() => {
-
-                if (!canManageUsers) return;
-
-                onCreateUser({
-
-                  firstName: newFirstName.trim() || "New",
-
-                  lastName: newLastName.trim() || "User",
-
-                  title: newTitle.trim() || undefined,
-
-                  email: newEmail.trim() || undefined,
-
-                  phone: newPhone.trim() || undefined,
-
-                  level: newLevel,
-
-                });
-
-                setNewFirstName("");
-
-                setNewLastName("");
-
-                setNewTitle("");
-
-                setNewEmail("");
-
-                setNewPhone("");
-
-                setNewLevel(1);
-
-              }}
-
-              disabled={!canManageUsers}
-
-              className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
-              Add user
-
-            </button>
-
-          </div>
-
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
-
-            <div className="text-xs uppercase tracking-wide text-slate-400 mb-3">Current users</div>
-
-            {retainerUsers.length === 0 ? (
-
-              <div className="text-sm text-slate-400">No additional users yet.</div>
-
-            ) : (
-
-              <div className="space-y-3">
-
-                {retainerUsers.map((u) => (
-
-                  <div
-
-                    key={u.id}
-
-                    className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between gap-3"
-
-                  >
-
-                    <div>
-
-                      <div className="text-sm font-semibold text-slate-50">
-
-                        {(u.firstName || "User") + " " + (u.lastName || "")}
-
-                      </div>
-
-                      <div className="text-xs text-slate-400">
-
-                        {retainerLevelLabels[`level${u.level}` as keyof RetainerUserLevelLabels] ??
-
-                          `Level ${u.level}`}
-
-                        {u.email ? ` - ${u.email}` : ""}
-
-                      </div>
-
-                    </div>
-
-                    <button
-
-                      type="button"
-
-                      onClick={() => onRemoveUser(u.id)}
-
-                      disabled={!canManageUsers}
-
-                      className="px-3 py-1 rounded-full text-[11px] bg-rose-500/15 border border-rose-500/40 text-rose-100 hover:bg-rose-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
-
+              {retainerUsers.length === 0 ? (
+                <div className="text-sm text-slate-400">No additional users yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {retainerUsers.map((u) => (
+                    <div
+                      key={u.id}
+                      className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between gap-3"
                     >
-
-                      Remove
-
-                    </button>
-
-                  </div>
-
-                ))}
-
-              </div>
-
-            )}
-
-          </div>
-
-        </div>
-
-      )}
-
-      {actionTab === "hierarchy" && (
-
-        <div className="space-y-4">
-
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
-
-            <h3 className="text-lg font-semibold text-slate-50 mb-1">Hierarchy</h3>
-
-            <p className="text-sm text-slate-300">
-
-              Map reporting lines and responsibilities for your team.
-
-            </p>
-
-            {!canManageUsers && (
-
-              <div className="text-xs text-amber-300 mt-2">
-
-                View-only access. Level 3 required to edit the hierarchy.
-
-              </div>
-
-            )}
-
-          </div>
-
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 min-h-[520px]">
-            <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading hierarchy?</div>}>
-              <LazyHierarchyCanvas
-                owner={hierarchyOwner}
-                items={hierarchyItems}
-                nodes={hierarchyNodes}
-                onNodesChange={onUpdateHierarchyNodes}
-                readOnly={!canManageUsers}
-                showList
-                emptyHint="Add users to start building your org chart."
-              />
-            </Suspense>
-          </div>
-
-        </div>
-
-      )}
-
-      {scheduleLink && retainerId && (
-
-        <div className="fixed inset-0 z-50">
-
-          <div
-
-            className="absolute inset-0 bg-black/70"
-
-            onClick={() => setScheduleLink(null)}
-
-          />
-
-          <div className="relative h-full w-full p-6 md:p-10 flex items-center justify-center overflow-y-auto">
-
-            <div className="w-full max-w-xl rounded-3xl border border-slate-700 bg-slate-950 shadow-2xl overflow-hidden">
-
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-
-                <div className="min-w-0">
-
-                  <div className="text-xs uppercase tracking-wide text-slate-400">
-
-                    Schedule video call
-
-                  </div>
-
-                  <div className="text-sm font-semibold text-slate-100 truncate">
-
-                    {(() => {
-
-                      const s = seekerById.get(String(scheduleLink.seekerId)) as any;
-
-                      return s ? formatSeekerName(s) : `Seeker (${scheduleLink.seekerId})`;
-
-                    })()}
-
-                  </div>
-
-                </div>
-
-                <button
-
-                  type="button"
-
-                  onClick={() => setScheduleLink(null)}
-
-                  className="h-9 w-9 rounded-full border border-slate-700 text-slate-200 hover:bg-slate-900 transition"
-
-                  title="Close"
-
-                >
-
-                  x
-
-                </button>
-
-              </div>
-
-              <div className="p-4 space-y-4">
-
-                {scheduleError && (
-
-                  <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
-
-                    {scheduleError}
-
-                  </div>
-
-                )}
-
-                {(() => {
-
-                  const proposals = (scheduleLink.meetingProposals || [])
-
-                    .slice()
-
-                    .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
-
-                  const accepted =
-
-                    scheduleLink.meetingAcceptedProposalId &&
-
-                    proposals.find((p) => p.id === scheduleLink.meetingAcceptedProposalId);
-
-                  return (
-
-                    <div className="space-y-3">
-
-                      {accepted ? (
-
-                        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3">
-
-                          <div className="text-sm font-semibold text-emerald-100">
-
-                            Scheduled
-
-                          </div>
-
-                          <div className="text-sm text-slate-50 mt-1">
-
-                            {new Date(accepted.startAt).toLocaleString()} - {accepted.durationMinutes} minutes
-
-                          </div>
-
-                          <div className="text-[11px] text-emerald-200/80 mt-1">
-
-                            Proposed by {accepted.by === "RETAINER" ? "you" : "Seeker"}
-
-                          </div>
-
-                          <div className="mt-3">
-
-                            <button
-
-                              type="button"
-
-                              onClick={() => {
-
-                                if (!canInteract) return;
-
-                                try {
-                                  const next = clearLinkMeetingSchedule({
-                                    seekerId: scheduleLink.seekerId,
-                                    retainerId,
-                                  });
-                                  if (next) setScheduleLink(next);
-                                  setScheduleTick((x) => x + 1);
-                                  onToast("Scheduled call cleared.");
-                                } catch (err: any) {
-                                  onToast(err?.message || "Unable to clear schedule.");
-                                }
-                              }}
-
-                              disabled={!canInteract}
-
-                              className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
-
-                            >
-
-                              Clear schedule
-
-                            </button>
-
-                          </div>
-
+                      <div>
+                        <div className="text-sm font-semibold text-slate-50">
+                          {(u.firstName || "User") + " " + (u.lastName || "")}
                         </div>
-
-                      ) : (
-
-                        <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-
-                          <div className="text-xs uppercase tracking-wide text-slate-400">
-
-                            Proposed times
-
-                          </div>
-
-                          {proposals.length === 0 ? (
-
-                            <div className="text-sm text-slate-400 mt-2">
-
-                              No times proposed yet.
-
-                            </div>
-
-                          ) : (
-
-                            <div className="mt-2 space-y-2">
-
-                              {proposals.slice(0, 6).map((p) => (
-
-                                <div
-
-                                  key={p.id}
-
-                                  className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between gap-2"
-
-                                >
-
-                                  <div className="min-w-0">
-
-                                    <div className="text-sm text-slate-100 truncate">
-
-                                      {new Date(p.startAt).toLocaleString()}
-
-                                    </div>
-
-                                    <div className="text-[11px] text-slate-500">
-
-                                      {p.durationMinutes}m - Proposed by {p.by === "RETAINER" ? "you" : "Seeker"}
-
-                                      {p.note ? ` - ${p.note}` : ""}
-
-                                    </div>
-
-                                  </div>
-
-                                  <button
-
-                                    type="button"
-
-                                    onClick={() => {
-
-                                      if (!canInteract) return;
-
-                                      try {
-                                        const next = acceptLinkMeetingProposal({
-                                          seekerId: scheduleLink.seekerId,
-                                          retainerId,
-                                          proposalId: p.id,
-                                        });
-                                        if (next) setScheduleLink(next);
-                                        setScheduleTick((x) => x + 1);
-                                        onToast("Video call time confirmed.");
-                                      } catch (err: any) {
-                                        onToast(err?.message || "Unable to confirm video call.");
-                                      }
-                                    }}
-
-                                    disabled={!canInteract}
-
-                                    className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-
-                                  >
-
-                                    Accept
-
-                                  </button>
-
-                                </div>
-
-                              ))}
-
-                            </div>
-
-                          )}
-
+                        <div className="text-xs text-slate-400">
+                          {normalizedLabels[`level${u.level}` as keyof RetainerUserLevelLabels] ??
+                            `Level ${u.level}`}
+                          {u.email ? ` - ${u.email}` : ""}
                         </div>
-
-                      )}
-
-                    </div>
-
-                  );
-
-                })()}
-
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
-
-                  <div className="text-xs uppercase tracking-wide text-slate-400">
-
-                    Propose a time
-
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-
-                    <label className="space-y-1">
-
-                      <div className="text-xs font-medium text-slate-200">Start</div>
-
-                      <input
-
-                        type="datetime-local"
-
-                        value={proposalAt}
-
-                        onChange={(e) => setProposalAt(e.target.value)}
-
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-
-                      />
-
-                    </label>
-
-                    <label className="space-y-1">
-
-                      <div className="text-xs font-medium text-slate-200">
-
-                        Duration
-
                       </div>
-
-                      <select
-
-                        value={proposalDuration}
-
-                        onChange={(e) => setProposalDuration(Number(e.target.value) || 20)}
-
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-
+                      <button
+                        type="button"
+                        onClick={() => onRemoveUser(u.id)}
+                        disabled={!effectiveCanManageUsers}
+                        className="px-3 py-1 rounded-full text-[11px] bg-rose-500/15 border border-rose-500/40 text-rose-100 hover:bg-rose-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-
-                        <option value={10}>10 minutes</option>
-
-                        <option value={20}>20 minutes</option>
-
-                        <option value={30}>30 minutes</option>
-
-                      </select>
-
-                    </label>
-
-                  </div>
-
-                  <label className="space-y-1">
-
-                    <div className="text-xs font-medium text-slate-200">Note (optional)</div>
-
-                    <input
-
-                      value={proposalNote}
-
-                      onChange={(e) => setProposalNote(e.target.value)}
-
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-
-                      placeholder="Example: Quick intro + route fit"
-
-                    />
-
-                  </label>
-
-                  <div className="flex items-center justify-between gap-3">
-
-                    <button
-
-                      type="button"
-
-                      onClick={() => {
-
-                        if (!canInteract) return;
-
-                        setScheduleError(null);
-
-                        if (!proposalAt) {
-
-                          setScheduleError("Pick a start time first.");
-
-                          return;
-
-                        }
-
-                        const d = new Date(proposalAt);
-
-                        if (Number.isNaN(d.getTime())) {
-
-                          setScheduleError("Invalid date/time.");
-
-                          return;
-
-                        }
-
-                        try {
-                          const next = addLinkMeetingProposal({
-                            seekerId: scheduleLink.seekerId,
-                            retainerId,
-                            by: "RETAINER",
-                            startAt: d.toISOString(),
-                            durationMinutes: proposalDuration,
-                            note: proposalNote,
-                          });
-                          setScheduleLink(next);
-                          setProposalAt("");
-                          setProposalNote("");
-                          setScheduleTick((x) => x + 1);
-                          onToast("Proposed a video call time.");
-                        } catch (err: any) {
-                          onToast(err?.message || "Unable to propose a time.");
-                        }
-                      }}
-
-                      disabled={!canInteract}
-
-                      className="px-4 py-2 rounded-full text-sm font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition disabled:opacity-60 disabled:cursor-not-allowed"
-
-                    >
-
-                      Add proposal
-
-                    </button>
-
-                    <div className="text-[11px] text-slate-500">
-
-                      Times use the selected route timezone.
-
+                        Remove
+                      </button>
                     </div>
-
-                  </div>
-
+                  ))}
                 </div>
+              )}
+            </div>
+          </div>
+        )}
 
+        {actionTab === "hierarchy" && (
+          !currentRetainer ? (
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+              Select or create a Retainer profile first.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+                <h3 className="text-lg font-semibold text-slate-50 mb-1">Hierarchy</h3>
+                <p className="text-sm text-slate-300">
+                  Map reporting lines and responsibilities for your team.
+                </p>
+                {!effectiveCanManageUsers && (
+                  <div className="text-xs text-amber-300 mt-2">
+                    View-only access. Level 3 required to edit the hierarchy.
+                  </div>
+                )}
               </div>
 
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 min-h-[520px]">
+                <Suspense
+                  fallback={
+                    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">
+                      Loading hierarchy?
+                    </div>
+                  }
+                >
+                  <LazyHierarchyCanvas
+                    owner={{
+                      id: String((currentRetainer as any).id),
+                      name: formatRetainerName(currentRetainer),
+                      title:
+                        (currentRetainer as any)?.companyName ||
+                        (currentRetainer as any)?.name ||
+                        "Retainer",
+                      meta: (currentRetainer as any)?.email || undefined,
+                      photoUrl:
+                        (currentRetainer as any)?.logoUrl ||
+                        (currentRetainer as any)?.photoUrl ||
+                        (currentRetainer as any)?.profileImageUrl ||
+                        undefined,
+                    }}
+                    items={retainerUsers.map((u) => ({
+                      id: u.id,
+                      name: `${u.firstName || ""} ${u.lastName || ""}`.trim() || "User",
+                      title: u.title || normalizedLabels[`level${u.level}` as keyof RetainerUserLevelLabels],
+                      meta: u.email || u.phone || undefined,
+                      photoUrl: (u as any).photoUrl || (u as any).avatarUrl || undefined,
+                    }))}
+                    nodes={(currentRetainer as any)?.hierarchyNodes ?? []}
+                    onNodesChange={onUpdateHierarchyNodes}
+                    readOnly={!effectiveCanManageUsers}
+                    showList
+                    emptyHint="Add users to start building your org chart."
+                  />
+                </Suspense>
+              </div>
             </div>
-
-          </div>
-
-        </div>
-
-      )}
-
+          )
+        )}
       </div>
-
     </div>
-
   );
-
 };
 
 const SeekerBucketPanel: React.FC<{
@@ -7901,6 +7178,8 @@ const SeekerWheelCard: React.FC<{
   const verts: string[] = Array.isArray(s.deliveryVerticals) ? s.deliveryVerticals : [];
 
   const photoUrl = getSeekerPhotoUrl(seeker);
+  const introVideoUrl =
+    s.introVideoStatus === "APPROVED" ? s.introVideoUrl : undefined;
 
   const reputation = getReputationScoreForProfile({
 
@@ -7966,13 +7245,26 @@ const SeekerWheelCard: React.FC<{
 
         <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 h-20 sm:h-24 md:h-28 lg:h-32 xl:h-36 w-full flex items-center justify-center">
 
-          {photoUrl ? (
+          {introVideoUrl ? (
+
+            <video
+              src={introVideoUrl}
+              muted
+              loop
+              autoPlay
+              playsInline
+              preload="metadata"
+              poster={photoUrl}
+              className="h-full w-full object-cover"
+            />
+
+          ) : photoUrl ? (
 
             <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
 
           ) : (
 
-            <div className="text-xs text-slate-400">No photo</div>
+            <div className="text-xs text-slate-400">No media</div>
 
           )}
 
@@ -8688,6 +7980,43 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
   );
 
+  const [introVideoUrl, setIntroVideoUrl] = useState(
+    (initial as any)?.introVideoUrl ?? ""
+  );
+  const [introVideoStatus, setIntroVideoStatus] = useState<
+    VideoApprovalStatus | undefined
+  >((initial as any)?.introVideoStatus ?? undefined);
+  const [introVideoSubmittedAt, setIntroVideoSubmittedAt] = useState<
+    string | undefined
+  >((initial as any)?.introVideoSubmittedAt ?? undefined);
+  const [introVideoApprovedAt, setIntroVideoApprovedAt] = useState<
+    string | undefined
+  >((initial as any)?.introVideoApprovedAt ?? undefined);
+  const [introVideoApprovedBy, setIntroVideoApprovedBy] = useState<
+    string | undefined
+  >((initial as any)?.introVideoApprovedBy ?? undefined);
+  const [introVideoApprovedByEmail, setIntroVideoApprovedByEmail] = useState<
+    string | undefined
+  >((initial as any)?.introVideoApprovedByEmail ?? undefined);
+  const [introVideoRejectedAt, setIntroVideoRejectedAt] = useState<
+    string | undefined
+  >((initial as any)?.introVideoRejectedAt ?? undefined);
+  const [introVideoRejectedBy, setIntroVideoRejectedBy] = useState<
+    string | undefined
+  >((initial as any)?.introVideoRejectedBy ?? undefined);
+  const [introVideoRejectedByEmail, setIntroVideoRejectedByEmail] = useState<
+    string | undefined
+  >((initial as any)?.introVideoRejectedByEmail ?? undefined);
+  const [introVideoDurationSec, setIntroVideoDurationSec] = useState<
+    number | undefined
+  >((initial as any)?.introVideoDurationSec ?? undefined);
+  const [introVideoSizeBytes, setIntroVideoSizeBytes] = useState<
+    number | undefined
+  >((initial as any)?.introVideoSizeBytes ?? undefined);
+  const [introVideoMime, setIntroVideoMime] = useState<string | undefined>(
+    (initial as any)?.introVideoMime ?? undefined
+  );
+
   const [companyPhotoUrl, setCompanyPhotoUrl] = useState(
 
     (initial as any)?.companyPhotoUrl ?? (initial as any)?.imageUrl ?? ""
@@ -8721,6 +8050,18 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     setPayCycleCloseDay(next?.payCycleCloseDay ?? "FRI");
     setPayCycleFrequency(next?.payCycleFrequency ?? PAY_CYCLE_FREQUENCIES[0].value);
     setLogoUrl(next?.logoUrl ?? next?.photoUrl ?? next?.profileImageUrl ?? "");
+    setIntroVideoUrl(next?.introVideoUrl ?? "");
+    setIntroVideoStatus(next?.introVideoStatus ?? undefined);
+    setIntroVideoSubmittedAt(next?.introVideoSubmittedAt ?? undefined);
+    setIntroVideoApprovedAt(next?.introVideoApprovedAt ?? undefined);
+    setIntroVideoApprovedBy(next?.introVideoApprovedBy ?? undefined);
+    setIntroVideoApprovedByEmail(next?.introVideoApprovedByEmail ?? undefined);
+    setIntroVideoRejectedAt(next?.introVideoRejectedAt ?? undefined);
+    setIntroVideoRejectedBy(next?.introVideoRejectedBy ?? undefined);
+    setIntroVideoRejectedByEmail(next?.introVideoRejectedByEmail ?? undefined);
+    setIntroVideoDurationSec(next?.introVideoDurationSec ?? undefined);
+    setIntroVideoSizeBytes(next?.introVideoSizeBytes ?? undefined);
+    setIntroVideoMime(next?.introVideoMime ?? undefined);
     setCompanyPhotoUrl(next?.companyPhotoUrl ?? next?.imageUrl ?? "");
     setError(null);
     setSuccessMsg(null);
@@ -8734,7 +8075,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
     { key: "preferences", label: "Profile 3: Preferences" },
 
-    { key: "photos", label: "Profile 4: Photos" },
+    { key: "photos", label: "Profile 4: My Media" },
 
   ];
 
@@ -8811,6 +8152,39 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     }
   };
 
+  const updateIntroVideo = (patch: {
+    introVideoUrl?: string;
+    introVideoStatus?: VideoApprovalStatus;
+    introVideoSubmittedAt?: string;
+    introVideoDurationSec?: number;
+    introVideoSizeBytes?: number;
+    introVideoMime?: string;
+  }) => {
+    if ("introVideoUrl" in patch) setIntroVideoUrl(patch.introVideoUrl ?? "");
+    if ("introVideoStatus" in patch) setIntroVideoStatus(patch.introVideoStatus);
+    if ("introVideoSubmittedAt" in patch) {
+      setIntroVideoSubmittedAt(patch.introVideoSubmittedAt);
+    }
+    if ("introVideoDurationSec" in patch) {
+      setIntroVideoDurationSec(patch.introVideoDurationSec);
+    }
+    if ("introVideoSizeBytes" in patch) {
+      setIntroVideoSizeBytes(patch.introVideoSizeBytes);
+    }
+    if ("introVideoMime" in patch) {
+      setIntroVideoMime(patch.introVideoMime);
+    }
+
+    if (patch.introVideoStatus === "PENDING") {
+      setIntroVideoApprovedAt(undefined);
+      setIntroVideoApprovedBy(undefined);
+      setIntroVideoApprovedByEmail(undefined);
+      setIntroVideoRejectedAt(undefined);
+      setIntroVideoRejectedBy(undefined);
+      setIntroVideoRejectedByEmail(undefined);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 
     e.preventDefault();
@@ -8865,6 +8239,18 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
         payCycleTimezone: "EST",
 
         logoUrl: logoUrl.trim() || undefined,
+        introVideoUrl: introVideoUrl.trim() || undefined,
+        introVideoStatus: introVideoStatus || undefined,
+        introVideoSubmittedAt: introVideoSubmittedAt || undefined,
+        introVideoApprovedAt: introVideoApprovedAt || undefined,
+        introVideoApprovedBy: introVideoApprovedBy || undefined,
+        introVideoApprovedByEmail: introVideoApprovedByEmail || undefined,
+        introVideoRejectedAt: introVideoRejectedAt || undefined,
+        introVideoRejectedBy: introVideoRejectedBy || undefined,
+        introVideoRejectedByEmail: introVideoRejectedByEmail || undefined,
+        introVideoDurationSec: introVideoDurationSec ?? undefined,
+        introVideoSizeBytes: introVideoSizeBytes ?? undefined,
+        introVideoMime: introVideoMime || undefined,
 
         companyPhotoUrl: companyPhotoUrl.trim() || undefined,
 
@@ -9501,6 +8887,16 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
         {activePage === "photos" && (
 
           <div className="space-y-4">
+            <ProfileVideoSection
+              introVideoUrl={introVideoUrl}
+              introVideoStatus={introVideoStatus}
+              introVideoSubmittedAt={introVideoSubmittedAt}
+              introVideoDurationSec={introVideoDurationSec}
+              introVideoSizeBytes={introVideoSizeBytes}
+              introVideoMime={introVideoMime}
+              onUpdate={updateIntroVideo}
+              readOnly={readOnly}
+            />
 
             <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-4 space-y-3">
 
@@ -13875,3 +13271,4 @@ const RetainerRoutesView: React.FC<{
   );
 
 };
+

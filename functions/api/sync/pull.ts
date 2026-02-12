@@ -241,6 +241,20 @@ export const onRequestGet: PagesFunction = async ({ env }) => {
     })
   );
 
+  const meetingsRows = await db
+    .prepare("SELECT id, retainer_id, status, title, data_json, is_seed, seed_batch_id, created_at, updated_at FROM interview_meetings")
+    .all<Row>();
+  const meetings = meetingsRows.results.map((row) =>
+    mergeRow(row, {
+      id: row.id,
+      retainerId: row.retainer_id,
+      status: row.status,
+      title: row.title ?? undefined,
+      createdAt: row.created_at ?? undefined,
+      updatedAt: row.updated_at ?? undefined,
+    })
+  );
+
   const badgeDefsRows = await db
     .prepare("SELECT id, role, title, icon_key, data_json, is_seed, seed_batch_id, created_at, updated_at FROM badge_definitions")
     .all<Row>();
@@ -342,6 +356,7 @@ export const onRequestGet: PagesFunction = async ({ env }) => {
     workUnitPeriods,
     posts,
     broadcasts,
+    meetings,
     badgeDefinitions,
     badgeSelections,
     badgeCheckins,

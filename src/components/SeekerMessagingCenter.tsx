@@ -2,6 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { getRetainers, getSeekers } from "../lib/data";
 import {
+  ADMIN_THREAD_ID,
   addMessageToConversation,
   createConversationWithFirstMessage,
   getConversationsForSeeker,
@@ -409,10 +410,11 @@ const SeekerMessagingCenter: React.FC<Props> = ({
     const q = retainerQuery.trim().toLowerCase();
     if (!q) return retainerIds;
     return retainerIds.filter((rid) => {
-      const r: any = retainerById.get(rid);
-      const name = r ? formatRetainerName(r) : "";
-      const city = r?.city ?? "";
-      const state = r?.state ?? "";
+      const isAdminThread = rid === ADMIN_THREAD_ID;
+      const r: any = isAdminThread ? null : retainerById.get(rid);
+      const name = isAdminThread ? "Snap Admin" : r ? formatRetainerName(r) : "";
+      const city = isAdminThread ? "" : r?.city ?? "";
+      const state = isAdminThread ? "" : r?.state ?? "";
       return `${name} ${city} ${state}`.toLowerCase().includes(q);
     });
   })();
@@ -532,12 +534,18 @@ const SeekerMessagingCenter: React.FC<Props> = ({
                   <div className="p-4 text-sm text-slate-400">No retainers match your search.</div>
                 ) : (
                   retainerIdsFiltered.map((rid) => {
-                    const r = retainerById.get(rid) ?? ({} as any);
-                    const name = formatRetainerName(r as any);
-                    const city = (r as any).city ?? "-";
-                    const state = (r as any).state ?? "-";
+                    const isAdminThread = rid === ADMIN_THREAD_ID;
+                    const r = isAdminThread ? null : retainerById.get(rid) ?? ({} as any);
+                    const name = isAdminThread ? "Snap Admin" : formatRetainerName(r as any);
+                    const city = isAdminThread ? "" : (r as any).city ?? "-";
+                    const state = isAdminThread ? "" : (r as any).state ?? "-";
                     const unread = unreadForRetainer(rid);
                     const isActive = rid === activeRetainerId;
+                    const locationLabel = isAdminThread
+                      ? "System message"
+                      : city !== "-" || state !== "-"
+                        ? `${city}, ${state}`
+                        : "Location not set";
 
                     return (
                       <button
@@ -556,7 +564,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
                             {name || "Retainer"}
                           </div>
                           <div className="text-[11px] text-slate-400 truncate">
-                            {city !== "-" || state !== "-" ? `${city}, ${state}` : "Location not set"}
+                            {locationLabel}
                           </div>
                         </div>
                         <div className="shrink-0">

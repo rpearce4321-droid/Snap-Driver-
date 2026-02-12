@@ -6,6 +6,7 @@ import { getAllConversations, getAllMessages } from "./messages";
 import { getAllRoutes, getAllRouteInterests } from "./routes";
 import { getAllRetainerPosts } from "./posts";
 import { getAllRetainerBroadcasts } from "./broadcasts";
+import { getAllMeetings } from "./meetings";
 import {
   computeBadgeLevelFromCounts,
   getBadgeCheckins,
@@ -48,6 +49,7 @@ const KEY_ROUTES = "snapdriver_routes_v1";
 const KEY_ROUTE_INTERESTS = "snapdriver_route_interests_v1";
 const KEY_POSTS = "snapdriver_retainer_posts_v1";
 const KEY_BROADCASTS = "snapdriver_retainer_broadcasts_v1";
+const KEY_MEETINGS = "snapdriver_interview_meetings_v1";
 const KEY_BADGES = "snapdriver_badges_v2";
 const KEY_BADGE_RULES = "snapdriver_badge_rules_v1";
 const KEY_BADGE_SCORE = "snapdriver_badge_scoring_v1";
@@ -127,6 +129,7 @@ function shouldSyncKey(key: string): boolean {
     KEY_ROUTE_INTERESTS,
     KEY_POSTS,
     KEY_BROADCASTS,
+    KEY_MEETINGS,
     KEY_BADGES,
     KEY_BADGE_RULES,
     KEY_BADGE_SCORE,
@@ -256,6 +259,7 @@ export async function syncToServer(): Promise<void> {
     const routeInterests = getAllRouteInterests().map((ri) => markSeed(ri));
     const posts = getAllRetainerPosts().map((p) => markSeed(p));
     const broadcasts = getAllRetainerBroadcasts().map((b) => markSeed(b));
+    const meetings = getAllMeetings().map((m) => markSeed(m));
 
     const badgeDefinitions: BadgeDefinition[] = [
       ...getBadgeDefinitions("SEEKER"),
@@ -287,6 +291,7 @@ export async function syncToServer(): Promise<void> {
       routeInterests,
       posts,
       broadcasts,
+      meetings,
       badgeDefinitions,
       badgeSelections,
       badgeCheckins,
@@ -406,7 +411,8 @@ export async function pullFromServer(options?: {
       (readStoreData<any[]>(KEY_MESSAGES) ?? []).length > 0 ||
       (readStoreData<any[]>(KEY_ROUTES) ?? []).length > 0 ||
       (readStoreData<any[]>(KEY_POSTS) ?? []).length > 0 ||
-      (readStoreData<any[]>(KEY_BROADCASTS) ?? []).length > 0;
+      (readStoreData<any[]>(KEY_BROADCASTS) ?? []).length > 0 ||
+      (readStoreData<any[]>(KEY_MEETINGS) ?? []).length > 0;
     const serverHasCoreData =
       seekers.length > 0 ||
       retainers.length > 0 ||
@@ -415,7 +421,8 @@ export async function pullFromServer(options?: {
       (data.messages ?? []).length > 0 ||
       (data.routes ?? []).length > 0 ||
       (data.posts ?? []).length > 0 ||
-      (data.broadcasts ?? []).length > 0;
+      (data.broadcasts ?? []).length > 0 ||
+      (data.meetings ?? []).length > 0;
     if (!serverHasCoreData && localHasCoreData && !allowEmptyOverwrite) {
       setServerSyncMuted(false);
       lastPullAt = Date.now();
@@ -474,6 +481,7 @@ export async function pullFromServer(options?: {
     writeStore("snapdriver_work_unit_periods_v1", 1, data.workUnitPeriods ?? []);
     writeStore(KEY_POSTS, 1, data.posts ?? []);
     writeStore(KEY_BROADCASTS, 1, data.broadcasts ?? []);
+    writeStore(KEY_MEETINGS, 1, data.meetings ?? []);
 
     const seedPresent = [
       ...(data.seekers ?? []),
@@ -487,6 +495,7 @@ export async function pullFromServer(options?: {
       ...(data.workUnitPeriods ?? []),
       ...(data.posts ?? []),
       ...(data.broadcasts ?? []),
+      ...(data.meetings ?? []),
       ...(data.badgeDefinitions ?? []),
       ...(data.badgeSelections ?? []),
       ...(data.badgeCheckins ?? []),

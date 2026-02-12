@@ -78,6 +78,7 @@ const seedTables = [
   "badge_definitions",
   "broadcasts",
   "posts",
+  "interview_meetings",
   "route_interests",
   "routes",
   "route_assignments",

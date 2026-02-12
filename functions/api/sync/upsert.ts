@@ -1,5 +1,12 @@
 import { badRequest, json, requireDb, serverError } from "../_db";
 
+import {
+  createCalendarEvent,
+  deleteCalendarEvent,
+  getAccessToken,
+  updateCalendarEvent,
+} from "../google/_calendar";
+
 type Payload = {
   seekers?: any[];
   retainers?: any[];
@@ -12,6 +19,7 @@ type Payload = {
   routeInterests?: any[];
   posts?: any[];
   broadcasts?: any[];
+  meetings?: any[];
   badgeDefinitions?: any[];
   badgeSelections?: any[];
   badgeCheckins?: any[];
@@ -28,6 +36,110 @@ function isSeedItem(item: any) {
 function seedBatchIdFor(item: any) {
   if (typeof item?.seedBatchId === "string") return item.seedBatchId;
   return null;
+}
+
+function meetingStatus(raw: any) {
+  const value = String(raw || "DRAFT").toUpperCase();
+  return value === "FINALIZED" || value === "CANCELED" || value === "PROPOSED"
+    ? value
+    : "DRAFT";
+}
+
+function meetingTitle(item: any) {
+  const title = typeof item?.title === "string" ? item.title.trim() : "";
+  return title || "SnapDriver Interview";
+}
+
+function meetingDescription(item: any) {
+  const note = typeof item?.note === "string" ? item.note.trim() : "";
+  const attendees = Array.isArray(item?.attendees) ? item.attendees : [];
+  const names = attendees
+    .map((a: any) => a?.seekerName)
+    .filter((n: any) => typeof n === "string" && n.trim())
+    .join(", ");
+  const lines = [];
+  if (note) lines.push(note);
+  if (names) lines.push(`Attendees: ${names}`);
+  return lines.join("\n");
+}
+
+function meetingAttendeeEmails(item: any): string[] {
+  if (!Array.isArray(item?.attendees)) return [];
+  return item.attendees
+    .filter((a: any) => {
+      if (!a) return false;
+      const status = String(a.responseStatus || "INVITED").toUpperCase();
+      return status !== "DECLINED";
+    })
+    .map((a: any) => a?.seekerEmail)
+    .filter((email: any) => typeof email === "string" && email.includes("@"));
+}
+
+async function syncMeetingCalendar(env: any, db: any, item: any) {
+  if (!item || !item.id || !item.retainerId) return;
+  if (isSeedItem(item)) return;
+  const status = meetingStatus(item.status);
+  if (status !== "FINALIZED" && status !== "CANCELED") return;
+  const accessToken = await getAccessToken(env, item.retainerId);
+  if (!accessToken) return;
+
+  const attendees = meetingAttendeeEmails(item);
+  const title = meetingTitle(item);
+  const description = meetingDescription(item);
+
+  if (status === "FINALIZED") {
+    if (!item.startsAt || !item.endsAt) return;
+    try {
+      if (item.googleEventId) {
+        const updated = await updateCalendarEvent({
+          accessToken,
+          eventId: item.googleEventId,
+          summary: title,
+          description,
+          startAt: item.startsAt,
+          endAt: item.endsAt,
+          timeZone: item.timezone || "America/New_York",
+          attendees,
+        });
+        item.googleEventId = updated.eventId;
+        item.meetLink = updated.meetLink ?? item.meetLink ?? null;
+      } else {
+        const created = await createCalendarEvent({
+          accessToken,
+          summary: title,
+          description,
+          startAt: item.startsAt,
+          endAt: item.endsAt,
+          timeZone: item.timezone || "America/New_York",
+          attendees,
+        });
+        item.googleEventId = created.eventId;
+        item.meetLink = created.meetLink ?? null;
+      }
+    } catch {
+      return;
+    }
+  }
+
+  if (status === "CANCELED" && item.googleEventId) {
+    try {
+      await deleteCalendarEvent({ accessToken, eventId: item.googleEventId });
+    } catch {
+      // ignore delete failures
+    }
+  }
+
+  await db
+    .prepare(
+      "UPDATE interview_meetings SET status = ?, title = ?, data_json = ?, updated_at = datetime('now') WHERE id = ?"
+    )
+    .bind(
+      status,
+      item.title ?? null,
+      JSON.stringify({ ...item, status }),
+      item.id
+    )
+    .run();
 }
 
 export const onRequestPost: PagesFunction = async ({ request, env }) => {
@@ -294,6 +406,27 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
       await runUpserts(rows);
     }
 
+    const meetings = payload.meetings ?? [];
+    if (meetings.length) {
+      const rows = meetings.map((item) => {
+        const id = item.id || crypto.randomUUID();
+        return {
+          stmt:
+            "INSERT OR REPLACE INTO interview_meetings (id, retainer_id, status, title, data_json, is_seed, seed_batch_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+          values: [
+            id,
+            item.retainerId,
+            (item.status || "DRAFT").toUpperCase(),
+            item.title ?? null,
+            JSON.stringify({ ...item, id }),
+            isSeedItem(item) ? 1 : 0,
+            seedBatchIdFor(item),
+          ],
+        };
+      });
+      await runUpserts(rows);
+    }
+
     const badgeDefinitions = payload.badgeDefinitions ?? [];
     if (badgeDefinitions.length) {
       const rows = badgeDefinitions.map((item) => {
@@ -419,6 +552,12 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
         values: [item.key, item.value],
       }));
       await runUpserts(rows);
+    }
+
+    if (meetings.length) {
+      for (const meeting of meetings) {
+        await syncMeetingCalendar(env as any, db, { ...meeting });
+      }
     }
   } catch (err: any) {
     return serverError(err?.message || "Failed to upsert server data");

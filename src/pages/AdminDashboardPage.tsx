@@ -9,6 +9,8 @@ import {
   setRetainerStatusGuarded,
   setSeekerStatusGuarded,
   subscribe,
+  upsertRetainerRecord,
+  upsertSeekerRecord,
   type Retainer,
   type Seeker,
 } from "../lib/data";
@@ -28,10 +30,18 @@ import {
   getSessionMe,
   register,
   logout,
+  syncUpsert,
   getAdminUsers,
   setUserPassword,
   setUserStatus,
 } from "../lib/api";
+import {
+  ADMIN_THREAD_ID,
+  addMessageToConversation,
+  createConversationWithFirstMessage,
+  getConversationsForRetainer,
+  getConversationsForSeeker,
+} from "../lib/messages";
 import {
   getServerSyncMode,
   getServerSyncStatus,
@@ -93,6 +103,7 @@ import {
   type WorkUnitPeriod,
 } from "../lib/workUnits";
 import { badgeIconFor } from "../components/badgeIcons";
+import { getAllMeetings, type InterviewMeeting } from "../lib/meetings";
 
 import AdminExternalMessageTraffic from "../components/AdminExternalMessageTraffic";
 import AdminRetainerStaffMessageTraffic from "../components/AdminRetainerStaffMessageTraffic";
@@ -118,6 +129,8 @@ type Panel =
   | "retainers:deleted"
   | "routes"
   | "content:posts"
+  | "content:videos"
+  | "content:meetings"
   | "system:badges"
   | "system:badgeScoring"
   | "system:badgeAudit"
@@ -145,7 +158,7 @@ const sectionForPanel = (value: Panel): NavSectionKey | null => {
   if (value === "createRetainer" || value.startsWith("retainers:")) return "retainers";
   if (value.startsWith("users:")) return "users";
   if (value.startsWith("messages:")) return "messaging";
-  if (value === "routes" || value === "content:posts") return "content";
+  if (value === "routes" || value === "content:posts" || value === "content:videos" || value === "content:meetings") return "content";
   if (value.startsWith("system:")) return "badges";
   if (value === "seed:data") return "seed";
   return null;
@@ -682,6 +695,8 @@ export default function AdminDashboardPage() {
     if (panel.startsWith("retainers:")) return `Retainers - ${panel.split(":")[1]}`;
     if (panel === "routes") return "Routes";
     if (panel === "content:posts") return "Posts & Broadcasts";
+    if (panel === "content:videos") return "Profile Videos";
+    if (panel === "content:meetings") return "Interview Meetings";
     if (panel === "system:badges") return "Badge Rules";
     if (panel === "system:badgeScoring") return "Badge Scoring";
     if (panel === "system:badgeAudit") return "Badge Audit";
@@ -742,6 +757,8 @@ export default function AdminDashboardPage() {
       items: [
         { label: "Routes", value: "routes" },
         { label: "Posts", value: "content:posts" },
+        { label: "Profile Videos", value: "content:videos" },
+        { label: "Meetings", value: "content:meetings" },
       ],
     },
     {
@@ -912,6 +929,12 @@ export default function AdminDashboardPage() {
                 </NavButton>
                 <NavButton active={panel === "content:posts"} onClick={() => setPanel("content:posts")}>
                   Posts & Broadcasts
+                </NavButton>
+                <NavButton active={panel === "content:videos"} onClick={() => setPanel("content:videos")}>
+                  Profile Videos
+                </NavButton>
+                <NavButton active={panel === "content:meetings"} onClick={() => setPanel("content:meetings")}>
+                  Meetings
                 </NavButton>
               </div>
             )}
@@ -1313,6 +1336,12 @@ export default function AdminDashboardPage() {
 
           {panel === "content:posts" && (
             <AdminPostsPanel retainers={retainers} />
+          )}
+          {panel === "content:videos" && (
+            <AdminProfileVideosPanel retainers={retainers} seekers={seekers} />
+          )}
+          {panel === "content:meetings" && (
+            <AdminMeetingsPanel retainers={retainers} seekers={seekers} />
           )}
 
           {panel === "seed:data" && <AdminSeedDataPanel />}
@@ -3617,6 +3646,565 @@ const AdminServerPanel: React.FC = () => {
       )}
     </div>
 
+  );
+};
+
+const AdminMeetingsPanel: React.FC<{
+  retainers: Retainer[];
+  seekers: Seeker[];
+}> = ({ retainers, seekers }) => {
+  const [refresh, setRefresh] = useState(0);
+  const meetings = useMemo<InterviewMeeting[]>(() => getAllMeetings(), [refresh]);
+  const retainerById = useMemo(
+    () => new Map(retainers.map((r) => [r.id, r] as const)),
+    [retainers]
+  );
+  const seekerById = useMemo(
+    () => new Map(seekers.map((s) => [s.id, s] as const)),
+    [seekers]
+  );
+
+  const totals = useMemo(() => {
+    const acc = {
+      meetings: meetings.length,
+      finalized: 0,
+      canceled: 0,
+      pending: 0,
+      attendees: 0,
+      confirmed: 0,
+      declined: 0,
+      invited: 0,
+      reschedule: 0,
+      met: 0,
+      noShow: 0,
+      duration: 0,
+    };
+    for (const meeting of meetings) {
+      if (meeting.status === "FINALIZED") acc.finalized += 1;
+      else if (meeting.status === "CANCELED") acc.canceled += 1;
+      else acc.pending += 1;
+      acc.duration += meeting.durationMinutes || 0;
+      acc.attendees += meeting.attendees.length;
+      acc.invited += meeting.attendees.length;
+      for (const attendee of meeting.attendees) {
+        if (attendee.responseStatus === "CONFIRMED") acc.confirmed += 1;
+        if (attendee.responseStatus === "DECLINED") acc.declined += 1;
+        if (attendee.rescheduleRequested) acc.reschedule += 1;
+        if (attendee.retainerOutcome === "MET" || attendee.seekerOutcome === "MET") {
+          acc.met += 1;
+        }
+        if (attendee.retainerOutcome === "NO_SHOW" || attendee.seekerOutcome === "NO_SHOW") {
+          acc.noShow += 1;
+        }
+      }
+    }
+    return {
+      ...acc,
+      avgDuration: acc.meetings ? Math.round(acc.duration / acc.meetings) : 0,
+      avgAttendees: acc.meetings ? (acc.attendees / acc.meetings).toFixed(1) : "0",
+    };
+  }, [meetings]);
+
+  const retainerRows = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        retainerId: string;
+        meetings: number;
+        finalized: number;
+        canceled: number;
+        attendees: number;
+        confirmed: number;
+        noShow: number;
+        duration: number;
+        lastAt: string | null;
+      }
+    >();
+    for (const meeting of meetings) {
+      const row =
+        map.get(meeting.retainerId) ||
+        {
+          retainerId: meeting.retainerId,
+          meetings: 0,
+          finalized: 0,
+          canceled: 0,
+          attendees: 0,
+          confirmed: 0,
+          noShow: 0,
+          duration: 0,
+          lastAt: null,
+        };
+      row.meetings += 1;
+      row.duration += meeting.durationMinutes || 0;
+      row.attendees += meeting.attendees.length;
+      if (meeting.status === "FINALIZED") row.finalized += 1;
+      if (meeting.status === "CANCELED") row.canceled += 1;
+      row.confirmed += meeting.attendees.filter((a) => a.responseStatus === "CONFIRMED").length;
+      row.noShow += meeting.attendees.filter(
+        (a) => a.retainerOutcome === "NO_SHOW" || a.seekerOutcome === "NO_SHOW"
+      ).length;
+      if (!row.lastAt || Date.parse(meeting.updatedAt) > Date.parse(row.lastAt)) {
+        row.lastAt = meeting.updatedAt;
+      }
+      map.set(meeting.retainerId, row);
+    }
+    return Array.from(map.values()).sort((a, b) => b.meetings - a.meetings);
+  }, [meetings]);
+
+  const seekerRows = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        seekerId: string;
+        invites: number;
+        confirmed: number;
+        declined: number;
+        reschedule: number;
+        met: number;
+        noShow: number;
+        lastAt: string | null;
+      }
+    >();
+    for (const meeting of meetings) {
+      for (const attendee of meeting.attendees) {
+        const row =
+          map.get(attendee.seekerId) ||
+          {
+            seekerId: attendee.seekerId,
+            invites: 0,
+            confirmed: 0,
+            declined: 0,
+            reschedule: 0,
+            met: 0,
+            noShow: 0,
+            lastAt: null,
+          };
+        row.invites += 1;
+        if (attendee.responseStatus === "CONFIRMED") row.confirmed += 1;
+        if (attendee.responseStatus === "DECLINED") row.declined += 1;
+        if (attendee.rescheduleRequested) row.reschedule += 1;
+        if (attendee.retainerOutcome === "MET" || attendee.seekerOutcome === "MET") {
+          row.met += 1;
+        }
+        if (attendee.retainerOutcome === "NO_SHOW" || attendee.seekerOutcome === "NO_SHOW") {
+          row.noShow += 1;
+        }
+        if (!row.lastAt || Date.parse(meeting.updatedAt) > Date.parse(row.lastAt)) {
+          row.lastAt = meeting.updatedAt;
+        }
+        map.set(attendee.seekerId, row);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.invites - a.invites);
+  }, [meetings]);
+
+  const fmtWhen = (iso?: string | null) => {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+  };
+
+  return (
+    <section className="surface p-5 hover:border-blue-500/30 transition">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-xl font-semibold">Interview Meetings</h2>
+          <p className="text-sm text-white/60">
+            Admin visibility into interview cadence, attendance, and outcomes.
+          </p>
+        </div>
+        <button type="button" className="btn" onClick={() => setRefresh((n) => n + 1)}>
+          Refresh
+        </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+        <KPI label="Meetings" value={totals.meetings} />
+        <KPI label="Finalized" value={totals.finalized} />
+        <KPI label="Canceled" value={totals.canceled} />
+        <KPI label="Avg duration (min)" value={totals.avgDuration} />
+        <KPI label="Attendees" value={totals.attendees} />
+        <KPI label="Confirmed" value={totals.confirmed} />
+        <KPI label="No-show" value={totals.noShow} />
+        <KPI label="Avg attendees" value={totals.avgAttendees} />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
+          <div className="text-xs uppercase tracking-wide text-white/60">Retainers</div>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-xs text-white/70">
+              <thead>
+                <tr className="text-[11px] text-white/50">
+                  <th className="text-left py-2 pr-2">Retainer</th>
+                  <th className="text-right py-2 px-2">Meetings</th>
+                  <th className="text-right py-2 px-2">Finalized</th>
+                  <th className="text-right py-2 px-2">Attendees</th>
+                  <th className="text-right py-2 px-2">No-show</th>
+                  <th className="text-right py-2 px-2">Avg min</th>
+                  <th className="text-right py-2 pl-2">Last update</th>
+                </tr>
+              </thead>
+              <tbody>
+                {retainerRows.length === 0 ? (
+                  <tr>
+                    <td className="py-3 text-white/50" colSpan={7}>
+                      No meetings recorded yet.
+                    </td>
+                  </tr>
+                ) : (
+                  retainerRows.map((row) => {
+                    const ret = retainerById.get(row.retainerId);
+                    const name = ret?.companyName || `Retainer (${row.retainerId})`;
+                    return (
+                      <tr key={row.retainerId} className="border-t border-white/10">
+                        <td className="py-2 pr-2 text-white/80">{name}</td>
+                        <td className="py-2 px-2 text-right">{row.meetings}</td>
+                        <td className="py-2 px-2 text-right">{row.finalized}</td>
+                        <td className="py-2 px-2 text-right">{row.attendees}</td>
+                        <td className="py-2 px-2 text-right">{row.noShow}</td>
+                        <td className="py-2 px-2 text-right">
+                          {row.meetings ? Math.round(row.duration / row.meetings) : 0}
+                        </td>
+                        <td className="py-2 pl-2 text-right">{fmtWhen(row.lastAt)}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
+          <div className="text-xs uppercase tracking-wide text-white/60">Seekers</div>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-xs text-white/70">
+              <thead>
+                <tr className="text-[11px] text-white/50">
+                  <th className="text-left py-2 pr-2">Seeker</th>
+                  <th className="text-right py-2 px-2">Invites</th>
+                  <th className="text-right py-2 px-2">Confirmed</th>
+                  <th className="text-right py-2 px-2">Declined</th>
+                  <th className="text-right py-2 px-2">No-show</th>
+                  <th className="text-right py-2 px-2">Met</th>
+                  <th className="text-right py-2 pl-2">Last update</th>
+                </tr>
+              </thead>
+              <tbody>
+                {seekerRows.length === 0 ? (
+                  <tr>
+                    <td className="py-3 text-white/50" colSpan={7}>
+                      No attendee data yet.
+                    </td>
+                  </tr>
+                ) : (
+                  seekerRows.map((row) => {
+                    const seeker = seekerById.get(row.seekerId);
+                    const name = seeker ? formatSeekerName(seeker) : `Seeker (${row.seekerId})`;
+                    return (
+                      <tr key={row.seekerId} className="border-t border-white/10">
+                        <td className="py-2 pr-2 text-white/80">{name}</td>
+                        <td className="py-2 px-2 text-right">{row.invites}</td>
+                        <td className="py-2 px-2 text-right">{row.confirmed}</td>
+                        <td className="py-2 px-2 text-right">{row.declined}</td>
+                        <td className="py-2 px-2 text-right">{row.noShow}</td>
+                        <td className="py-2 px-2 text-right">{row.met}</td>
+                        <td className="py-2 pl-2 text-right">{fmtWhen(row.lastAt)}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const AdminProfileVideosPanel: React.FC<{
+  retainers: Retainer[];
+  seekers: Seeker[];
+}> = ({ retainers, seekers }) => {
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const pendingSeekers = useMemo(
+    () =>
+      seekers
+        .filter((s) => (s as any).introVideoStatus === "PENDING" && (s as any).introVideoUrl)
+        .sort((a, b) => String(a.firstName).localeCompare(String(b.firstName))),
+    [seekers]
+  );
+  const pendingRetainers = useMemo(
+    () =>
+      retainers
+        .filter((r) => (r as any).introVideoStatus === "PENDING" && (r as any).introVideoUrl)
+        .sort((a, b) => String(a.companyName).localeCompare(String(b.companyName))),
+    [retainers]
+  );
+
+  const adminSession = getSession();
+  const adminId = adminSession?.adminId ?? "admin";
+  const adminEmail = adminSession?.email ?? undefined;
+
+  const formatBytes = (value?: number) => {
+    if (!value || value <= 0) return "-";
+    const mb = value / (1024 * 1024);
+    if (mb >= 1) return `${mb.toFixed(1)} MB`;
+    const kb = value / 1024;
+    return `${kb.toFixed(0)} KB`;
+  };
+
+  const formatDuration = (value?: number) => {
+    if (!value || value <= 0) return "-";
+    const minutes = Math.floor(value / 60);
+    const seconds = Math.round(value % 60);
+    return minutes ? `${minutes}m ${seconds}s` : `${seconds}s`;
+  };
+
+  const sendAdminMessage = (args: { role: "SEEKER" | "RETAINER"; ownerId: string; body: string }) => {
+    const subject = "Profile video review";
+    try {
+      if (args.role === "SEEKER") {
+        const existing = getConversationsForSeeker(args.ownerId).find(
+          (c) => c.retainerId === ADMIN_THREAD_ID
+        );
+        if (existing) {
+          addMessageToConversation({
+            conversationId: existing.id,
+            body: args.body,
+            senderRole: "ADMIN",
+          });
+        } else {
+          createConversationWithFirstMessage({
+            seekerId: args.ownerId,
+            retainerId: ADMIN_THREAD_ID,
+            subject,
+            body: args.body,
+            senderRole: "ADMIN",
+          });
+        }
+        return;
+      }
+
+      const existing = getConversationsForRetainer(args.ownerId).find(
+        (c) => c.seekerId === ADMIN_THREAD_ID
+      );
+      if (existing) {
+        addMessageToConversation({
+          conversationId: existing.id,
+          body: args.body,
+          senderRole: "ADMIN",
+        });
+      } else {
+        createConversationWithFirstMessage({
+          seekerId: ADMIN_THREAD_ID,
+          retainerId: args.ownerId,
+          subject,
+          body: args.body,
+          senderRole: "ADMIN",
+        });
+      }
+    } catch {
+      // ignore messaging failures
+    }
+  };
+
+  const applyUpdate = async (ownerRole: "SEEKER" | "RETAINER", updated: Seeker | Retainer) => {
+    if (getServerSyncMode() === "server") {
+      if (ownerRole === "SEEKER") {
+        await syncUpsert({ seekers: [updated] });
+      } else {
+        await syncUpsert({ retainers: [updated] });
+      }
+    }
+    if (ownerRole === "SEEKER") {
+      upsertSeekerRecord(updated as Seeker);
+    } else {
+      upsertRetainerRecord(updated as Retainer);
+    }
+  };
+
+  const handleApprove = async (ownerRole: "SEEKER" | "RETAINER", owner: Seeker | Retainer) => {
+    const id = `${ownerRole}:${owner.id}`;
+    setBusyId(id);
+    setError(null);
+    try {
+      const now = new Date().toISOString();
+      const updated = {
+        ...owner,
+        introVideoStatus: "APPROVED",
+        introVideoApprovedAt: now,
+        introVideoApprovedBy: adminId,
+        introVideoApprovedByEmail: adminEmail,
+        introVideoRejectedAt: undefined,
+        introVideoRejectedBy: undefined,
+        introVideoRejectedByEmail: undefined,
+      };
+      await applyUpdate(ownerRole, updated as Seeker | Retainer);
+    } catch (err: any) {
+      setError(err?.message || "Failed to approve video.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleReject = async (ownerRole: "SEEKER" | "RETAINER", owner: Seeker | Retainer) => {
+    const id = `${ownerRole}:${owner.id}`;
+    const reason = (notes[id] || "").trim();
+    if (!reason) {
+      setError("Add a rejection reason before rejecting.");
+      return;
+    }
+    setBusyId(id);
+    setError(null);
+    try {
+      const now = new Date().toISOString();
+      const updated = {
+        ...owner,
+        introVideoStatus: "REJECTED",
+        introVideoUrl: undefined,
+        introVideoSubmittedAt: undefined,
+        introVideoDurationSec: undefined,
+        introVideoSizeBytes: undefined,
+        introVideoMime: undefined,
+        introVideoApprovedAt: undefined,
+        introVideoApprovedBy: undefined,
+        introVideoApprovedByEmail: undefined,
+        introVideoRejectedAt: now,
+        introVideoRejectedBy: adminId,
+        introVideoRejectedByEmail: adminEmail,
+      };
+      await applyUpdate(ownerRole, updated as Seeker | Retainer);
+      sendAdminMessage({
+        role: ownerRole,
+        ownerId: String(owner.id),
+        body: `Your intro video was not approved.\nReason: ${reason}`,
+      });
+      setNotes((prev) => ({ ...prev, [id]: "" }));
+    } catch (err: any) {
+      setError(err?.message || "Failed to reject video.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const renderQueue = (
+    label: string,
+    ownerRole: "SEEKER" | "RETAINER",
+    items: Array<Seeker | Retainer>,
+    nameFor: (item: Seeker | Retainer) => string
+  ) => (
+    <div className="space-y-3">
+      <div className="text-sm font-semibold text-white/80">{label}</div>
+      {items.length === 0 ? (
+        <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/60">
+          No pending videos.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.map((item) => {
+            const key = `${ownerRole}:${item.id}`;
+            const isBusy = busyId === key;
+            const url = (item as any).introVideoUrl as string;
+            const submittedAt = (item as any).introVideoSubmittedAt as string | undefined;
+            const duration = (item as any).introVideoDurationSec as number | undefined;
+            const sizeBytes = (item as any).introVideoSizeBytes as number | undefined;
+            const mime = (item as any).introVideoMime as string | undefined;
+            return (
+              <div key={key} className="rounded-xl border border-white/10 bg-white/5 p-4 space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold">{nameFor(item)}</div>
+                    <div className="text-xs text-white/60">
+                      Submitted: {submittedAt ? new Date(submittedAt).toLocaleString() : "-"}
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-white/60 space-x-3">
+                    <span>Length: {formatDuration(duration)}</span>
+                    <span>Size: {formatBytes(sizeBytes)}</span>
+                    <span>Type: {mime || "video"}</span>
+                  </div>
+                </div>
+
+                <video
+                  src={url}
+                  controls
+                  preload="metadata"
+                  className="w-full max-h-[280px] rounded-lg border border-white/10 bg-black"
+                />
+
+                <textarea
+                  className="input min-h-[80px]"
+                  placeholder="Rejection reason (required for reject)"
+                  value={notes[key] ?? ""}
+                  onChange={(e) =>
+                    setNotes((prev) => ({ ...prev, [key]: e.target.value }))
+                  }
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={isBusy}
+                    onClick={() => handleApprove(ownerRole, item)}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    className="btn border-amber-400/40 text-amber-100 bg-amber-500/10 hover:bg-amber-500/20"
+                    disabled={isBusy}
+                    onClick={() => handleReject(ownerRole, item)}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <section className="surface p-5 hover:border-blue-500/30 transition space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold">Profile Videos</h2>
+          <p className="text-sm text-white/60">
+            Review pending intro videos for seekers and retainers before they appear in the wheel.
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          {error}
+        </div>
+      )}
+
+      <div className="grid gap-5">
+        {renderQueue(
+          "Seeker submissions",
+          "SEEKER",
+          pendingSeekers,
+          (item) => `${(item as Seeker).firstName ?? ""} ${(item as Seeker).lastName ?? ""}`.trim() || "Seeker"
+        )}
+        {renderQueue(
+          "Retainer submissions",
+          "RETAINER",
+          pendingRetainers,
+          (item) => (item as Retainer).companyName || "Retainer"
+        )}
+      </div>
+    </section>
   );
 };
 

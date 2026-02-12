@@ -20,6 +20,7 @@ import {
   setSeekerHierarchyNodes,
   subscribe,
   type PayCycleFrequency,
+  type VideoApprovalStatus,
   type VehicleEntry,
 } from "../lib/data";
 import {
@@ -35,9 +36,6 @@ import {
   getLinksForSeeker,
   getLink,
   requestLink,
-  addLinkMeetingProposal,
-  acceptLinkMeetingProposal,
-  clearLinkMeetingSchedule,
   resetLink,
   setLinkApproved,
   setLinkStatus,
@@ -60,6 +58,7 @@ import {
 } from "../lib/routeNotices";
 import { canSeekerLink, getSeekerTrialStatus } from "../lib/entitlements";
 import { getFeedForSeeker, type FeedItem } from "../lib/feed";
+import ProfileVideoSection from "../components/ProfileVideoSection";
 import {
   recordRouteResponse,
   getRouteResponseForSeeker,
@@ -119,6 +118,12 @@ import { badgeIconFor } from "../components/badgeIcons";
 import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
 import { changePassword, logout, resetPassword, syncUpsert } from "../lib/api";
 import { isServerAuthoritative } from "../lib/serverSync";
+import {
+  getMeetingsForSeeker,
+  markMeetingOutcome,
+  requestMeetingReschedule,
+  setAttendeeResponse,
+} from "../lib/meetings";
 import { getRetainerPosts, type RetainerPost } from "../lib/posts";
 import { getStockImageUrl } from "../lib/stockImages";
 import { uploadImageWithFallback, MAX_IMAGE_BYTES } from "../lib/uploads";
@@ -2529,25 +2534,6 @@ const DashboardView: React.FC<{
     () => new Map<string, Retainer>(retainers.map((r) => [r.id, r])),
     [retainers]
   );
-  const linkAccess = useMemo(
-    () =>
-      seekerId
-        ? canSeekerLink(seekerId)
-        : { ok: false, reason: "Select a Seeker profile first." },
-    [seekerId]
-  );
-  const trialStatus = useMemo(
-    () =>
-      seekerId
-        ? getSeekerTrialStatus(seekerId)
-        : { isTrial: false, isExpired: false, daysRemaining: null, endsAt: null },
-    [seekerId]
-  );
-  const scheduleDisabled = !linkAccess.ok;
-  const scheduleBlockReason =
-    linkAccess.reason || "Upgrade to schedule video calls.";
-
-
   const [feedTick, setFeedTick] = useState(0);
   const [feedFilters, setFeedFilters] = useState<Set<FeedFilterKey>>(
     () => new Set(FEED_FILTER_OPTIONS.map((item) => item.key))
@@ -3043,12 +3029,7 @@ const DashboardView: React.FC<{
     ? getReputationScoreForProfile({ ownerRole: "SEEKER", ownerId: seekerId })
     : null;
 
-  const [linkTick, setLinkTick] = useState(0);
-  const [scheduleLink, setScheduleLink] = useState<LinkingLink | null>(null);
-  const [proposalAt, setProposalAt] = useState("");
-  const [proposalDuration, setProposalDuration] = useState<number>(20);
-  const [proposalNote, setProposalNote] = useState("");
-  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [linkTick] = useState(0);
 
   const pendingLinks = useMemo(() => {
     if (!seekerId) return [];
@@ -3527,248 +3508,6 @@ const DashboardView: React.FC<{
         </div>
       </aside>
 
-      {scheduleLink && seekerId && (
-        <div className="fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-black/70"
-            onClick={() => setScheduleLink(null)}
-          />
-          <div className="relative h-full w-full p-6 md:p-10 flex items-center justify-center overflow-y-auto">
-            <div className="w-full max-w-xl rounded-3xl border border-slate-700 bg-slate-950 shadow-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
-                <div className="min-w-0">
-                  <div className="text-xs uppercase tracking-wide text-slate-400">
-                    Schedule video call
-                  </div>
-                  <div className="text-sm font-semibold text-slate-100 truncate">
-                    {(() => {
-                      const r = retainerById.get(scheduleLink.retainerId) as any;
-                      return r ? formatRetainerName(r) : `Retainer (${scheduleLink.retainerId})`;
-                    })()}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setScheduleLink(null)}
-                  className="h-9 w-9 rounded-full border border-slate-700 text-slate-200 hover:bg-slate-900 transition"
-                  title="Close"
-                >
-                  �
-                </button>
-              </div>
-
-              <div className="p-4 space-y-4">
-                {scheduleDisabled && (
-                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-                    {trialStatus.isTrial
-                      ? trialStatus.isExpired
-                        ? "Trial ended. Upgrade to schedule video calls."
-                        : `Trial active. ${trialStatus.daysRemaining ?? 0} days left. Upgrade to schedule video calls.`
-                      : scheduleBlockReason}
-                  </div>
-                )}
-                {scheduleError && (
-                  <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
-                    {scheduleError}
-                  </div>
-                )}
-
-                {(() => {
-                  const proposals = (scheduleLink.meetingProposals || [])
-                    .slice()
-                    .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
-                  const accepted =
-                    scheduleLink.meetingAcceptedProposalId &&
-                    proposals.find((p) => p.id === scheduleLink.meetingAcceptedProposalId);
-
-                  return (
-                    <div className="space-y-3">
-                      {accepted ? (
-                        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3">
-                          <div className="text-sm font-semibold text-emerald-100">
-                            Scheduled
-                          </div>
-                          <div className="text-sm text-slate-50 mt-1">
-                            {new Date(accepted.startAt).toLocaleString()} �{" "}
-                            {accepted.durationMinutes} minutes
-                          </div>
-                          <div className="text-[11px] text-emerald-200/80 mt-1">
-                            Proposed by {accepted.by === "SEEKER" ? "you" : "Retainer"}
-                          </div>
-
-                          <div className="mt-3">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (scheduleDisabled) {
-                                  onToast(scheduleBlockReason);
-                                  return;
-                                }
-                                const next = clearLinkMeetingSchedule({
-                                  seekerId,
-                                  retainerId: scheduleLink.retainerId,
-                                });
-                                if (next) setScheduleLink(next);
-                                setLinkTick((x) => x + 1);
-                                onToast("Scheduled call cleared.");
-                              }}
-                              className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                              disabled={scheduleDisabled}
-                            >
-                              Clear schedule
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-                          <div className="text-xs uppercase tracking-wide text-slate-400">
-                            Proposed times
-                          </div>
-                          {proposals.length === 0 ? (
-                            <div className="text-sm text-slate-400 mt-2">
-                              No times proposed yet.
-                            </div>
-                          ) : (
-                            <div className="mt-2 space-y-2">
-                              {proposals.slice(0, 6).map((p) => (
-                                <div
-                                  key={p.id}
-                                  className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between gap-2"
-                                >
-                                  <div className="min-w-0">
-                                    <div className="text-sm text-slate-100 truncate">
-                                      {new Date(p.startAt).toLocaleString()}
-                                    </div>
-                                    <div className="text-[11px] text-slate-500">
-                                      {p.durationMinutes}m � Proposed by{" "}
-                                      {p.by === "SEEKER" ? "you" : "Retainer"}
-                                      {p.note ? ` � ${p.note}` : ""}
-                                    </div>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (scheduleDisabled) {
-                                        onToast(scheduleBlockReason);
-                                        return;
-                                      }
-                                      const next = acceptLinkMeetingProposal({
-                                        seekerId,
-                                        retainerId: scheduleLink.retainerId,
-                                        proposalId: p.id,
-                                      });
-                                      if (next) setScheduleLink(next);
-                                      setLinkTick((x) => x + 1);
-                                      onToast("Video call time confirmed.");
-                                    }}
-                                    className="px-3 py-1.5 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-                                    disabled={scheduleDisabled}
-                                  >
-                                    Accept
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
-                  <div className="text-xs uppercase tracking-wide text-slate-400">
-                    Propose a time
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="space-y-1">
-                      <div className="text-xs font-medium text-slate-200">Start</div>
-                      <input
-                        type="datetime-local"
-                        value={proposalAt}
-                        onChange={(e) => setProposalAt(e.target.value)}
-                        disabled={scheduleDisabled}
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      />
-                    </label>
-                    <label className="space-y-1">
-                      <div className="text-xs font-medium text-slate-200">
-                        Duration
-                      </div>
-                      <select
-                        value={proposalDuration}
-                        onChange={(e) => setProposalDuration(Number(e.target.value) || 20)}
-                        disabled={scheduleDisabled}
-                        className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      >
-                        <option value={10}>10 minutes</option>
-                        <option value={20}>20 minutes</option>
-                        <option value={30}>30 minutes</option>
-                      </select>
-                    </label>
-                  </div>
-                  <label className="space-y-1">
-                    <div className="text-xs font-medium text-slate-200">Note (optional)</div>
-                    <input
-                      value={proposalNote}
-                      onChange={(e) => setProposalNote(e.target.value)}
-                      disabled={scheduleDisabled}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      placeholder="Example: Quick intro + route fit"
-                    />
-                  </label>
-
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (scheduleDisabled) {
-                          onToast(scheduleBlockReason);
-                          return;
-                        }
-                        setScheduleError(null);
-                        if (!proposalAt) {
-                          setScheduleError("Pick a start time first.");
-                          return;
-                        }
-                        const d = new Date(proposalAt);
-                        if (Number.isNaN(d.getTime())) {
-                          setScheduleError("Invalid date/time.");
-                          return;
-                        }
-                        try {
-                          const next = addLinkMeetingProposal({
-                            seekerId,
-                            retainerId: scheduleLink.retainerId,
-                            by: "SEEKER",
-                            startAt: d.toISOString(),
-                            durationMinutes: proposalDuration,
-                            note: proposalNote,
-                          });
-                          setScheduleLink(next);
-                          setProposalAt("");
-                          setProposalNote("");
-                          setLinkTick((x) => x + 1);
-                          onToast("Proposed a video call time.");
-                        } catch (err: any) {
-                          setScheduleError(err?.message || "Unable to propose a time.");
-                        }
-                      }}
-                      className="px-4 py-2 rounded-full text-sm font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                      disabled={scheduleDisabled}
-                    >
-                      Add proposal
-                    </button>
-                    <div className="text-[11px] text-slate-500">
-                      Times use the timezone set above.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
@@ -4080,6 +3819,7 @@ const ActionView: React.FC<{
         {actionTab === "schedule" && (
           <SeekerScheduleView
             seeker={currentSeeker}
+            retainers={retainers}
             onSaved={onSeekerUpdated}
           />
         )}
@@ -4827,6 +4567,10 @@ const RetainerWheelCard: React.FC<{
   const city = (retainer as any).city ?? "�";
   const state = (retainer as any).state ?? "�";
   const photoUrl = getRetainerPhotoUrl(retainer);
+  const introVideoUrl =
+    (retainer as any).introVideoStatus === "APPROVED"
+      ? (retainer as any).introVideoUrl
+      : undefined;
 
   const verts: string[] = Array.isArray((retainer as any).deliveryVerticals)
     ? (retainer as any).deliveryVerticals
@@ -4862,10 +4606,21 @@ const RetainerWheelCard: React.FC<{
     >
       <div className="mb-3">
         <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950/60 h-24 sm:h-32 md:h-40 lg:h-48 xl:h-56 w-full flex items-center justify-center">
-          {photoUrl ? (
+          {introVideoUrl ? (
+            <video
+              src={introVideoUrl}
+              muted
+              loop
+              autoPlay
+              playsInline
+              preload="metadata"
+              poster={photoUrl}
+              className="h-full w-full object-cover"
+            />
+          ) : photoUrl ? (
             <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
           ) : (
-            <div className="text-xs text-slate-400">No photo</div>
+            <div className="text-xs text-slate-400">No media</div>
           )}
 
           <div className="absolute top-2 left-2 flex items-center gap-1.5">
@@ -5811,6 +5566,42 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
   const [photoUrl, setPhotoUrl] = useState(
     (initial as any)?.photoUrl ?? (initial as any)?.profileImageUrl ?? ""
   );
+  const [introVideoUrl, setIntroVideoUrl] = useState(
+    (initial as any)?.introVideoUrl ?? ""
+  );
+  const [introVideoStatus, setIntroVideoStatus] = useState<
+    VideoApprovalStatus | undefined
+  >((initial as any)?.introVideoStatus ?? undefined);
+  const [introVideoSubmittedAt, setIntroVideoSubmittedAt] = useState<
+    string | undefined
+  >((initial as any)?.introVideoSubmittedAt ?? undefined);
+  const [introVideoApprovedAt, setIntroVideoApprovedAt] = useState<
+    string | undefined
+  >((initial as any)?.introVideoApprovedAt ?? undefined);
+  const [introVideoApprovedBy, setIntroVideoApprovedBy] = useState<
+    string | undefined
+  >((initial as any)?.introVideoApprovedBy ?? undefined);
+  const [introVideoApprovedByEmail, setIntroVideoApprovedByEmail] = useState<
+    string | undefined
+  >((initial as any)?.introVideoApprovedByEmail ?? undefined);
+  const [introVideoRejectedAt, setIntroVideoRejectedAt] = useState<
+    string | undefined
+  >((initial as any)?.introVideoRejectedAt ?? undefined);
+  const [introVideoRejectedBy, setIntroVideoRejectedBy] = useState<
+    string | undefined
+  >((initial as any)?.introVideoRejectedBy ?? undefined);
+  const [introVideoRejectedByEmail, setIntroVideoRejectedByEmail] = useState<
+    string | undefined
+  >((initial as any)?.introVideoRejectedByEmail ?? undefined);
+  const [introVideoDurationSec, setIntroVideoDurationSec] = useState<
+    number | undefined
+  >((initial as any)?.introVideoDurationSec ?? undefined);
+  const [introVideoSizeBytes, setIntroVideoSizeBytes] = useState<
+    number | undefined
+  >((initial as any)?.introVideoSizeBytes ?? undefined);
+  const [introVideoMime, setIntroVideoMime] = useState<string | undefined>(
+    (initial as any)?.introVideoMime ?? undefined
+  );
   const [vehiclePhoto1, setVehiclePhoto1] = useState(
     (initial as any)?.vehiclePhoto1 ?? ""
   );
@@ -5841,6 +5632,18 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
       setInsuranceType(INSURANCE_TYPES[0]);
       setSelectedVerticals([]);
       setPhotoUrl("");
+      setIntroVideoUrl("");
+      setIntroVideoStatus(undefined);
+      setIntroVideoSubmittedAt(undefined);
+      setIntroVideoApprovedAt(undefined);
+      setIntroVideoApprovedBy(undefined);
+      setIntroVideoApprovedByEmail(undefined);
+      setIntroVideoRejectedAt(undefined);
+      setIntroVideoRejectedBy(undefined);
+      setIntroVideoRejectedByEmail(undefined);
+      setIntroVideoDurationSec(undefined);
+      setIntroVideoSizeBytes(undefined);
+      setIntroVideoMime(undefined);
       setVehiclePhoto1("");
       setVehiclePhoto2("");
       setVehiclePhoto3("");
@@ -5867,6 +5670,18 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     setPhotoUrl(
       (initial as any)?.photoUrl ?? (initial as any)?.profileImageUrl ?? ""
     );
+    setIntroVideoUrl((initial as any)?.introVideoUrl ?? "");
+    setIntroVideoStatus((initial as any)?.introVideoStatus ?? undefined);
+    setIntroVideoSubmittedAt((initial as any)?.introVideoSubmittedAt ?? undefined);
+    setIntroVideoApprovedAt((initial as any)?.introVideoApprovedAt ?? undefined);
+    setIntroVideoApprovedBy((initial as any)?.introVideoApprovedBy ?? undefined);
+    setIntroVideoApprovedByEmail((initial as any)?.introVideoApprovedByEmail ?? undefined);
+    setIntroVideoRejectedAt((initial as any)?.introVideoRejectedAt ?? undefined);
+    setIntroVideoRejectedBy((initial as any)?.introVideoRejectedBy ?? undefined);
+    setIntroVideoRejectedByEmail((initial as any)?.introVideoRejectedByEmail ?? undefined);
+    setIntroVideoDurationSec((initial as any)?.introVideoDurationSec ?? undefined);
+    setIntroVideoSizeBytes((initial as any)?.introVideoSizeBytes ?? undefined);
+    setIntroVideoMime((initial as any)?.introVideoMime ?? undefined);
     setVehiclePhoto1((initial as any)?.vehiclePhoto1 ?? "");
     setVehiclePhoto2((initial as any)?.vehiclePhoto2 ?? "");
     setVehiclePhoto3((initial as any)?.vehiclePhoto3 ?? "");
@@ -5995,7 +5810,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     { key: "core", label: "Profile 1: Core Info" },
     { key: "insuranceVerticals", label: "Profile 2: Insurance & Verticals" },
     { key: "vehicleNotes", label: "Profile 3: Vehicle & Notes" },
-    { key: "photos", label: "Profile 4: Photos" },
+    { key: "photos", label: "Profile 4: My Media" },
     { key: "workHistory", label: "Profile 5: Work History" },
   ];
 
@@ -6035,6 +5850,39 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
       setter(url);
     } catch (err: any) {
       setError(err?.message || "Upload failed.");
+    }
+  };
+
+  const updateIntroVideo = (patch: {
+    introVideoUrl?: string;
+    introVideoStatus?: VideoApprovalStatus;
+    introVideoSubmittedAt?: string;
+    introVideoDurationSec?: number;
+    introVideoSizeBytes?: number;
+    introVideoMime?: string;
+  }) => {
+    if ("introVideoUrl" in patch) setIntroVideoUrl(patch.introVideoUrl ?? "");
+    if ("introVideoStatus" in patch) setIntroVideoStatus(patch.introVideoStatus);
+    if ("introVideoSubmittedAt" in patch) {
+      setIntroVideoSubmittedAt(patch.introVideoSubmittedAt);
+    }
+    if ("introVideoDurationSec" in patch) {
+      setIntroVideoDurationSec(patch.introVideoDurationSec);
+    }
+    if ("introVideoSizeBytes" in patch) {
+      setIntroVideoSizeBytes(patch.introVideoSizeBytes);
+    }
+    if ("introVideoMime" in patch) {
+      setIntroVideoMime(patch.introVideoMime);
+    }
+
+    if (patch.introVideoStatus === "PENDING") {
+      setIntroVideoApprovedAt(undefined);
+      setIntroVideoApprovedBy(undefined);
+      setIntroVideoApprovedByEmail(undefined);
+      setIntroVideoRejectedAt(undefined);
+      setIntroVideoRejectedBy(undefined);
+      setIntroVideoRejectedByEmail(undefined);
     }
   };
 
@@ -6085,6 +5933,18 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
         insuranceType: insuranceType || undefined,
         notes: notes.trim() || undefined,
         photoUrl: photoUrl.trim() || undefined,
+        introVideoUrl: introVideoUrl.trim() || undefined,
+        introVideoStatus: introVideoStatus || undefined,
+        introVideoSubmittedAt: introVideoSubmittedAt || undefined,
+        introVideoApprovedAt: introVideoApprovedAt || undefined,
+        introVideoApprovedBy: introVideoApprovedBy || undefined,
+        introVideoApprovedByEmail: introVideoApprovedByEmail || undefined,
+        introVideoRejectedAt: introVideoRejectedAt || undefined,
+        introVideoRejectedBy: introVideoRejectedBy || undefined,
+        introVideoRejectedByEmail: introVideoRejectedByEmail || undefined,
+        introVideoDurationSec: introVideoDurationSec ?? undefined,
+        introVideoSizeBytes: introVideoSizeBytes ?? undefined,
+        introVideoMime: introVideoMime || undefined,
         vehiclePhoto1: vehiclePhoto1.trim() || undefined,
         vehiclePhoto2: vehiclePhoto2.trim() || undefined,
         vehiclePhoto3: vehiclePhoto3.trim() || undefined,
@@ -6501,6 +6361,15 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
 
         {activePage === "photos" && (
           <div className="space-y-4">
+            <ProfileVideoSection
+              introVideoUrl={introVideoUrl}
+              introVideoStatus={introVideoStatus}
+              introVideoSubmittedAt={introVideoSubmittedAt}
+              introVideoDurationSec={introVideoDurationSec}
+              introVideoSizeBytes={introVideoSizeBytes}
+              introVideoMime={introVideoMime}
+              onUpdate={updateIntroVideo}
+            />
             <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-4 space-y-3">
               <div className="text-sm font-semibold text-slate-100">Profile photo</div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -6870,8 +6739,9 @@ function renderHeaderSubtitle(tab: TabKey): string {
 
 const SeekerScheduleView: React.FC<{
   seeker?: Seeker;
+  retainers: Retainer[];
   onSaved: () => void;
-}> = ({ seeker, onSaved }) => {
+}> = ({ seeker, retainers, onSaved }) => {
   const initial: WeeklyAvailability = useMemo(() => {
     const tz =
       typeof window !== "undefined"
@@ -6881,6 +6751,31 @@ const SeekerScheduleView: React.FC<{
       ? (seeker as any).availability
       : { timezone: tz, blocks: [] };
   }, [seeker?.id]);
+
+  const [meetingTick, setMeetingTick] = useState(0);
+  const retainerById = useMemo(
+    () => new Map<string, Retainer>(retainers.map((r) => [r.id, r])),
+    [retainers]
+  );
+  const meetings = useMemo(
+    () => (seeker ? getMeetingsForSeeker(seeker.id) : []),
+    [seeker?.id, meetingTick]
+  );
+  const linkAccess = useMemo(
+    () =>
+      seeker
+        ? canSeekerLink(seeker.id)
+        : { ok: false, reason: "Select a Seeker profile first." },
+    [seeker?.id]
+  );
+  const scheduleDisabled = !linkAccess.ok;
+  const formatMeetingTime = (iso: string, tz?: string) => {
+    try {
+      return new Date(iso).toLocaleString(undefined, tz ? { timeZone: tz } : undefined);
+    } catch {
+      return new Date(iso).toLocaleString();
+    }
+  };
 
   const [timezone, setTimezone] = useState<string>(initial.timezone || "");
   const [enabledDays, setEnabledDays] = useState<Set<DayOfWeek>>(() => {
@@ -6998,6 +6893,206 @@ const SeekerScheduleView: React.FC<{
 
   return (
     <div className="space-y-5">
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-50 mb-1">Interview meetings</h3>
+            <p className="text-sm text-slate-300">
+              Confirm one time slot per meeting and mark attendance after the call.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={async () => {
+              await pullFromServer();
+              setMeetingTick((n) => n + 1);
+            }}
+            className="px-3 py-1.5 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {scheduleDisabled && (
+          <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+            {linkAccess.reason || "Upgrade to confirm interview slots."}
+          </div>
+        )}
+
+        {meetings.length === 0 ? (
+          <div className="text-sm text-slate-400">No interview invites yet.</div>
+        ) : (
+          <div className="space-y-3">
+            {meetings.map((meeting) => {
+              const retainer = retainerById.get(meeting.retainerId);
+              const retainerName = retainer
+                ? formatRetainerName(retainer)
+                : `Retainer (${meeting.retainerId})`;
+              const attendee = meeting.attendees.find((a) => a.seekerId === seeker.id);
+              const proposals = meeting.proposals
+                .slice()
+                .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+              const selectedProposal = proposals.find(
+                (p) => p.id === attendee?.selectedProposalId
+              );
+
+              return (
+                <div
+                  key={meeting.id}
+                  className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-100">{retainerName}</div>
+                      <div className="text-[11px] text-slate-500">
+                        {meeting.title || "Interview"}
+                      </div>
+                    </div>
+                    <div className="text-[11px] text-slate-400">{meeting.status}</div>
+                  </div>
+
+                  {meeting.status === "FINALIZED" ? (
+                    <div className="space-y-2">
+                      <div className="text-sm text-slate-100">
+                        {meeting.startsAt
+                          ? `${formatMeetingTime(meeting.startsAt, meeting.timezone)} · ${meeting.durationMinutes}m`
+                          : "Scheduled"}
+                      </div>
+                      {meeting.meetLink ? (
+                        <a
+                          href={meeting.meetLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-emerald-200 underline"
+                        >
+                          Open Meet link
+                        </a>
+                      ) : (
+                        <div className="text-[11px] text-slate-500">
+                          Meet link pending.
+                        </div>
+                      )}
+                    </div>
+                  ) : meeting.status === "CANCELED" ? (
+                    <div className="text-xs text-slate-500">Meeting canceled.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {proposals.length === 0 ? (
+                        <div className="text-xs text-slate-500">No slots proposed yet.</div>
+                      ) : (
+                        proposals.map((p) => (
+                          <div
+                            key={p.id}
+                            className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between gap-2"
+                          >
+                            <div className="text-xs text-slate-200">
+                              {formatMeetingTime(p.startAt, meeting.timezone)} · {p.durationMinutes}m
+                            </div>
+                            <button
+                              type="button"
+                              disabled={scheduleDisabled}
+                              onClick={() => {
+                                if (scheduleDisabled) return;
+                                const next = setAttendeeResponse({
+                                  meetingId: meeting.id,
+                                  seekerId: seeker.id,
+                                  responseStatus: "CONFIRMED",
+                                  selectedProposalId: p.id,
+                                });
+                                if (next) setMeetingTick((n) => n + 1);
+                              }}
+                              className="px-2.5 py-1 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {selectedProposal?.id === p.id ? "Selected" : "Confirm"}
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={scheduleDisabled}
+                      onClick={() => {
+                        if (scheduleDisabled) return;
+                        const next = requestMeetingReschedule({
+                          meetingId: meeting.id,
+                          by: "SEEKER",
+                          seekerId: seeker.id,
+                        });
+                        if (next) setMeetingTick((n) => n + 1);
+                      }}
+                      className="px-2.5 py-1 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      Request reschedule
+                    </button>
+                    <button
+                      type="button"
+                      disabled={scheduleDisabled}
+                      onClick={() => {
+                        if (scheduleDisabled) return;
+                        const next = setAttendeeResponse({
+                          meetingId: meeting.id,
+                          seekerId: seeker.id,
+                          responseStatus: "DECLINED",
+                          selectedProposalId: null,
+                        });
+                        if (next) setMeetingTick((n) => n + 1);
+                      }}
+                      className="px-2.5 py-1 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      Decline
+                    </button>
+                    {meeting.status === "FINALIZED" && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = markMeetingOutcome({
+                              meetingId: meeting.id,
+                              seekerId: seeker.id,
+                              by: "SEEKER",
+                              outcome: "MET",
+                            });
+                            if (next) setMeetingTick((n) => n + 1);
+                          }}
+                          className="px-2.5 py-1 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition"
+                        >
+                          Met
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = markMeetingOutcome({
+                              meetingId: meeting.id,
+                              seekerId: seeker.id,
+                              by: "SEEKER",
+                              outcome: "NO_SHOW",
+                            });
+                            if (next) setMeetingTick((n) => n + 1);
+                          }}
+                          className="px-2.5 py-1 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                        >
+                          No-show
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {attendee?.responseStatus === "CONFIRMED" && selectedProposal && (
+                    <div className="text-[11px] text-slate-500">
+                      Confirmed: {formatMeetingTime(selectedProposal.startAt, meeting.timezone)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
         <h3 className="text-lg font-semibold text-slate-50 mb-1">Availability</h3>
         <p className="text-sm text-slate-300">
