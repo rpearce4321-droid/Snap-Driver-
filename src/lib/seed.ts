@@ -2104,7 +2104,6 @@ export function autoSeedComprehensive(opts: ComprehensiveSeedOptions = {}): void
     }
 
     if (includeWorkHistory) {
-      const approvedSeekers = getSeekers().filter((s: any) => s.status === "APPROVED");
       const approvedRetainers = getRetainers().filter((r: any) => r.status === "APPROVED");
       const allRoutes = getAllRoutes();
       const routesByRetainer = new Map<string, any[]>();
