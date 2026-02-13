@@ -186,7 +186,7 @@ import {
   requestMeetingReschedule,
   type InterviewMeeting,
 } from "../lib/meetings";
-import { disconnectGoogleOAuth, getGoogleOAuthStatus } from "../lib/api";
+import { disconnectGoogleOAuth, getGoogleOAuthStatus, getSessionMe } from "../lib/api";
 
 import {
 
@@ -340,6 +340,7 @@ type ActionTabKey =
   | "routes"
 
   | "schedule"
+  | "interviews"
 
   | "editProfile"
 
@@ -409,6 +410,7 @@ const RetainerPage: React.FC = () => {
   const [actionTab, setActionTab] = useState<ActionTabKey>("wheel");
 
   const [noticeTick, setNoticeTick] = useState(0);
+  const [meetingTick, setMeetingTick] = useState(0);
   const [linkTick] = useState(0);
 
   useEffect(() => {
@@ -1609,15 +1611,13 @@ const RetainerPage: React.FC = () => {
               <DashboardView
 
                 retainerId={currentRetainerId}
+                meetingTick={meetingTick}
 
                 currentRetainer={currentRetainer}
 
                 seekers={seekers}
 
                 isDesktop={isDesktop}
-
-                onToast={(msg) => setToastMessage(msg)}
-
                 onOpenProfile={(s) => navigate(`/seekers/${(s as any).id}`)}
 
                 onMessage={handleMessageSeeker}
@@ -1686,7 +1686,11 @@ const RetainerPage: React.FC = () => {
 
                 onMessage={handleMessageSeeker}
 
-                visibleTabs={["wheel", "lists"]}
+                meetingTick={meetingTick}
+
+                onMeetingTick={setMeetingTick}
+
+                visibleTabs={["wheel", "lists", "interviews"]}
 
                 retainerRoutes={currentRetainer ? getRoutesForRetainer(currentRetainer.id) : []}
 
@@ -1803,6 +1807,10 @@ const RetainerPage: React.FC = () => {
                 onRebucketById={handleRebucketById}
 
                 onMessage={handleMessageSeeker}
+
+                meetingTick={meetingTick}
+
+                onMeetingTick={setMeetingTick}
 
                 visibleTabs={["routes", "schedule", "editProfile", "addUsers", "hierarchy"]}
 
@@ -3190,13 +3198,12 @@ const ChangePasswordPanel: React.FC<{ email?: string | null }> = ({ email }) => 
 const DashboardView: React.FC<{
 
   retainerId: string | null;
+  meetingTick: number;
 
   currentRetainer?: Retainer;
 
   seekers: Seeker[];
   isDesktop: boolean;
-
-  onToast: (message: string) => void;
 
   onOpenProfile: (s: Seeker) => void;
 
@@ -3217,13 +3224,12 @@ const DashboardView: React.FC<{
 }> = ({
 
   retainerId,
+  meetingTick,
 
   currentRetainer,
 
   seekers,
   isDesktop,
-
-  onToast,
 
   onOpenProfile,
 
@@ -3250,8 +3256,6 @@ const DashboardView: React.FC<{
     return getRoutesForRetainer(retainerId);
 
   }, [retainerId]);
-
-  const [meetingTick, setMeetingTick] = useState(0);
 
   const stats = useMemo(() => {
 
@@ -4103,189 +4107,6 @@ const DashboardView: React.FC<{
 
   );
 
-  const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
-  const [meetingTitle, setMeetingTitle] = useState("Interview");
-  const [meetingNote, setMeetingNote] = useState("");
-  const [meetingDuration, setMeetingDuration] = useState(30);
-  const [meetingTimezone, setMeetingTimezone] = useState(() => {
-    if (currentRetainer?.payCycleTimezone) return currentRetainer.payCycleTimezone;
-    if (typeof window === "undefined") return "America/New_York";
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
-  });
-  const [meetingSlotInput, setMeetingSlotInput] = useState("");
-  const [meetingSlots, setMeetingSlots] = useState<
-    Array<{ startAt: string; durationMinutes: number }>
-  >([]);
-  const [meetingInviteIds, setMeetingInviteIds] = useState<Set<string>>(
-    () => new Set()
-  );
-  const [inviteQuery, setInviteQuery] = useState("");
-  const [meetingError, setMeetingError] = useState<string | null>(null);
-  const [googleStatus, setGoogleStatus] = useState<{
-    connected: boolean;
-    expiresAt?: string | null;
-  } | null>(null);
-
-  const refreshGoogleStatus = async () => {
-    if (!retainerId) {
-      setGoogleStatus(null);
-      return;
-    }
-    try {
-      const status = await getGoogleOAuthStatus();
-      if (status && status.ok) {
-        setGoogleStatus({ connected: status.connected, expiresAt: status.expiresAt });
-      } else {
-        setGoogleStatus({ connected: false });
-      }
-    } catch {
-      setGoogleStatus({ connected: false });
-    }
-  };
-
-  useEffect(() => {
-    refreshGoogleStatus();
-  }, [retainerId]);
-
-  useEffect(() => {
-    if (!retainerId) return;
-    setMeetingInviteIds(new Set());
-    setMeetingSlots([]);
-    setMeetingSlotInput("");
-    setMeetingError(null);
-    setMeetingNote("");
-    setMeetingTitle("Interview");
-  }, [retainerId]);
-
-  useEffect(() => {
-    if (!activeMeetingId) return;
-    setMeetingSlotInput("");
-    setMeetingError(null);
-  }, [activeMeetingId]);
-
-  useEffect(() => {
-    if (currentRetainer?.payCycleTimezone) {
-      setMeetingTimezone((prev) => prev || currentRetainer.payCycleTimezone || prev);
-    }
-  }, [currentRetainer?.payCycleTimezone]);
-
-  const meetings = useMemo(
-    () => (retainerId ? getMeetingsForRetainer(retainerId) : []),
-    [retainerId, meetingTick]
-  );
-
-  const activeMeeting = useMemo(
-    () => meetings.find((m) => m.id === activeMeetingId) ?? null,
-    [meetings, activeMeetingId]
-  );
-
-  useEffect(() => {
-    if (activeMeetingId && !activeMeeting) setActiveMeetingId(null);
-  }, [activeMeetingId, activeMeeting]);
-
-  const scheduledMeetings = useMemo(
-    () => meetings.filter((m) => m.status === "FINALIZED"),
-    [meetings]
-  );
-  const pendingMeetings = useMemo(
-    () => meetings.filter((m) => m.status !== "FINALIZED" && m.status !== "CANCELED"),
-    [meetings]
-  );
-  const canceledMeetings = useMemo(
-    () => meetings.filter((m) => m.status === "CANCELED"),
-    [meetings]
-  );
-
-  const inviteCandidates = useMemo(() => {
-    if (!retainerId) return [];
-    return seekers
-      .filter((s) => (s as any).status === "APPROVED")
-      .sort((a, b) => formatSeekerName(a).localeCompare(formatSeekerName(b)));
-  }, [seekers, retainerId]);
-
-  const filteredInviteCandidates = useMemo(() => {
-    const needle = inviteQuery.trim().toLowerCase();
-    if (!needle) return inviteCandidates;
-    return inviteCandidates.filter((s) => {
-      const name = formatSeekerName(s).toLowerCase();
-      const email = String((s as any).email ?? "").toLowerCase();
-      return name.includes(needle) || email.includes(needle);
-    });
-  }, [inviteCandidates, inviteQuery]);
-
-  const formatMeetingTime = (iso: string, timezone?: string) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    try {
-      return new Intl.DateTimeFormat("en-US", {
-        dateStyle: "medium",
-        timeStyle: "short",
-        timeZone: timezone || undefined,
-      }).format(d);
-    } catch {
-      return d.toLocaleString();
-    }
-  };
-
-  const renderMeetingCard = (meeting: InterviewMeeting) => {
-    const confirmed = meeting.attendees.filter((a) => a.responseStatus === "CONFIRMED")
-      .length;
-    const reschedules = meeting.attendees.filter((a) => a.rescheduleRequested).length;
-    const total = meeting.attendees.length;
-    const timeLabel = meeting.startsAt
-      ? formatMeetingTime(meeting.startsAt, meeting.timezone)
-      : meeting.proposals[0]
-        ? formatMeetingTime(meeting.proposals[0].startAt, meeting.timezone)
-        : "Awaiting time slots";
-
-    return (
-      <button
-        key={meeting.id}
-        type="button"
-        onClick={() => setActiveMeetingId(meeting.id)}
-        className="text-left rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 hover:bg-slate-900/70 transition"
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-slate-100">
-                        {meeting.title || "Interview"}{" - "}
-            </div>
-            <div className="text-[11px] text-slate-500">{timeLabel}</div>
-          </div>
-          <div className="text-[11px] text-slate-400">{meeting.status}</div>
-        </div>
-        <div className="mt-2 text-[11px] text-slate-500">
-          {confirmed}/{total} confirmed{reschedules ? ` · ${reschedules} reschedule` : ""}
-        </div>
-      </button>
-    );
-  };
-
-  const handleGoogleConnect = () => {
-    if (typeof window === "undefined") return;
-    const url = new URL("/api/google/oauth/start", window.location.origin);
-    window.location.assign(url.toString());
-  };
-
-  const handleGoogleDisconnect = async () => {
-    try {
-      await disconnectGoogleOAuth();
-      await refreshGoogleStatus();
-      onToast("Google Calendar disconnected.");
-    } catch {
-      onToast("Unable to disconnect Google Calendar.");
-    }
-  };
-
-  const handleMeetingRefresh = async () => {
-    try {
-      await pullFromServer();
-    } catch {
-      // ignore
-    }
-    setMeetingTick((n) => n + 1);
-    await refreshGoogleStatus();
-  };
 
   const retainerDisplayName = currentRetainer ? formatRetainerName(currentRetainer) : "Retainer";
 
@@ -4356,7 +4177,7 @@ const DashboardView: React.FC<{
   );
 
   return (
-    <>
+    <div className="contents">
       <div className="grid grid-cols-1 gap-0 sm:gap-4 lg:gap-6 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 lg:h-full w-full max-w-full">
 
       <div className="flex flex-col gap-6 min-h-0 order-2 lg:order-1 w-full max-w-full">
@@ -4623,6 +4444,7 @@ const DashboardView: React.FC<{
                 </button>
               );
             })}
+          </div>
 
           {!retainerId ? (
 
@@ -5165,7 +4987,255 @@ const DashboardView: React.FC<{
         </div>
 
       </aside>
-      <div className="lg:col-span-2 space-y-4">
+    </div>
+    </div>
+  );
+
+};
+
+/* ------------------------------------------------------------------ */
+/* Interview scheduling                                               */
+/* ------------------------------------------------------------------ */
+
+const InterviewSchedulingView: React.FC<{
+  retainerId: string | null;
+  currentRetainer?: Retainer;
+  seekers: Seeker[];
+  meetingTick: number;
+  onMeetingTick: React.Dispatch<React.SetStateAction<number>>;
+  onToast: (msg: string) => void;
+}> = ({
+  retainerId,
+  currentRetainer,
+  seekers,
+  meetingTick,
+  onMeetingTick,
+  onToast,
+}) => {
+  const [activeMeetingId, setActiveMeetingId] = useState<string | null>(null);
+  const [meetingTitle, setMeetingTitle] = useState("Interview");
+  const [meetingNote, setMeetingNote] = useState("");
+  const [meetingDuration, setMeetingDuration] = useState(30);
+  const [meetingTimezone, setMeetingTimezone] = useState(() => {
+    if (currentRetainer?.payCycleTimezone) return currentRetainer.payCycleTimezone;
+    if (typeof window === "undefined") return "America/New_York";
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York";
+  });
+  const [meetingSlotInput, setMeetingSlotInput] = useState("");
+  const [meetingSlots, setMeetingSlots] = useState<
+    Array<{ startAt: string; durationMinutes: number }>
+  >([]);
+  const [meetingInviteIds, setMeetingInviteIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [inviteQuery, setInviteQuery] = useState("");
+  const [meetingError, setMeetingError] = useState<string | null>(null);
+  const [googleStatus, setGoogleStatus] = useState<{
+    connected: boolean;
+    expiresAt?: string | null;
+    error?: string | null;
+  } | null>(null);
+
+  const seekerById = useMemo(() => {
+    const map = new Map<string, Seeker>();
+    for (const seeker of seekers) {
+      map.set(String((seeker as any).id), seeker);
+    }
+    return map;
+  }, [seekers]);
+
+  const refreshGoogleStatus = async () => {
+    if (!retainerId) {
+      setGoogleStatus(null);
+      return;
+    }
+    try {
+      const session = await getSessionMe();
+      if (!session?.ok || !session.user || session.user.role !== "RETAINER") {
+        setGoogleStatus({
+          connected: false,
+          error: "Sign in as a Retainer to connect Google.",
+        });
+        return;
+      }
+    } catch {
+      setGoogleStatus({
+        connected: false,
+        error: "Sign in as a Retainer to connect Google.",
+      });
+      return;
+    }
+    try {
+      const status = await getGoogleOAuthStatus();
+      if (status && status.ok) {
+        setGoogleStatus({ connected: status.connected, expiresAt: status.expiresAt });
+      } else {
+        setGoogleStatus({ connected: false, error: "Unable to load Google status." });
+      }
+    } catch (err: any) {
+      setGoogleStatus({
+        connected: false,
+        error: err?.response?.data?.error || err?.message || "Unable to load Google status.",
+      });
+    }
+  };
+
+  useEffect(() => {
+    refreshGoogleStatus();
+  }, [retainerId]);
+
+  useEffect(() => {
+    if (!retainerId) return;
+    setMeetingInviteIds(new Set());
+    setMeetingSlots([]);
+    setMeetingSlotInput("");
+    setMeetingError(null);
+    setMeetingNote("");
+    setMeetingTitle("Interview");
+  }, [retainerId]);
+
+  useEffect(() => {
+    if (!activeMeetingId) return;
+    setMeetingSlotInput("");
+    setMeetingError(null);
+  }, [activeMeetingId]);
+
+  useEffect(() => {
+    if (currentRetainer?.payCycleTimezone) {
+      setMeetingTimezone((prev) => prev || currentRetainer.payCycleTimezone || prev);
+    }
+  }, [currentRetainer?.payCycleTimezone]);
+
+  const meetings = useMemo(
+    () => (retainerId ? getMeetingsForRetainer(retainerId) : []),
+    [retainerId, meetingTick]
+  );
+
+  const activeMeeting = useMemo(
+    () => meetings.find((m) => m.id === activeMeetingId) ?? null,
+    [meetings, activeMeetingId]
+  );
+
+  useEffect(() => {
+    if (activeMeetingId && !activeMeeting) setActiveMeetingId(null);
+  }, [activeMeetingId, activeMeeting]);
+
+  const scheduledMeetings = useMemo(
+    () => meetings.filter((m) => m.status === "FINALIZED"),
+    [meetings]
+  );
+  const pendingMeetings = useMemo(
+    () => meetings.filter((m) => m.status !== "FINALIZED" && m.status !== "CANCELED"),
+    [meetings]
+  );
+  const canceledMeetings = useMemo(
+    () => meetings.filter((m) => m.status === "CANCELED"),
+    [meetings]
+  );
+
+  const inviteCandidates = useMemo(() => {
+    if (!retainerId) return [];
+    return seekers
+      .filter((s) => (s as any).status === "APPROVED")
+      .sort((a, b) => formatSeekerName(a).localeCompare(formatSeekerName(b)));
+  }, [seekers, retainerId]);
+
+  const filteredInviteCandidates = useMemo(() => {
+    const needle = inviteQuery.trim().toLowerCase();
+    if (!needle) return inviteCandidates;
+    return inviteCandidates.filter((s) => {
+      const name = formatSeekerName(s).toLowerCase();
+      const email = String((s as any).email ?? "").toLowerCase();
+      return name.includes(needle) || email.includes(needle);
+    });
+  }, [inviteCandidates, inviteQuery]);
+
+  const formatMeetingTime = (iso: string, timezone?: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    try {
+      return new Intl.DateTimeFormat("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: timezone || undefined,
+      }).format(d);
+    } catch {
+      return d.toLocaleString();
+    }
+  };
+
+  const renderMeetingCard = (meeting: InterviewMeeting) => {
+    const confirmed = meeting.attendees.filter((a) => a.responseStatus === "CONFIRMED")
+      .length;
+    const reschedules = meeting.attendees.filter((a) => a.rescheduleRequested).length;
+    const total = meeting.attendees.length;
+    const timeLabel = meeting.startsAt
+      ? formatMeetingTime(meeting.startsAt, meeting.timezone)
+      : meeting.proposals[0]
+        ? formatMeetingTime(meeting.proposals[0].startAt, meeting.timezone)
+        : "Awaiting time slots";
+
+    return (
+      <button
+        key={meeting.id}
+        type="button"
+        onClick={() => setActiveMeetingId(meeting.id)}
+        className="text-left rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 hover:bg-slate-900/70 transition"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-100">
+              {meeting.title || "Interview"}{" - "}
+            </div>
+            <div className="text-[11px] text-slate-500">{timeLabel}</div>
+          </div>
+          <div className="text-[11px] text-slate-400">{meeting.status}</div>
+        </div>
+        <div className="mt-2 text-[11px] text-slate-500">
+          {confirmed}/{total} confirmed{reschedules ? ` · ${reschedules} reschedule` : ""}
+        </div>
+      </button>
+    );
+  };
+
+  const handleGoogleConnect = async () => {
+    if (typeof window === "undefined") return;
+    try {
+      const session = await getSessionMe();
+      if (!session?.ok || !session.user || session.user.role !== "RETAINER") {
+        onToast("Sign in with a Retainer account to connect Google.");
+        return;
+      }
+    } catch {
+      onToast("Sign in with a Retainer account to connect Google.");
+      return;
+    }
+    const url = new URL("/api/google/oauth/start", window.location.origin);
+    window.location.assign(url.toString());
+  };
+
+  const handleGoogleDisconnect = async () => {
+    try {
+      await disconnectGoogleOAuth();
+      await refreshGoogleStatus();
+      onToast("Google Calendar disconnected.");
+    } catch {
+      onToast("Unable to disconnect Google Calendar.");
+    }
+  };
+
+  const handleMeetingRefresh = async () => {
+    try {
+      await pullFromServer();
+    } catch {
+      // ignore
+    }
+    onMeetingTick((n) => n + 1);
+    await refreshGoogleStatus();
+  };
+  return (
+    <div className="contents">
+      <div className="space-y-4">
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -5206,7 +5276,12 @@ const DashboardView: React.FC<{
               </button>
             </div>
           </div>
-          {!googleStatus?.connected && (
+          {googleStatus?.error && (
+            <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+              {googleStatus.error}
+            </div>
+          )}
+          {!googleStatus?.connected && !googleStatus?.error && (
             <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
               Google Calendar is required to send interview invites.
             </div>
@@ -5214,351 +5289,349 @@ const DashboardView: React.FC<{
         </div>
 
         {!retainerId ? (
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
-              Select or create a Retainer profile first.
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs uppercase tracking-wide text-slate-400">
-                      New interview
-                    </div>
-                    <div className="text-sm text-slate-300 mt-1">
-                      Invite multiple seekers to a single meeting and propose time slots.
-                    </div>
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+            Select or create a Retainer profile first.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-400">
+                    New interview
+                  </div>
+                  <div className="text-sm text-slate-300 mt-1">
+                    Invite multiple seekers to a single meeting and propose time slots.
                   </div>
                 </div>
+              </div>
 
-                {meetingError && (
-                  <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
-                    {meetingError}
-                  </div>
-                )}
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <label className="space-y-1">
-                    <div className="text-xs font-medium text-slate-200">Title</div>
-                    <input
-                      value={meetingTitle}
-                      onChange={(e) => setMeetingTitle(e.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                      placeholder="Interview"
-                    />
-                  </label>
-                  <label className="space-y-1">
-                    <div className="text-xs font-medium text-slate-200">Duration</div>
-                    <select
-                      value={meetingDuration}
-                      onChange={(e) => setMeetingDuration(Number(e.target.value) || 30)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    >
-                      <option value={15}>15 minutes</option>
-                      <option value={20}>20 minutes</option>
-                      <option value={30}>30 minutes</option>
-                      <option value={45}>45 minutes</option>
-                    </select>
-                  </label>
+              {meetingError && (
+                <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
+                  {meetingError}
                 </div>
+              )}
 
+              <div className="grid gap-3 md:grid-cols-2">
                 <label className="space-y-1">
-                  <div className="text-xs font-medium text-slate-200">Timezone</div>
+                  <div className="text-xs font-medium text-slate-200">Title</div>
                   <input
-                    value={meetingTimezone}
-                    onChange={(e) => setMeetingTimezone(e.target.value)}
+                    value={meetingTitle}
+                    onChange={(e) => setMeetingTitle(e.target.value)}
                     className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    placeholder="America/New_York"
+                    placeholder="Interview"
                   />
                 </label>
-
                 <label className="space-y-1">
-                  <div className="text-xs font-medium text-slate-200">Note (optional)</div>
-                  <input
-                    value={meetingNote}
-                    onChange={(e) => setMeetingNote(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    placeholder="Example: Intro + route fit"
-                  />
+                  <div className="text-xs font-medium text-slate-200">Duration</div>
+                  <select
+                    value={meetingDuration}
+                    onChange={(e) => setMeetingDuration(Number(e.target.value) || 30)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  >
+                    <option value={15}>15 minutes</option>
+                    <option value={20}>20 minutes</option>
+                    <option value={30}>30 minutes</option>
+                    <option value={45}>45 minutes</option>
+                  </select>
                 </label>
+              </div>
 
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
-                  <div className="text-xs uppercase tracking-wide text-slate-400">
-                    Invite seekers
-                  </div>
-                  <input
-                    value={inviteQuery}
-                    onChange={(e) => setInviteQuery(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    placeholder="Search by name or email"
-                  />
-                  <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
-                    {filteredInviteCandidates.length === 0 ? (
-                      <div className="text-xs text-slate-400">No seekers found.</div>
-                    ) : (
-                      filteredInviteCandidates.map((s) => {
-                        const name = formatSeekerName(s);
-                        const email = String((s as any).email ?? "");
-                        const hasEmail = Boolean(email);
-                        return (
-                          <label
-                            key={s.id}
-                            className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-200"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={meetingInviteIds.has(s.id)}
-                              onChange={() => {
-                                setMeetingInviteIds((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(s.id)) next.delete(s.id);
-                                  else next.add(s.id);
-                                  return next;
-                                });
-                              }}
-                              disabled={!hasEmail}
-                              className="mt-1 h-3.5 w-3.5 rounded border-slate-600 bg-slate-900"
-                            />
-                            <div className="min-w-0">
-                              <div className="font-semibold text-slate-100 truncate">{name}</div>
-                              <div className="text-[11px] text-slate-500 truncate">
-                                {hasEmail ? email : "Email required to invite"}
-                              </div>
-                            </div>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    Selected: {meetingInviteIds.size}
-                  </div>
+              <label className="space-y-1">
+                <div className="text-xs font-medium text-slate-200">Timezone</div>
+                <input
+                  value={meetingTimezone}
+                  onChange={(e) => setMeetingTimezone(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  placeholder="America/New_York"
+                />
+              </label>
+
+              <label className="space-y-1">
+                <div className="text-xs font-medium text-slate-200">Note (optional)</div>
+                <input
+                  value={meetingNote}
+                  onChange={(e) => setMeetingNote(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  placeholder="Example: Intro + route fit"
+                />
+              </label>
+
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+                <div className="text-xs uppercase tracking-wide text-slate-400">
+                  Invite seekers
                 </div>
-
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
-                  <div className="text-xs uppercase tracking-wide text-slate-400">
-                    Time slots
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-                    <input
-                      type="datetime-local"
-                      value={meetingSlotInput}
-                      onChange={(e) => setMeetingSlotInput(e.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMeetingError(null);
-                        if (!meetingSlotInput) {
-                          setMeetingError("Pick a time slot first.");
-                          return;
-                        }
-                        const dt = new Date(meetingSlotInput);
-                        if (Number.isNaN(dt.getTime())) {
-                          setMeetingError("Invalid date/time.");
-                          return;
-                        }
-                        const iso = dt.toISOString();
-                        const dayKey = (() => {
-                          try {
-                            return new Intl.DateTimeFormat("en-CA", {
-                              timeZone: meetingTimezone || undefined,
-                            }).format(new Date(iso));
-                          } catch {
-                            return iso.slice(0, 10);
-                          }
-                        })();
-                        const sameDayCount = meetingSlots.filter((slot) => {
-                          const key = (() => {
-                            try {
-                              return new Intl.DateTimeFormat("en-CA", {
-                                timeZone: meetingTimezone || undefined,
-                              }).format(new Date(slot.startAt));
-                            } catch {
-                              return slot.startAt.slice(0, 10);
-                            }
-                          })();
-                          return key === dayKey;
-                        }).length;
-                        if (sameDayCount >= 3) {
-                          setMeetingError("Limit 3 slots per day.");
-                          return;
-                        }
-                        setMeetingSlots((prev) => [
-                          ...prev,
-                          { startAt: iso, durationMinutes: meetingDuration },
-                        ]);
-                        setMeetingSlotInput("");
-                      }}
-                      className="px-3 py-2 rounded-xl text-xs bg-emerald-500/80 hover:bg-emerald-400 text-slate-950 transition"
-                    >
-                      Add slot
-                    </button>
-                  </div>
-                  {meetingSlots.length === 0 ? (
-                    <div className="text-xs text-slate-500">No slots added yet.</div>
+                <input
+                  value={inviteQuery}
+                  onChange={(e) => setInviteQuery(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  placeholder="Search by name or email"
+                />
+                <div className="max-h-44 overflow-y-auto space-y-2 pr-1">
+                  {filteredInviteCandidates.length === 0 ? (
+                    <div className="text-xs text-slate-400">No seekers found.</div>
                   ) : (
-                    <div className="space-y-2">
-                      {meetingSlots.map((slot, idx) => (
-                        <div
-                          key={`${slot.startAt}_${idx}`}
-                          className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between text-xs text-slate-200"
+                    filteredInviteCandidates.map((s) => {
+                      const name = formatSeekerName(s);
+                      const email = String((s as any).email ?? "");
+                      const hasEmail = Boolean(email);
+                      const id = String((s as any).id);
+                      return (
+                        <label
+                          key={id}
+                          className="flex items-start gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-xs text-slate-200"
                         >
-                          <div>
-                            {formatMeetingTime(slot.startAt, meetingTimezone)} ·{" "}
-                            {slot.durationMinutes}m
+                          <input
+                            type="checkbox"
+                            checked={meetingInviteIds.has(id)}
+                            onChange={() => {
+                              setMeetingInviteIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(id)) next.delete(id);
+                                else next.add(id);
+                                return next;
+                              });
+                            }}
+                            disabled={!hasEmail}
+                            className="mt-1 h-3.5 w-3.5 rounded border-slate-600 bg-slate-900"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-100 truncate">{name}</div>
+                            <div className="text-[11px] text-slate-500 truncate">
+                              {hasEmail ? email : "Email required to invite"}
+                            </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setMeetingSlots((prev) => prev.filter((_, i) => i !== idx))
-                            }
-                            className="px-2 py-1 rounded-full text-[10px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                        </label>
+                      );
+                    })
                   )}
                 </div>
+                <div className="text-[11px] text-slate-500">
+                  Selected: {meetingInviteIds.size}
+                </div>
+              </div>
 
-                <div className="flex items-center justify-between gap-3">
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 space-y-3">
+                <div className="text-xs uppercase tracking-wide text-slate-400">
+                  Time slots
+                </div>
+                <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                  <input
+                    type="datetime-local"
+                    value={meetingSlotInput}
+                    onChange={(e) => setMeetingSlotInput(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
                   <button
                     type="button"
                     onClick={() => {
-                      if (!retainerId) return;
                       setMeetingError(null);
-                      const selected = inviteCandidates.filter((s) =>
-                        meetingInviteIds.has(s.id)
-                      );
-                      if (selected.length === 0) {
-                        setMeetingError("Select at least one seeker to invite.");
+                      if (!meetingSlotInput) {
+                        setMeetingError("Pick a time slot first.");
                         return;
                       }
-                      if (meetingSlots.length === 0) {
-                        setMeetingError("Add at least one time slot.");
+                      const dt = new Date(meetingSlotInput);
+                      if (Number.isNaN(dt.getTime())) {
+                        setMeetingError("Invalid date/time.");
                         return;
                       }
-                      const missingEmails = selected.filter(
-                        (s) => !String((s as any).email ?? "").includes("@")
-                      );
-                      if (missingEmails.length > 0) {
-                        setMeetingError(
-                          `Missing email for ${missingEmails
-                            .map((s) => formatSeekerName(s))
-                            .join(", ")}.`
-                        );
+                      const iso = dt.toISOString();
+                      const dayKey = (() => {
+                        try {
+                          return new Intl.DateTimeFormat("en-CA", {
+                            timeZone: meetingTimezone || undefined,
+                          }).format(new Date(iso));
+                        } catch {
+                          return iso.slice(0, 10);
+                        }
+                      })();
+                      const sameDayCount = meetingSlots.filter((slot) => {
+                        const key = (() => {
+                          try {
+                            return new Intl.DateTimeFormat("en-CA", {
+                              timeZone: meetingTimezone || undefined,
+                            }).format(new Date(slot.startAt));
+                          } catch {
+                            return slot.startAt.slice(0, 10);
+                          }
+                        })();
+                        return key === dayKey;
+                      }).length;
+                      if (sameDayCount >= 3) {
+                        setMeetingError("Limit 3 slots per day.");
                         return;
                       }
-                      try {
-                        createInterviewMeeting({
-                          retainerId,
-                          title: meetingTitle.trim() || "Interview",
-                          note: meetingNote,
-                          timezone: meetingTimezone,
-                          durationMinutes: meetingDuration,
-                          proposals: meetingSlots,
-                          attendees: selected.map((s) => ({
-                            seekerId: s.id,
-                            seekerName: formatSeekerName(s),
-                            seekerEmail: (s as any).email,
-                          })),
-                        });
-                        setMeetingInviteIds(new Set());
-                        setMeetingSlots([]);
-                        setMeetingSlotInput("");
-                        setMeetingNote("");
-                        setMeetingTitle("Interview");
-                        setMeetingTick((n) => n + 1);
-                        onToast("Interview created.");
-                      } catch (err: any) {
-                        setMeetingError(err?.message || "Unable to create interview.");
-                      }
+                      setMeetingSlots((prev) => [
+                        ...prev,
+                        { startAt: iso, durationMinutes: meetingDuration },
+                      ]);
+                      setMeetingSlotInput("");
                     }}
-                    className="px-4 py-2 rounded-full text-sm font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition"
+                    className="px-3 py-2 rounded-xl text-xs bg-emerald-500/80 hover:bg-emerald-400 text-slate-950 transition"
                   >
-                    Create interview
+                    Add slot
                   </button>
-                  <div className="text-[11px] text-slate-500">
-                    Max 3 slots per day.
-                  </div>
                 </div>
-              </div>
-
-              <div className="grid gap-3 md:gap-4 md:grid-cols-2 min-h-0 flex-1 w-full">
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-400">
-                        Scheduled
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        Meetings with a finalized slot.
-                      </div>
-                    </div>
-                    <div className="text-xs text-slate-400">{scheduledMeetings.length}</div>
-                  </div>
-                  {scheduledMeetings.length === 0 ? (
-                    <div className="mt-3 text-xs text-slate-400">
-                      No scheduled interviews yet.
-                    </div>
-                  ) : (
-                    <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
-                      {scheduledMeetings.map(renderMeetingCard)}
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-slate-400">
-                        Pending
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        Meetings waiting on confirmations.
-                      </div>
-                    </div>
-                    <div className="text-xs text-slate-400">{pendingMeetings.length}</div>
-                  </div>
-                  {pendingMeetings.length === 0 ? (
-                    <div className="mt-3 text-xs text-slate-400">
-                      No pending meetings.
-                    </div>
-                  ) : (
-                    <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
-                      {pendingMeetings.map(renderMeetingCard)}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {canceledMeetings.length > 0 && (
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
-                  <div className="text-xs uppercase tracking-wide text-slate-400">
-                    Canceled
-                  </div>
-                  <div className="mt-3 grid gap-2">
-                    {canceledMeetings.map((meeting) => (
+                {meetingSlots.length === 0 ? (
+                  <div className="text-xs text-slate-500">No slots added yet.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {meetingSlots.map((slot, idx) => (
                       <div
-                        key={meeting.id}
-                        className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs text-slate-400"
+                        key={`${slot.startAt}_${idx}`}
+                        className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between text-xs text-slate-200"
                       >
-                        {meeting.title || "Interview"}{" - "}
-                        {meeting.attendees.length} attendees
+                        <div>
+                          {formatMeetingTime(slot.startAt, meetingTimezone)} ·{" "}
+                          {slot.durationMinutes}m
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMeetingSlots((prev) => prev.filter((_, i) => i !== idx))
+                          }
+                          className="px-2 py-1 rounded-full text-[10px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
+                        >
+                          Remove
+                        </button>
                       </div>
                     ))}
                   </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!retainerId) return;
+                    setMeetingError(null);
+                    const selected = inviteCandidates.filter((s) =>
+                      meetingInviteIds.has(String((s as any).id))
+                    );
+                    if (selected.length === 0) {
+                      setMeetingError("Select at least one seeker to invite.");
+                      return;
+                    }
+                    if (meetingSlots.length === 0) {
+                      setMeetingError("Add at least one time slot.");
+                      return;
+                    }
+                    const missingEmails = selected.filter(
+                      (s) => !String((s as any).email ?? "").includes("@")
+                    );
+                    if (missingEmails.length > 0) {
+                      setMeetingError(
+                        `Missing email for ${missingEmails
+                          .map((s) => formatSeekerName(s))
+                          .join(", ")}.`
+                      );
+                      return;
+                    }
+                    try {
+                      createInterviewMeeting({
+                        retainerId,
+                        title: meetingTitle.trim() || "Interview",
+                        note: meetingNote,
+                        timezone: meetingTimezone,
+                        durationMinutes: meetingDuration,
+                        proposals: meetingSlots,
+                        attendees: selected.map((s) => ({
+                          seekerId: String((s as any).id),
+                          seekerName: formatSeekerName(s),
+                          seekerEmail: (s as any).email,
+                        })),
+                      });
+                      setMeetingInviteIds(new Set());
+                      setMeetingSlots([]);
+                      setMeetingSlotInput("");
+                      setMeetingNote("");
+                      setMeetingTitle("Interview");
+                      onMeetingTick((n) => n + 1);
+                      onToast("Interview created.");
+                    } catch (err: any) {
+                      setMeetingError(err?.message || "Unable to create interview.");
+                    }
+                  }}
+                  className="px-4 py-2 rounded-full text-sm font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition"
+                >
+                  Create interview
+                </button>
+                <div className="text-[11px] text-slate-500">
+                  Max 3 slots per day.
                 </div>
-              )}
+              </div>
             </div>
-          )}
-        </div>
 
+            <div className="grid gap-3 md:gap-4 md:grid-cols-2 min-h-0 flex-1 w-full">
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-slate-400">
+                      Scheduled
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      Meetings with a finalized slot.
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-400">{scheduledMeetings.length}</div>
+                </div>
+                {scheduledMeetings.length === 0 ? (
+                  <div className="mt-3 text-xs text-slate-400">
+                    No scheduled interviews yet.
+                  </div>
+                ) : (
+                  <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
+                    {scheduledMeetings.map(renderMeetingCard)}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-slate-400">
+                      Pending
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-1">
+                      Meetings waiting on confirmations.
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-400">{pendingMeetings.length}</div>
+                </div>
+                {pendingMeetings.length === 0 ? (
+                  <div className="mt-3 text-xs text-slate-400">
+                    No pending meetings.
+                  </div>
+                ) : (
+                  <div className="mt-3 flex-1 min-h-0 overflow-y-auto pr-1 space-y-3">
+                    {pendingMeetings.map(renderMeetingCard)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {canceledMeetings.length > 0 && (
+              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+                <div className="text-xs uppercase tracking-wide text-slate-400">
+                  Canceled
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {canceledMeetings.map((meeting) => (
+                    <div
+                      key={meeting.id}
+                      className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 text-xs text-slate-400"
+                    >
+                      {meeting.title || "Interview"}{" - "}
+                      {meeting.attendees.length} attendees
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
-
       {activeMeeting && retainerId && (
         <div className="fixed inset-0 z-50">
           <div
@@ -5666,7 +5739,7 @@ const DashboardView: React.FC<{
                                     });
                                     if (next) {
                                       setActiveMeetingId(next.id);
-                                      setMeetingTick((n) => n + 1);
+                                      onMeetingTick((n) => n + 1);
                                       onToast("Meeting finalized.");
                                       await pullFromServer();
                                     }
@@ -5737,7 +5810,7 @@ const DashboardView: React.FC<{
                         if (next) {
                           setActiveMeetingId(next.id);
                           setMeetingSlotInput("");
-                          setMeetingTick((n) => n + 1);
+                          onMeetingTick((n) => n + 1);
                         }
                       }}
                       className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
@@ -5755,7 +5828,7 @@ const DashboardView: React.FC<{
                     {activeMeeting.attendees.map((a) => {
                       const name =
                         a.seekerName ||
-                        formatSeekerName(seekerById.get(a.seekerId) as any);
+                        formatSeekerName(seekerById.get(String(a.seekerId)) as any);
                       return (
                         <div
                           key={a.id}
@@ -5781,7 +5854,7 @@ const DashboardView: React.FC<{
                                   });
                                   if (next) {
                                     setActiveMeetingId(next.id);
-                                    setMeetingTick((n) => n + 1);
+                                    onMeetingTick((n) => n + 1);
                                   }
                                 }}
                                 className="px-2.5 py-1 rounded-full text-[11px] bg-emerald-500/20 border border-emerald-500/40 text-emerald-100 hover:bg-emerald-500/25 transition"
@@ -5799,7 +5872,7 @@ const DashboardView: React.FC<{
                                   });
                                   if (next) {
                                     setActiveMeetingId(next.id);
-                                    setMeetingTick((n) => n + 1);
+                                    onMeetingTick((n) => n + 1);
                                   }
                                 }}
                                 className="px-2.5 py-1 rounded-full text-[11px] bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
@@ -5826,7 +5899,7 @@ const DashboardView: React.FC<{
                           });
                           if (next) {
                             setActiveMeetingId(next.id);
-                            setMeetingTick((n) => n + 1);
+                            onMeetingTick((n) => n + 1);
                           }
                         }}
                         className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
@@ -5841,7 +5914,7 @@ const DashboardView: React.FC<{
                           const next = cancelMeeting({ meetingId: activeMeeting.id });
                           if (next) {
                             setActiveMeetingId(next.id);
-                            setMeetingTick((n) => n + 1);
+                            onMeetingTick((n) => n + 1);
                           }
                         }}
                         className="px-3 py-2 rounded-xl text-xs bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800 transition"
@@ -5859,11 +5932,8 @@ const DashboardView: React.FC<{
           </div>
         </div>
       )}
-
     </div>
-    </>
   );
-
 };
 
 /* ------------------------------------------------------------------ */
@@ -5893,6 +5963,8 @@ const ActionView: React.FC<{
   onReturnToWheel: (seeker: Seeker) => void;
   onRebucketById: (seekerId: string, targetBucket: SeekerBucketKey) => void;
   onMessage: (seeker: Seeker) => void;
+  meetingTick: number;
+  onMeetingTick: React.Dispatch<React.SetStateAction<number>>;
   visibleTabs?: ActionTabKey[];
   retainerRoutes: Route[];
   canInteract?: boolean;
@@ -5929,6 +6001,8 @@ const ActionView: React.FC<{
   onReturnToWheel,
   onRebucketById,
   onMessage,
+  meetingTick,
+  onMeetingTick,
   visibleTabs,
   retainerRoutes,
   canInteract = true,
@@ -5998,6 +6072,7 @@ const ActionView: React.FC<{
     () => [
       { key: "wheel", label: "Wheel" },
       { key: "lists", label: "Sorting Lists" },
+      { key: "interviews", label: "Interviews" },
       { key: "routes", label: "Routes" },
       { key: "schedule", label: "Scheduling" },
       { key: "editProfile", label: "Edit Profile" },
@@ -6201,6 +6276,17 @@ const ActionView: React.FC<{
               />
             </div>
           </div>
+        )}
+
+        {actionTab === "interviews" && (
+          <InterviewSchedulingView
+            retainerId={retainerId}
+            currentRetainer={currentRetainer}
+            seekers={seekers}
+            meetingTick={meetingTick}
+            onMeetingTick={onMeetingTick}
+            onToast={onToast}
+          />
         )}
 
         {actionTab === "routes" && (
