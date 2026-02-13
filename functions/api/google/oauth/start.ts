@@ -54,6 +54,11 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     return json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
+  const table = await db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='google_oauth_tokens'")
+    .first<any>();
+  if (!table) return badRequest("Google OAuth storage not configured");
+
   const retainer = await resolveRetainerForSession(db, session);
   if (!retainer) return badRequest("Retainer profile not found");
 
