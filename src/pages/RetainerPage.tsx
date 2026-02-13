@@ -5034,6 +5034,7 @@ const InterviewSchedulingView: React.FC<{
     connected: boolean;
     expiresAt?: string | null;
     error?: string | null;
+    missing?: string[];
   } | null>(null);
 
   const seekerById = useMemo(() => {
@@ -5067,10 +5068,19 @@ const InterviewSchedulingView: React.FC<{
     }
     try {
       const status = await getGoogleOAuthStatus();
-      if (status && status.ok) {
+      if (status?.missing && status.missing.length) {
+        setGoogleStatus({
+          connected: false,
+          error: status.error || "Google OAuth is not configured.",
+          missing: status.missing,
+        });
+      } else if (status && status.ok) {
         setGoogleStatus({ connected: status.connected, expiresAt: status.expiresAt });
       } else {
-        setGoogleStatus({ connected: false, error: "Unable to load Google status." });
+        setGoogleStatus({
+          connected: false,
+          error: status?.error || "Unable to load Google status.",
+        });
       }
     } catch (err: any) {
       setGoogleStatus({
@@ -5278,7 +5288,12 @@ const InterviewSchedulingView: React.FC<{
           </div>
           {googleStatus?.error && (
             <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
-              {googleStatus.error}
+              <div>{googleStatus.error}</div>
+              {googleStatus.missing && googleStatus.missing.length > 0 && (
+                <div className="mt-1 text-[10px] text-amber-100/80">
+                  Missing: {googleStatus.missing.join(", ")}
+                </div>
+              )}
             </div>
           )}
           {!googleStatus?.connected && !googleStatus?.error && (

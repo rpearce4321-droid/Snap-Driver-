@@ -47,6 +47,19 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     return json({ ok: false, connected: false, error: "Google OAuth storage not configured" });
   }
 
+  const missing: string[] = [];
+  if (!env?.GOOGLE_OAUTH_CLIENT_ID) missing.push("GOOGLE_OAUTH_CLIENT_ID");
+  if (!env?.GOOGLE_OAUTH_CLIENT_SECRET) missing.push("GOOGLE_OAUTH_CLIENT_SECRET");
+  if (!env?.GOOGLE_OAUTH_SCOPES) missing.push("GOOGLE_OAUTH_SCOPES");
+  if (missing.length) {
+    return json({
+      ok: false,
+      connected: false,
+      error: "Google OAuth is not configured",
+      missing,
+    });
+  }
+
   const retainer = await resolveRetainerForSession(db, session);
   if (!retainer) return json({ ok: false, error: "Retainer profile not found" }, { status: 400 });
 

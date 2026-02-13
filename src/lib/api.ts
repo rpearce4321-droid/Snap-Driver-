@@ -58,7 +58,13 @@ export async function setUserStatus(payload: { userId?: string; email?: string; 
 
 export async function getGoogleOAuthStatus() {
   const r = await api.get("/google/oauth/status");
-  return r.data as { ok: boolean; connected: boolean; expiresAt?: string | null };
+  return r.data as {
+    ok: boolean;
+    connected: boolean;
+    expiresAt?: string | null;
+    error?: string;
+    missing?: string[];
+  };
 }
 
 export async function disconnectGoogleOAuth() {
