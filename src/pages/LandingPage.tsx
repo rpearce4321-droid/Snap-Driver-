@@ -340,6 +340,18 @@ export default function LandingPage() {
             </div>
           </div>
         </div>
+
+        <footer className="mt-12 border-t border-slate-800/70 pt-6 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+          <div>Copyright © 2026 SnapDriver. All rights reserved.</div>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link to="/privacy" className="hover:text-slate-200 transition">
+              Privacy Policy
+            </Link>
+            <Link to="/terms" className="hover:text-slate-200 transition">
+              Terms of Service
+            </Link>
+          </div>
+        </footer>
       </div>
     </main>
   );
