@@ -1,5 +1,6 @@
 import { getCookie, loadSession } from "../../_auth";
 import { json, requireDb } from "../../_db";
+import { resolveRetainerForSession } from "../_retainer";
 
 export const onRequestPost: PagesFunction = async ({ request, env }) => {
   const db = requireDb(env as any);
@@ -10,10 +11,7 @@ export const onRequestPost: PagesFunction = async ({ request, env }) => {
     return json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const retainer = await db
-    .prepare("SELECT id FROM retainers WHERE user_id = ?")
-    .bind(session.user_id)
-    .first<any>();
+  const retainer = await resolveRetainerForSession(db, session);
   if (!retainer) return json({ ok: false, error: "Retainer profile not found" }, { status: 400 });
 
   await db

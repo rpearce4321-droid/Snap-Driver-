@@ -1,5 +1,6 @@
 import { getCookie, loadSession, originFromRequest } from "../../_auth";
 import { badRequest, json, requireDb, serverError } from "../../_db";
+import { resolveRetainerForSession } from "../_retainer";
 
 const STATE_COOKIE = "sd_google_oauth_state";
 
@@ -24,10 +25,7 @@ export const onRequestGet: PagesFunction = async ({ request, env }) => {
     return json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
 
-  const retainer = await db
-    .prepare("SELECT id FROM retainers WHERE user_id = ?")
-    .bind(session.user_id)
-    .first<any>();
+  const retainer = await resolveRetainerForSession(db, session);
   if (!retainer) return badRequest("Retainer profile not found");
 
   const clientId = env.GOOGLE_OAUTH_CLIENT_ID;
