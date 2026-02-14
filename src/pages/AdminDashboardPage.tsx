@@ -11,6 +11,7 @@ import {
   subscribe,
   upsertRetainerRecord,
   upsertSeekerRecord,
+  type Status,
   type Retainer,
   type Seeker,
 } from "../lib/data";
@@ -430,6 +431,28 @@ export default function AdminDashboardPage() {
     () => retainers.filter((r) => r.status === "DELETED"),
     [retainers]
   );
+
+  const handleSeekerStatusUpdate = async (id: string, status: Status) => {
+    setSeekerStatusGuarded(id, status);
+    const updated = getSeekers().find((s) => s.id === id);
+    if (!updated) return;
+    try {
+      await syncUpsert({ seekers: [updated] });
+    } catch {
+      window.alert("Could not sync seeker status to server.");
+    }
+  };
+
+  const handleRetainerStatusUpdate = async (id: string, status: Status) => {
+    setRetainerStatusGuarded(id, status);
+    const updated = getRetainers().find((r) => r.id === id);
+    if (!updated) return;
+    try {
+      await syncUpsert({ retainers: [updated] });
+    } catch {
+      window.alert("Could not sync retainer status to server.");
+    }
+  };
 
   const [panel, setPanel] = useState<Panel>("dashboard");
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -1243,13 +1266,19 @@ export default function AdminDashboardPage() {
                 <section className="surface p-5 hover:border-blue-500/30 transition flex flex-col min-h-0">
                 <h2 className="text-xl font-semibold mb-4">Pending Seekers</h2>
                 <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                  <PendingSeekersList seekers={seekersPending} />
+                  <PendingSeekersList
+                    seekers={seekersPending}
+                    onUpdateStatus={handleSeekerStatusUpdate}
+                  />
                 </div>
               </section>
               <section className="surface p-5 hover:border-blue-500/30 transition flex flex-col min-h-0">
                 <h2 className="text-xl font-semibold mb-4">Pending Retainers</h2>
                 <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-                  <PendingRetainersList retainers={retainersPending} />
+                  <PendingRetainersList
+                    retainers={retainersPending}
+                    onUpdateStatus={handleRetainerStatusUpdate}
+                  />
                 </div>
               </section>
               </div>
@@ -4550,7 +4579,10 @@ const AdminRoutesPanel: React.FC<{
   );
 };
 
-const PendingSeekersList: React.FC<{ seekers: Seeker[] }> = ({ seekers }) => (
+const PendingSeekersList: React.FC<{
+  seekers: Seeker[];
+  onUpdateStatus: (id: string, status: Status) => void;
+}> = ({ seekers, onUpdateStatus }) => (
   <ul className="space-y-2">
     {seekers.length > 0 ? (
       seekers.map((s) => (
@@ -4566,10 +4598,10 @@ const PendingSeekersList: React.FC<{ seekers: Seeker[] }> = ({ seekers }) => (
               </div>
             </Link>
             <div className="flex items-center gap-2">
-              <button className="btn" onClick={() => setSeekerStatusGuarded(s.id, "APPROVED")}>
+              <button className="btn" onClick={() => onUpdateStatus(s.id, "APPROVED")}>
                 Approve
               </button>
-              <button className="btn" onClick={() => setSeekerStatusGuarded(s.id, "REJECTED")}>
+              <button className="btn" onClick={() => onUpdateStatus(s.id, "REJECTED")}>
                 Reject
               </button>
             </div>
@@ -4582,7 +4614,10 @@ const PendingSeekersList: React.FC<{ seekers: Seeker[] }> = ({ seekers }) => (
   </ul>
 );
 
-const PendingRetainersList: React.FC<{ retainers: Retainer[] }> = ({ retainers }) => (
+const PendingRetainersList: React.FC<{
+  retainers: Retainer[];
+  onUpdateStatus: (id: string, status: Status) => void;
+}> = ({ retainers, onUpdateStatus }) => (
   <ul className="space-y-2">
     {retainers.length > 0 ? (
       retainers.map((r) => (
@@ -4598,10 +4633,10 @@ const PendingRetainersList: React.FC<{ retainers: Retainer[] }> = ({ retainers }
               </div>
             </Link>
             <div className="flex items-center gap-2">
-              <button className="btn" onClick={() => setRetainerStatusGuarded(r.id, "APPROVED")}>
+              <button className="btn" onClick={() => onUpdateStatus(r.id, "APPROVED")}>
                 Approve
               </button>
-              <button className="btn" onClick={() => setRetainerStatusGuarded(r.id, "REJECTED")}>
+              <button className="btn" onClick={() => onUpdateStatus(r.id, "REJECTED")}>
                 Reject
               </button>
             </div>
