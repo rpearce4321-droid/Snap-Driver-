@@ -15,6 +15,10 @@ import SetPasswordPage from "./pages/SetPasswordPage";
 import { initServerSync, setSyncListener } from "./lib/serverSync";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
+import MissionPage from "./pages/MissionPage";
+import HowItWorksPage from "./pages/HowItWorksPage";
+import SeekerPathPage from "./pages/SeekerPathPage";
+import RetainerPathPage from "./pages/RetainerPathPage";
 
 export default function App() {
   const [, forceRender] = useState(0);
@@ -48,6 +52,10 @@ export default function App() {
           <Route path="/badges" element={<BadgesCatalogPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/mission" element={<MissionPage />} />
+          <Route path="/how-it-works" element={<HowItWorksPage />} />
+          <Route path="/seeker-path" element={<SeekerPathPage />} />
+          <Route path="/retainer-path" element={<RetainerPathPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

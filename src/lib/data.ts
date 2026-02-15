@@ -80,6 +80,7 @@ export type Seeker = {
   firstName: string;
   lastName: string;
   companyName?: string;
+  hasEin?: boolean;
   email?: string;
   phone?: string;
   photoUrl?: string;
@@ -105,6 +106,7 @@ export type Seeker = {
   vehicle?: string;
   vehicles?: VehicleEntry[];
   notes?: string;
+  intro?: string;
   insuranceType?: string;
   vehiclePhoto1?: string;
   vehiclePhoto2?: string;
@@ -194,6 +196,7 @@ export type Retainer = {
   city?: string;
   state?: string;
   zip?: string;
+  intro?: string;
   mission?: string;
   deliveryVerticals?: string[];
   employees?: number;
@@ -788,6 +791,7 @@ export function buildSeekerRecord(
     firstName: input.firstName ?? "New",
     lastName: input.lastName ?? "Seeker",
     companyName: input.companyName,
+    hasEin: input.hasEin ?? false,
     email: input.email,
     phone: input.phone,
     photoUrl: input.photoUrl,
@@ -813,6 +817,7 @@ export function buildSeekerRecord(
     vehicle: input.vehicle ?? vehicleSummary,
     vehicles,
     notes: (input as any).notes,
+    intro: (input as any).intro,
     insuranceType: input.insuranceType,
     vehiclePhoto1: (input as any).vehiclePhoto1,
     vehiclePhoto2: (input as any).vehiclePhoto2,
@@ -859,6 +864,7 @@ export function buildRetainerRecord(
     city: input.city,
     state: input.state,
     zip: input.zip,
+    intro: (input as any).intro,
     mission: input.mission,
     deliveryVerticals: input.deliveryVerticals ?? [],
     employees: input.employees,

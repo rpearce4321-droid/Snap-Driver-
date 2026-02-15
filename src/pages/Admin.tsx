@@ -11,7 +11,7 @@ function AdminInner() {
   return (
     <div style={wrap}>
       <div style={banner}>
-        <div style={{fontWeight:800, fontSize:18}}>Admin • LIVE MODE</div>
+        <div style={{fontWeight:800, fontSize:18}}>Admin - LIVE MODE</div>
         <div style={{opacity:.8, fontSize:12}}>KPI strip + Pending Approvals</div>
       </div>
       <AdminKpiStrip />

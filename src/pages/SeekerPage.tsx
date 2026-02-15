@@ -56,7 +56,13 @@ import {
   getRouteNoticesForSeeker,
   ROUTE_NOTICE_EVENT,
 } from "../lib/routeNotices";
-import { canSeekerLink, getSeekerTrialStatus } from "../lib/entitlements";
+import {
+  canSeekerLink,
+  getSeekerEntitlements,
+  getSeekerTrialStatus,
+  setSeekerTier,
+  type SeekerTier,
+} from "../lib/entitlements";
 import { getFeedForSeeker, type FeedItem } from "../lib/feed";
 import ProfileVideoSection from "../components/ProfileVideoSection";
 import {
@@ -94,16 +100,22 @@ const LazyBadgesCenter = lazy(() => import("../components/BadgesCenter"));
 import ProfileAvatar from "../components/ProfileAvatar";
 import {
   getActiveBadges,
+  getBackgroundBadges,
   getBadgeDefinition,
   getBadgeProgress,
   getBadgeCheckins,
+  getMandatoryBackgroundBadges,
   getBadgeSummaryForProfile,
   getPendingBadgeApprovalsForProfile,
   getReputationScoreForProfile,
+  getSelectableBadges,
+  getSelectedBackgroundBadges,
   NEGATIVE_UNIT_MULTIPLIER,
   REPUTATION_PENALTY_K,
   REPUTATION_SCORE_MAX,
   REPUTATION_SCORE_MIN,
+  setActiveBadges,
+  setBackgroundBadges,
 } from "../lib/badges";
 
 import {
@@ -462,6 +474,102 @@ const SeekerPage: React.FC = () => {
   const activeSubcontractor: Subcontractor | undefined = undefined;
 
   const isSubcontractorView = false;
+
+  const navApprovalTotals = useMemo(() => {
+    if (!currentSeekerId) return { yes: 0, no: 0, neutral: 0, total: 0 };
+    const totals = { yes: 0, no: 0, neutral: 0, total: 0 };
+    const checkins = getBadgeCheckins().filter(
+      (c) => c.targetRole === "SEEKER" && c.targetId === currentSeekerId
+    );
+    for (const checkin of checkins) {
+      if (checkin.status === "DISPUTED") {
+        totals.neutral += 1;
+        continue;
+      }
+      const value = checkin.overrideValue ?? checkin.value;
+      if (value === "YES") totals.yes += 1;
+      else if (value === "NO") totals.no += 1;
+      else totals.neutral += 1;
+    }
+    totals.total = totals.yes + totals.no + totals.neutral;
+    return totals;
+  }, [currentSeekerId]);
+
+  const navReputation = useMemo(
+    () =>
+      currentSeekerId
+        ? getReputationScoreForProfile({ ownerRole: "SEEKER", ownerId: currentSeekerId })
+        : null,
+    [currentSeekerId]
+  );
+
+  const navDisplayName = currentSeeker ? formatSeekerName(currentSeeker) : "Seeker";
+  const navCompany = currentSeeker?.companyName || "Independent Seeker";
+
+  const formatMemberSince = (value?: number | string | null) => {
+    if (!value) return "-";
+    const d = typeof value === "number" ? new Date(value) : new Date(value);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  };
+
+  const navProfileCard = (
+    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
+      <div className="flex items-start gap-4">
+        <div className="w-1/3 max-w-[140px] min-w-[96px]">
+          <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
+            <ProfileAvatar
+              role="SEEKER"
+              profile={(currentSeeker ?? { id: currentSeekerId || "seeker" }) as any}
+              name={navDisplayName}
+              size="lg"
+              className="h-full w-full rounded-xl"
+            />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="text-lg font-semibold text-slate-50 truncate">
+            {currentSeekerId ? navDisplayName : "Seeker"}
+          </div>
+          <div className="text-sm text-slate-300 truncate">
+            {currentSeekerId ? navCompany : "Select a Seeker profile"}
+          </div>
+          <div className="text-sm text-emerald-200">
+            {navReputation?.score == null ? "Reputation -" : `Reputation ${navReputation.score}`}
+          </div>
+          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-emerald-400/80"
+              style={{ width: `${navReputation?.scorePercent ?? 0}%` }}
+            />
+          </div>
+          <div className="text-xs text-slate-500">
+            Member since {formatMemberSince(currentSeeker?.createdAt)}
+          </div>
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
+              <div className="text-sm font-semibold text-emerald-50">
+                {navApprovalTotals.yes}/{navApprovalTotals.total || 0}
+              </div>
+            </div>
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
+              <div className="text-sm font-semibold text-rose-50">
+                {navApprovalTotals.no}/{navApprovalTotals.total || 0}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
+              <div className="text-sm font-semibold text-slate-100">
+                {navApprovalTotals.neutral}/{navApprovalTotals.total || 0}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   // Keep portal lists in sync with localStorage changes (incl. reseed)
   useEffect(() => {
@@ -878,34 +986,6 @@ const SeekerPage: React.FC = () => {
     );
   }
 
-  const miniProfileCard = (
-    <button
-      type="button"
-      onClick={() => setActiveTab("dashboard")}
-      className="group flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-left hover:bg-slate-900/90 transition"
-      title="Go to dashboard"
-    >
-      <span className="h-10 w-10 rounded-xl overflow-hidden border border-slate-700 bg-slate-950/60 shrink-0">
-        <img
-          src={getStockImageUrl("SEEKER", currentSeekerId ?? undefined)}
-          alt=""
-          className="h-full w-full object-cover"
-        />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-[10px] uppercase tracking-wide text-slate-500">
-          Dashboard
-        </span>
-        <span className="block text-sm font-semibold text-slate-100 truncate">
-          {currentSeeker ? formatSeekerName(currentSeeker) : "Seeker Portal"}
-        </span>
-        <span className="block text-[10px] text-slate-500">
-          Status: {currentSeeker?.status ?? "Not set"}
-        </span>
-      </span>
-    </button>
-  );
-
   return (
     <div
       className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-hidden"
@@ -919,49 +999,7 @@ const SeekerPage: React.FC = () => {
           <h1 className="text-xl font-semibold text-slate-50">Seeker Portal</h1>
         </div>
 
-        {currentSeeker ? (
-          <div className="mb-6 rounded-2xl bg-slate-800/80 px-4 py-3">
-            <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
-              Your Profile
-            </div>
-            <div className="font-semibold text-slate-50 truncate">
-              {formatSeekerName(currentSeeker)}
-            </div>
-            <div className="text-xs text-slate-400 mt-1">
-              Status:{" "}
-              <span className="font-medium text-emerald-400">
-                {currentSeeker.status}
-              </span>
-            </div>
-            {!isSubcontractorView && currentSeekerId && (
-              <div className="mt-2">
-                <Link
-                  to={`/seekers/${currentSeekerId}`}
-                  className="text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                >
-                  View profile
-                </Link>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="mb-6 rounded-2xl bg-slate-800/80 px-4 py-3">
-            <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
-              Get started
-            </div>
-            <div className="text-sm text-slate-200">
-              You&apos;re not currently acting as any Seeker. Use{" "}
-              <button
-                type="button"
-                onClick={() => openActionTab("editProfile")}
-                className="font-semibold text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
-              >
-                Edit Profile
-              </button>{" "}
-              to create a Seeker profile.
-            </div>
-          </div>
-        )}
+        <div className="mb-6">{navProfileCard}</div>
 
 <nav className="space-y-1 flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
           {isSubcontractorView ? (
@@ -993,6 +1031,18 @@ const SeekerPage: React.FC = () => {
                 label="Dashboard"
                 active={activeTab === "dashboard"}
                 onClick={() => setActiveTab("dashboard")}
+              />
+              <SidebarButton
+                label="My Profile"
+                active={false}
+                disabled={!currentSeekerId}
+                onClick={() => {
+                  if (!currentSeekerId) {
+                    setToastMessage("Create a Seeker profile first.");
+                    return;
+                  }
+                  navigate(`/seekers/${currentSeekerId}`);
+                }}
               />
               <SidebarButton
                 label="Find Retainers"
@@ -1035,13 +1085,12 @@ const SeekerPage: React.FC = () => {
       <main className="flex-1 min-h-0 flex flex-col relative">
         <div className="lg:hidden border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="space-y-3">
-                {miniProfileCard}
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                    Snap Driver
-                  </div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                      Snap Driver
+                    </div>
                   <div className="text-lg font-semibold text-slate-50">Seeker Portal</div>
                 </div>
               </div>
@@ -1092,49 +1141,7 @@ const SeekerPage: React.FC = () => {
                   X
                 </button>
               </div>
-              <div className="space-y-4 mb-6">
-                {currentSeeker ? (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                      Your Profile
-                    </div>
-                    <div className="font-semibold text-slate-50 truncate">
-                      {formatSeekerName(currentSeeker)}
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      Status:{" "}
-                      <span className="font-medium text-emerald-400">{currentSeeker.status}</span>
-                    </div>
-                    {!isSubcontractorView && currentSeekerId && (
-                      <div>
-                        <Link
-                          to={`/seekers/${currentSeekerId}`}
-                          className="text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                        >
-                          View profile
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                      Get started
-                    </div>
-                    <div className="text-sm text-slate-200">
-                      You&apos;re not currently acting as any Seeker. Use{" "}
-                      <button
-                        type="button"
-                        onClick={() => openActionTab("editProfile")}
-                        className="font-semibold text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
-                      >
-                        Edit Profile
-                      </button>{" "}
-                      to create a Seeker profile.
-                    </div>
-                  </div>
-                )}
-              </div>
+              <div className="space-y-4 mb-6">{navProfileCard}</div>
 <nav className="space-y-2">
                 {isSubcontractorView ? (
                   <>
@@ -1173,20 +1180,33 @@ const SeekerPage: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <SidebarButton
-                      label="Dashboard"
-                      active={activeTab === "dashboard"}
-                      onClick={() => {
-                        setActiveTab("dashboard");
-                        setIsMobileNavOpen(false);
-                      }}
-                    />
-                    <SidebarButton
-                      label="Find Retainers"
-                      active={activeTab === "find"}
-                      onClick={() => {
-                        setActiveTab("find");
-                        setActionTab("wheel");
+                <SidebarButton
+                  label="Dashboard"
+                  active={activeTab === "dashboard"}
+                  onClick={() => {
+                    setActiveTab("dashboard");
+                    setIsMobileNavOpen(false);
+                  }}
+                />
+                <SidebarButton
+                  label="My Profile"
+                  active={false}
+                  disabled={!currentSeekerId}
+                  onClick={() => {
+                    if (!currentSeekerId) {
+                      setToastMessage("Create a Seeker profile first.");
+                      return;
+                    }
+                    setIsMobileNavOpen(false);
+                    navigate(`/seekers/${currentSeekerId}`);
+                  }}
+                />
+                <SidebarButton
+                  label="Find Retainers"
+                  active={activeTab === "find"}
+                  onClick={() => {
+                    setActiveTab("find");
+                    setActionTab("wheel");
                         setIsMobileNavOpen(false);
                       }}
                     />
@@ -1242,7 +1262,6 @@ const SeekerPage: React.FC = () => {
         <header className="hidden lg:block px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              {miniProfileCard}
               <div>
                 <h2 className="text-2xl font-semibold text-slate-50">{headerTitle}</h2>
                 <p className="text-sm text-slate-400 mt-1">{headerSubtitle}</p>
@@ -1267,8 +1286,6 @@ const SeekerPage: React.FC = () => {
               <DashboardView
                 seekerId={currentSeekerId}
                 retainers={retainers}
-                currentSeeker={currentSeeker}
-                isDesktop={isDesktop}
                 onToast={(msg) => setToastMessage(msg)}
                 onGoToMessages={() => setActiveTab("messages")}
                 onGoToRoutes={() => openActionTab("routes")}
@@ -1528,16 +1545,19 @@ const SidebarButton: React.FC<{
   label: string;
   active: boolean;
   onClick: () => void;
-}> = ({ label, active, onClick }) => {
+  disabled?: boolean;
+}> = ({ label, active, onClick, disabled = false }) => {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={[
         "w-full flex items-start justify-between gap-2 px-3 py-2 rounded-xl text-sm transition min-w-0",
         active
           ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
           : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-50 border border-transparent",
+        disabled ? "opacity-60 cursor-not-allowed hover:bg-transparent hover:text-slate-300" : "",
       ].join(" ")}
     >
       <span className="min-w-0 text-left leading-snug whitespace-normal">{label}</span>
@@ -2179,7 +2199,7 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
           {(location || zipLabel) && (
             <div className="text-[11px] text-slate-500">
               {location}
-              {location && zipLabel ? " • " : ""}
+              {location && zipLabel ? " - " : ""}
               {zipLabel}
             </div>
           )}
@@ -2446,8 +2466,6 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
 const DashboardView: React.FC<{
   seekerId: string | null;
   retainers: Retainer[];
-  currentSeeker?: Seeker;
-  isDesktop: boolean;
   onToast: (message: string) => void;
   onGoToMessages: () => void;
   onGoToRoutes: () => void;
@@ -2457,8 +2475,6 @@ const DashboardView: React.FC<{
 }> = ({
   seekerId,
   retainers,
-  currentSeeker,
-  isDesktop,
   onToast,
   onGoToMessages,
   onGoToRoutes,
@@ -2983,7 +2999,7 @@ const DashboardView: React.FC<{
           {(location || zipLabel) && (
             <div className="text-[11px] text-slate-500">
               {location}
-              {location && zipLabel ? " • " : ""}
+              {location && zipLabel ? " - " : ""}
               {zipLabel}
             </div>
           )}
@@ -3009,13 +3025,6 @@ const DashboardView: React.FC<{
     return Math.max(0, Math.min(100, value));
   };
 
-  const formatMemberSince = (value?: number | string | null) => {
-    if (!value) return "-";
-    const d = typeof value === "number" ? new Date(value) : new Date(value);
-    if (Number.isNaN(d.getTime())) return "-";
-    return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
-  };
-
   const activeBadges = useMemo(() => {
     if (!seekerId) return [];
     const ids = getActiveBadges("SEEKER", seekerId);
@@ -3024,10 +3033,6 @@ const DashboardView: React.FC<{
       .filter((b): b is NonNullable<typeof b> => Boolean(b))
       .slice(0, 3);
   }, [seekerId]);
-
-  const seekerReputation = seekerId
-    ? getReputationScoreForProfile({ ownerRole: "SEEKER", ownerId: seekerId })
-    : null;
 
   const [linkTick] = useState(0);
 
@@ -3045,73 +3050,9 @@ const DashboardView: React.FC<{
     );
   }, [seekerId, linkTick]);
 
-  const seekerDisplayName = currentSeeker ? formatSeekerName(currentSeeker) : "Seeker";
-  const seekerCompany = currentSeeker?.companyName || "Independent Seeker";
-
-  const profileCard = (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
-      <div className="flex items-start gap-4">
-        <div className="w-1/3 max-w-[140px] min-w-[96px]">
-          <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
-            <ProfileAvatar
-              role="SEEKER"
-              profile={(currentSeeker ?? { id: seekerId || "seeker" }) as any}
-              name={seekerDisplayName}
-              size="lg"
-              className="h-full w-full rounded-xl"
-            />
-          </div>
-        </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="text-lg font-semibold text-slate-50 truncate">
-            {seekerId ? seekerDisplayName : "Seeker"}
-          </div>
-          <div className="text-sm text-slate-300 truncate">
-            {seekerId ? seekerCompany : "Select a Seeker profile"}
-          </div>
-          <div className="text-sm text-emerald-200">
-            {seekerReputation?.score == null
-              ? "Reputation -"
-              : `Reputation ${seekerReputation.score}`}
-          </div>
-          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-            <div
-              className="h-full bg-emerald-400/80"
-              style={{ width: `${seekerReputation?.scorePercent ?? 0}%` }}
-            />
-          </div>
-          <div className="text-xs text-slate-500">
-            Member since {formatMemberSince(currentSeeker?.createdAt)}
-          </div>
-          <div className="grid grid-cols-3 gap-2 pt-1">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
-              <div className="text-sm font-semibold text-emerald-50">
-                {stats.approvalTotals.yes}/{stats.approvalTotals.total || 0}
-              </div>
-            </div>
-            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
-              <div className="text-sm font-semibold text-rose-50">
-                {stats.approvalTotals.no}/{stats.approvalTotals.total || 0}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
-              <div className="text-sm font-semibold text-slate-100">
-                {stats.approvalTotals.neutral}/{stats.approvalTotals.total || 0}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div className="grid grid-cols-1 gap-0 sm:gap-4 lg:gap-6 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 lg:h-full w-full max-w-full">
       <div className="flex flex-col gap-6 min-h-0 order-2 lg:order-1 w-full max-w-full">
-        {!isDesktop && profileCard}
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -3438,8 +3379,6 @@ const DashboardView: React.FC<{
 
       {/* Right rail */}
       <aside className="hidden lg:flex lg:order-2 lg:sticky lg:top-6 lg:flex-col lg:gap-5 lg:space-y-0 lg:overflow-hidden min-h-0 lg:h-full w-full max-w-full">
-        {profileCard}
-
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 flex-1 min-h-0 overflow-y-auto">
           <div className="text-xs uppercase tracking-wide text-slate-400 mb-3">
             Badge progress
@@ -3992,7 +3931,7 @@ const RetainerBucketPanel: React.FC<{
                           {match.overlapDays.length > 0 && (
                             <span className="text-slate-500">
                               {" "}
-                              � {formatDaysShort(match.overlapDays)}
+                              - {formatDaysShort(match.overlapDays)}
                             </span>
                           )}
                         </div>
@@ -4052,7 +3991,7 @@ const RetainerBucketPanel: React.FC<{
 };
 
 /* ------------------------------------------------------------------ */
-/* View Retainers � wheel                                             */
+/* View Retainers - wheel                                             */
 /* ------------------------------------------------------------------ */
 
 const ViewRetainersView: React.FC<{
@@ -4564,8 +4503,8 @@ const RetainerWheelCard: React.FC<{
   onClassify,
 }) => {
   const name = formatRetainerName(retainer);
-  const city = (retainer as any).city ?? "�";
-  const state = (retainer as any).state ?? "�";
+  const city = (retainer as any).city ?? "";
+  const state = (retainer as any).state ?? "";
   const photoUrl = getRetainerPhotoUrl(retainer);
   const introVideoUrl =
     (retainer as any).introVideoStatus === "APPROVED"
@@ -4643,7 +4582,7 @@ const RetainerWheelCard: React.FC<{
         <div className="min-w-0">
           <div className="text-sm font-semibold text-slate-50 truncate">{name}</div>
           <div className="text-xs text-slate-400">
-            {city !== "�" || state !== "�" ? `${city}, ${state}` : "Location not set"}
+            {city || state ? `${city}${city && state ? ", " : ""}${state}` : "Location not set"}
           </div>
         </div>
         <button
@@ -4673,7 +4612,7 @@ const RetainerWheelCard: React.FC<{
             <span className="flex items-center gap-1">
               {badgeIconFor("shield", "h-3.5 w-3.5")}
               <span className="font-semibold">
-                {reputation.score == null ? "Reputation ?" : `Reputation ${reputation.score}`}
+                {reputation.score == null ? "Reputation -" : `Reputation ${reputation.score}`}
               </span>
             </span>
             {reputation.total > 0 && <span className="text-slate-500">({reputation.total})</span>}
@@ -4692,19 +4631,19 @@ const RetainerWheelCard: React.FC<{
               {badgeIconFor("clock", "h-3.5 w-3.5")}
               <span className="font-semibold">{scheduleMatch.percent}% match</span>
               {scheduleMatch.overlapDays.length > 0 && (
-                <span className="text-emerald-200/70">? {formatDaysShort(scheduleMatch.overlapDays)}</span>
+                <span className="text-emerald-200/70">- {formatDaysShort(scheduleMatch.overlapDays)}</span>
               )}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/30 px-2 py-0.5 text-[10px] text-slate-400">
               {badgeIconFor("clock", "h-3.5 w-3.5")}
-              Schedule ?
+              Schedule -
             </span>
           )}
 
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-950/30 px-2 py-0.5 text-[10px] text-slate-300">
             {badgeIconFor("route", "h-3.5 w-3.5")}
-            Routes: {typeof routeCount === "number" ? routeCount : "?"}
+            Routes: {typeof routeCount === "number" ? routeCount : "-"}
           </span>
         </div>
       </div>
@@ -4715,7 +4654,7 @@ const RetainerWheelCard: React.FC<{
             {topBadges.map((b) => (
               <span
                 key={b.badge.id}
-                title={`${b.badge.title} � Level ${b.maxLevel}\n${b.badge.description}`}
+                title={`${b.badge.title} - Level ${b.maxLevel}\n${b.badge.description}`}
                 className="relative h-7 w-7 rounded-full border border-slate-700 bg-slate-950/40 text-slate-200 flex items-center justify-center"
               >
                 {badgeIconFor(b.badge.iconKey, "h-4 w-4")}
@@ -4728,8 +4667,8 @@ const RetainerWheelCard: React.FC<{
 
           {verts.length > 0 && (
             <div className="text-[10px] text-slate-500 truncate">
-              {verts.slice(0, 2).join(" � ")}
-              {verts.length > 2 ? ` � +${verts.length - 2}` : ""}
+              {verts.slice(0, 2).join(" / ")}
+              {verts.length > 2 ? ` +${verts.length - 2}` : ""}
             </div>
           )}
         </div>
@@ -4899,7 +4838,7 @@ const ComposeMessagePopover: React.FC<{
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Example: Route A � night shift coverage"
+              placeholder="Example: Route A - night shift coverage"
             />
           </div>
 
@@ -4909,7 +4848,7 @@ const ComposeMessagePopover: React.FC<{
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-h-[80px]"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="Introduce yourself and what you�re looking for�"
+              placeholder="Introduce yourself and what you're looking for..."
             />
           </div>
         </div>
@@ -4921,7 +4860,7 @@ const ComposeMessagePopover: React.FC<{
             disabled={sending}
             className="px-4 py-1.5 rounded-full text-xs font-medium bg-emerald-500/90 hover:bg-emerald-400 text-slate-950 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {sending ? "Sending�" : "Send"}
+            {sending ? "Sending..." : "Send"}
           </button>
           <button
             type="button"
@@ -5261,7 +5200,7 @@ const ReadOnlyField: React.FC<{ label: string; children: React.ReactNode }> = ({
     <div className="space-y-1">
       <label className="text-xs font-medium text-slate-200">{label}</label>
       <div className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 min-h-[2.25rem] flex items-center">
-        {children ?? <span className="text-slate-500">�</span>}
+        {children ?? <span className="text-slate-500">-</span>}
       </div>
     </div>
   );
@@ -5504,6 +5443,7 @@ type SeekerProfileFormProps = {
 
 type SeekerProfileEditPageKey =
   | "core"
+  | "tierBadges"
   | "insuranceVerticals"
   | "vehicleNotes"
   | "photos"
@@ -5544,6 +5484,8 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
   const [firstName, setFirstName] = useState(initial?.firstName ?? "");
   const [lastName, setLastName] = useState(initial?.lastName ?? "");
   const [companyName, setCompanyName] = useState(initial?.companyName ?? "");
+  const [hasEin, setHasEin] = useState(Boolean((initial as any)?.hasEin));
+  const [intro, setIntro] = useState((initial as any)?.intro ?? "");
   const [email, setEmail] = useState((initial as any)?.email ?? "");
   const [phone, setPhone] = useState((initial as any)?.phone ?? "");
   const [birthday, setBirthday] = useState((initial as any)?.birthday ?? "");
@@ -5602,6 +5544,50 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
   const [introVideoMime, setIntroVideoMime] = useState<string | undefined>(
     (initial as any)?.introVideoMime ?? undefined
   );
+  const initialSeekerTier: SeekerTier = (() => {
+    if (!initial?.id) return "STARTER";
+    const tier = getSeekerEntitlements(initial.id).tier;
+    return tier === "TRIAL" ? "STARTER" : tier;
+  })();
+  const [selectedTier, setSelectedTier] = useState<SeekerTier>(initialSeekerTier);
+  const mandatoryBackgroundBadges = useMemo(
+    () => getMandatoryBackgroundBadges("SEEKER"),
+    []
+  );
+  const mandatoryBackgroundIds = useMemo(
+    () => mandatoryBackgroundBadges.map((b) => b.id),
+    [mandatoryBackgroundBadges]
+  );
+  const [activeBadgeIds, setActiveBadgeIds] = useState<string[]>(() => {
+    if (!initial?.id) return [];
+    return getActiveBadges("SEEKER", initial.id);
+  });
+  const [backgroundBadgeIds, setBackgroundBadgeIds] = useState<string[]>(() => {
+    if (!initial?.id) return [];
+    const selected = getSelectedBackgroundBadges("SEEKER", initial.id);
+    return selected.filter((id) => !mandatoryBackgroundIds.includes(id));
+  });
+  const selectableBadges = useMemo(() => getSelectableBadges("SEEKER"), []);
+  const backgroundBadges = useMemo(
+    () => getBackgroundBadges("SEEKER").filter((b) => !mandatoryBackgroundIds.includes(b.id)),
+    [mandatoryBackgroundIds]
+  );
+  const tierCaps = useMemo(() => {
+    const base =
+      selectedTier === "ELITE"
+        ? { active: 4, background: 4 }
+        : selectedTier === "GROWTH"
+          ? { active: 2, background: 2 }
+          : { active: 1, background: 1 };
+    return {
+      active: base.active,
+      background: Math.max(base.background, mandatoryBackgroundIds.length),
+    };
+  }, [selectedTier, mandatoryBackgroundIds.length]);
+  const optionalBackgroundSlots = Math.max(
+    0,
+    tierCaps.background - mandatoryBackgroundIds.length
+  );
   const [vehiclePhoto1, setVehiclePhoto1] = useState(
     (initial as any)?.vehiclePhoto1 ?? ""
   );
@@ -5620,6 +5606,11 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
       setFirstName("");
       setLastName("");
       setCompanyName("");
+      setHasEin(false);
+      setIntro("");
+      setSelectedTier("STARTER");
+      setActiveBadgeIds([]);
+      setBackgroundBadgeIds([]);
       setEmail("");
       setPhone("");
       setBirthday("");
@@ -5654,6 +5645,15 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     setFirstName(initial.firstName ?? "");
     setLastName(initial.lastName ?? "");
     setCompanyName(initial.companyName ?? "");
+    setHasEin(Boolean((initial as any)?.hasEin));
+    setIntro((initial as any)?.intro ?? "");
+    const entTier = getSeekerEntitlements(initial.id).tier;
+    setSelectedTier(entTier === "TRIAL" ? "STARTER" : entTier);
+    setActiveBadgeIds(getActiveBadges("SEEKER", initial.id));
+    const selectedBackground = getSelectedBackgroundBadges("SEEKER", initial.id);
+    setBackgroundBadgeIds(
+      selectedBackground.filter((id) => !mandatoryBackgroundIds.includes(id))
+    );
     setEmail((initial as any)?.email ?? "");
     setPhone((initial as any)?.phone ?? "");
     setBirthday((initial as any)?.birthday ?? "");
@@ -5687,6 +5687,11 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     setVehiclePhoto3((initial as any)?.vehiclePhoto3 ?? "");
     setActivePage("core");
   }, [initial?.id, mode]);
+
+  useEffect(() => {
+    setActiveBadgeIds((prev) => prev.slice(0, tierCaps.active));
+    setBackgroundBadgeIds((prev) => prev.slice(0, optionalBackgroundSlots));
+  }, [tierCaps.active, optionalBackgroundSlots]);
 
   const workHistoryAssignments = useMemo(
     () => (initial?.id ? getAssignmentsForSeeker(initial.id) : []),
@@ -5785,6 +5790,22 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     );
   };
 
+  const toggleActiveBadge = (id: string) => {
+    setActiveBadgeIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= tierCaps.active) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const toggleBackgroundBadge = (id: string) => {
+    setBackgroundBadgeIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= optionalBackgroundSlots) return prev;
+      return [...prev, id];
+    });
+  };
+
   const updateVehicleEntry = (id: string, patch: Partial<VehicleEntry>) => {
     setVehicles((prev) =>
       prev.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry))
@@ -5808,10 +5829,11 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
 
   const pages: { key: SeekerProfileEditPageKey; label: string }[] = [
     { key: "core", label: "Profile 1: Core Info" },
-    { key: "insuranceVerticals", label: "Profile 2: Insurance & Verticals" },
-    { key: "vehicleNotes", label: "Profile 3: Vehicle & Notes" },
-    { key: "photos", label: "Profile 4: My Media" },
-    { key: "workHistory", label: "Profile 5: Work History" },
+    { key: "tierBadges", label: "Profile 2: Tier & Badges" },
+    { key: "insuranceVerticals", label: "Profile 3: Insurance & Verticals" },
+    { key: "vehicleNotes", label: "Profile 4: Vehicle & Notes" },
+    { key: "photos", label: "Profile 5: My Media" },
+    { key: "workHistory", label: "Profile 6: Work History" },
   ];
 
   const currentIndex = pages.findIndex((p) => p.key === activePage);
@@ -5884,6 +5906,71 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
       setIntroVideoRejectedBy(undefined);
       setIntroVideoRejectedByEmail(undefined);
     }
+
+    if (!isEdit || !initial?.id) return;
+    const nextIntroVideoUrl =
+      "introVideoUrl" in patch ? patch.introVideoUrl ?? "" : introVideoUrl;
+    const nextIntroVideoStatus =
+      "introVideoStatus" in patch ? patch.introVideoStatus : introVideoStatus;
+    const nextIntroVideoSubmittedAt =
+      "introVideoSubmittedAt" in patch
+        ? patch.introVideoSubmittedAt
+        : introVideoSubmittedAt;
+    const nextIntroVideoDurationSec =
+      "introVideoDurationSec" in patch
+        ? patch.introVideoDurationSec
+        : introVideoDurationSec;
+    const nextIntroVideoSizeBytes =
+      "introVideoSizeBytes" in patch ? patch.introVideoSizeBytes : introVideoSizeBytes;
+    const nextIntroVideoMime =
+      "introVideoMime" in patch ? patch.introVideoMime : introVideoMime;
+    const updated: Seeker = {
+      ...initial,
+      introVideoUrl: nextIntroVideoUrl || undefined,
+      introVideoStatus: nextIntroVideoStatus || undefined,
+      introVideoSubmittedAt: nextIntroVideoSubmittedAt || undefined,
+      introVideoDurationSec: nextIntroVideoDurationSec ?? undefined,
+      introVideoSizeBytes: nextIntroVideoSizeBytes ?? undefined,
+      introVideoMime: nextIntroVideoMime || undefined,
+      introVideoApprovedAt:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoApprovedAt || undefined,
+      introVideoApprovedBy:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoApprovedBy || undefined,
+      introVideoApprovedByEmail:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoApprovedByEmail || undefined,
+      introVideoRejectedAt:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoRejectedAt || undefined,
+      introVideoRejectedBy:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoRejectedBy || undefined,
+      introVideoRejectedByEmail:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoRejectedByEmail || undefined,
+    };
+    updateSeekerInStorage(updated);
+    if (isServerAuthoritative()) {
+      syncUpsert({ seekers: [updated] }).catch((err: any) => {
+        setError(err?.message || "Server save failed. Please try again.");
+      });
+    }
+  };
+
+  const persistTierAndBadges = (ownerId: string, allowOverride: boolean) => {
+    setSeekerTier(ownerId, selectedTier);
+    setActiveBadges("SEEKER", ownerId, activeBadgeIds);
+    setBackgroundBadges("SEEKER", ownerId, backgroundBadgeIds, {
+      allowOverride,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -5894,6 +5981,25 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
       setError("First name, last name, and email are required.");
       return;
+    }
+    const introText = intro.trim();
+    if ((!isEdit || introText.length > 0) && (introText.length < 140 || introText.length > 500)) {
+      setError("Short intro must be between 140 and 500 characters.");
+      return;
+    }
+    if (!isEdit) {
+      if (activeBadgeIds.length < tierCaps.active) {
+        setError(`Select ${tierCaps.active} foreground badge${tierCaps.active === 1 ? "" : "s"} to continue.`);
+        return;
+      }
+      if (backgroundBadgeIds.length < optionalBackgroundSlots) {
+        setError(
+          `Select ${optionalBackgroundSlots} background badge${
+            optionalBackgroundSlots === 1 ? "" : "s"
+          } to continue.`
+        );
+        return;
+      }
     }
 
     try {
@@ -5919,6 +6025,8 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         companyName: companyName.trim() || undefined,
+        hasEin,
+        intro: introText || undefined,
         email: email.trim() || undefined,
         phone: phone.trim() || undefined,
         birthday: birthday || undefined,
@@ -5968,6 +6076,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
           }
         }
         updateSeekerInStorage(updated);
+        persistTierAndBadges(updated.id, false);
         setSuccessMsg("Profile updated. Admin and other views will see your latest info.");
         onSaved(updated.id);
       } else {
@@ -5981,6 +6090,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
           }
         }
         upsertSeekerRecord(created);
+        persistTierAndBadges(created.id, true);
         setSuccessMsg(
           "Profile created and set to Pending. Head to Badges to choose your badges while you wait for approval."
         );
@@ -6005,7 +6115,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
             {isEdit ? "Edit Seeker Profile" : "Create Seeker Profile"}
           </h3>
           <p className="text-sm text-slate-400 mt-1">
-            {pages[safeIndex]?.label} � Scroll, use arrows, or click a page.
+            {pages[safeIndex]?.label} - Scroll, use arrows, or click a page.
           </p>
         </div>
 
@@ -6022,7 +6132,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
             ].join(" ")}
             title="Previous page"
           >
-            ?
+            {"<"}
           </button>
           <span className="text-[11px] text-slate-400">
             {safeIndex + 1} / {pages.length}
@@ -6039,7 +6149,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
             ].join(" ")}
             title="Next page"
           >
-            ?
+            {">"}
           </button>
         </div>
       </div>
@@ -6117,6 +6227,35 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
               />
             </div>
 
+            <div className="flex items-center gap-2 text-xs text-slate-200">
+              <input
+                id="seeker-has-ein"
+                type="checkbox"
+                checked={hasEin}
+                onChange={(e) => setHasEin(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-900"
+              />
+              <label htmlFor="seeker-has-ein" className="cursor-pointer">
+                Has EIN
+              </label>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-200">
+                Short Intro (140-500 characters)
+              </label>
+              <textarea
+                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-h-[120px]"
+                value={intro}
+                onChange={(e) => setIntro(e.target.value)}
+                maxLength={500}
+                placeholder="Share the basics of your route experience, preferred work style, and what you want in a partner."
+              />
+              <div className="text-[11px] text-slate-500">
+                {intro.trim().length}/500 characters
+              </div>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-xs font-medium text-slate-200">
@@ -6191,6 +6330,183 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
                   placeholder="33602"
                 />
               </div>
+            </div>
+          </>
+        )}
+
+        {activePage === "tierBadges" && (
+          <>
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-100">Select tier</div>
+                <div className="text-xs text-slate-400">
+                  Tier controls how many foreground and background badges you can start with.
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {[
+                  {
+                    value: "STARTER",
+                    label: "Tier 1",
+                    detail: "1 foreground badge + 1 background badge",
+                  },
+                  {
+                    value: "GROWTH",
+                    label: "Tier 2",
+                    detail: "2 foreground badges + 2 background badges",
+                  },
+                  {
+                    value: "ELITE",
+                    label: "Tier 3",
+                    detail: "4 foreground badges + 4 background badges",
+                  },
+                ].map((tier) => {
+                  const active = selectedTier === (tier.value as SeekerTier);
+                  return (
+                    <button
+                      key={tier.value}
+                      type="button"
+                      onClick={() => setSelectedTier(tier.value as SeekerTier)}
+                      className={[
+                        "rounded-2xl border px-4 py-3 text-left transition",
+                        active
+                          ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-100"
+                          : "border-slate-800 bg-slate-900/60 text-slate-200 hover:bg-slate-900/80",
+                      ].join(" ")}
+                    >
+                      <div className="text-sm font-semibold">{tier.label}</div>
+                      <div className="text-[11px] text-slate-400 mt-1">{tier.detail}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-100">
+                    Foreground badges
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Select {tierCaps.active} badge{tierCaps.active === 1 ? "" : "s"}.
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {activeBadgeIds.length}/{tierCaps.active} selected
+                </div>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {selectableBadges.map((badge) => {
+                  const selected = activeBadgeIds.includes(badge.id);
+                  return (
+                    <button
+                      key={badge.id}
+                      type="button"
+                      onClick={() => toggleActiveBadge(badge.id)}
+                      className={[
+                        "rounded-xl border px-3 py-2 text-left transition flex items-start gap-2",
+                        selected
+                          ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-100"
+                          : "border-slate-800 bg-slate-900/60 text-slate-200 hover:bg-slate-900/80",
+                      ].join(" ")}
+                      title={`${badge.title} - ${badge.description}`}
+                    >
+                      <span className="h-8 w-8 rounded-lg border border-slate-700 bg-slate-950/60 flex items-center justify-center text-slate-100">
+                        {badgeIconFor(badge.iconKey, "h-4 w-4")}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold truncate">
+                          {badge.title}
+                        </span>
+                        <span className="block text-[11px] text-slate-400 truncate">
+                          {badge.description}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-100">
+                    Background badges
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Mandatory badges are included automatically.
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {backgroundBadgeIds.length}/{optionalBackgroundSlots} selected
+                </div>
+              </div>
+
+              {mandatoryBackgroundBadges.length > 0 && (
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Mandatory
+                  </div>
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    {mandatoryBackgroundBadges.map((badge) => (
+                      <div
+                        key={badge.id}
+                        className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 flex items-start gap-2 text-slate-200"
+                      >
+                        <span className="h-7 w-7 rounded-lg border border-slate-700 bg-slate-950/60 flex items-center justify-center text-slate-100">
+                          {badgeIconFor(badge.iconKey, "h-4 w-4")}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold truncate">
+                            {badge.title}
+                          </span>
+                          <span className="block text-[11px] text-slate-500 truncate">
+                            {badge.description}
+                          </span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {backgroundBadges.length === 0 ? (
+                <div className="text-xs text-slate-400">No optional background badges.</div>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {backgroundBadges.map((badge) => {
+                    const selected = backgroundBadgeIds.includes(badge.id);
+                    return (
+                      <button
+                        key={badge.id}
+                        type="button"
+                        onClick={() => toggleBackgroundBadge(badge.id)}
+                        className={[
+                          "rounded-xl border px-3 py-2 text-left transition flex items-start gap-2",
+                          selected
+                            ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-100"
+                            : "border-slate-800 bg-slate-900/60 text-slate-200 hover:bg-slate-900/80",
+                        ].join(" ")}
+                        title={`${badge.title} - ${badge.description}`}
+                      >
+                        <span className="h-8 w-8 rounded-lg border border-slate-700 bg-slate-950/60 flex items-center justify-center text-slate-100">
+                          {badgeIconFor(badge.iconKey, "h-4 w-4")}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold truncate">
+                            {badge.title}
+                          </span>
+                          <span className="block text-[11px] text-slate-400 truncate">
+                            {badge.description}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -6353,7 +6669,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
                 className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-h-[120px]"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Anything you want Retainers and Admin to know�"
+                placeholder="Anything you want Retainers and Admin to know..."
               />
             </div>
           </>
@@ -6955,7 +7271,7 @@ const SeekerScheduleView: React.FC<{
                     <div className="space-y-2">
                       <div className="text-sm text-slate-100">
                         {meeting.startsAt
-                          ? `${formatMeetingTime(meeting.startsAt, meeting.timezone)} · ${meeting.durationMinutes}m`
+                          ? `${formatMeetingTime(meeting.startsAt, meeting.timezone)} - ${meeting.durationMinutes}m`
                           : "Scheduled"}
                       </div>
                       {meeting.meetLink ? (
@@ -6986,7 +7302,7 @@ const SeekerScheduleView: React.FC<{
                             className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between gap-2"
                           >
                             <div className="text-xs text-slate-200">
-                              {formatMeetingTime(p.startAt, meeting.timezone)} · {p.durationMinutes}m
+                              {formatMeetingTime(p.startAt, meeting.timezone)} - {p.durationMinutes}m
                             </div>
                             <button
                               type="button"
@@ -7252,9 +7568,9 @@ const RetainerWheelExpandedCard: React.FC<{
   onClassify,
 }) => {
   const name = formatRetainerName(retainer);
-  const city = (retainer as any).city ?? "�";
-  const state = (retainer as any).state ?? "�";
-  const zip = (retainer as any).zip ?? "�";
+  const city = (retainer as any).city ?? "";
+  const state = (retainer as any).state ?? "";
+  const zip = (retainer as any).zip ?? "";
   const mission = (retainer as any).mission ?? (retainer as any).missionStatement ?? "";
   const photoUrl = getRetainerPhotoUrl(retainer);
 
@@ -7304,7 +7620,7 @@ const RetainerWheelExpandedCard: React.FC<{
     const max = typeof r.payMax === "number" ? r.payMax : null;
     const fmt = (n: number) =>
       n.toLocaleString(undefined, { style: "currency", currency: "USD" });
-    if (min != null && max != null) return `${model}${fmt(min)}�${fmt(max)}`;
+    if (min != null && max != null) return `${model}${fmt(min)}-${fmt(max)}`;
     if (min != null) return `${model}${fmt(min)}+`;
     if (max != null) return `${model}Up to ${fmt(max)}`;
     return model ? model.trim() : "Pay not listed";
@@ -7312,7 +7628,7 @@ const RetainerWheelExpandedCard: React.FC<{
 
   const routeScheduleLabel = (r: Route): string => {
     if (r.scheduleDays?.length && r.scheduleStart && r.scheduleEnd) {
-      return `${formatDaysShort(r.scheduleDays)} ${r.scheduleStart}�${r.scheduleEnd}`;
+      return `${formatDaysShort(r.scheduleDays)} ${r.scheduleStart}-${r.scheduleEnd}`;
     }
     return r.schedule || "Schedule not listed";
   };
@@ -7333,7 +7649,7 @@ const RetainerWheelExpandedCard: React.FC<{
           className="h-9 w-9 rounded-full border border-slate-700 text-slate-200 hover:bg-slate-900 transition"
           title="Close"
         >
-          �
+          X
         </button>
       </div>
 
@@ -7359,7 +7675,9 @@ const RetainerWheelExpandedCard: React.FC<{
             Approved
           </span>
           <span className="inline-flex items-center rounded-full bg-slate-900 border border-slate-800 px-2.5 py-1 text-xs text-slate-200">
-            {city}, {state} {zip !== "-" ? zip : ""}
+            {city || state || zip
+              ? `${city}${city && state ? ", " : ""}${state}${zip ? ` ${zip}` : ""}`
+              : "Location not set"}
           </span>
           </div>
 
@@ -7367,7 +7685,7 @@ const RetainerWheelExpandedCard: React.FC<{
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs text-slate-100">
             {badgeIconFor("shield", "h-4 w-4")}
             <span className="font-semibold">
-              {reputation.score == null ? "Reputation ?" : `Reputation ${reputation.score}`}
+              {reputation.score == null ? "Reputation -" : `Reputation ${reputation.score}`}
             </span>
             {reputation.total > 0 && <span className="text-slate-400">({reputation.total})</span>}
           </span>
@@ -7378,20 +7696,20 @@ const RetainerWheelExpandedCard: React.FC<{
               <span className="font-semibold">{scheduleMatch.percent}% schedule match</span>
               {scheduleMatch.overlapDays.length > 0 && (
                 <span className="text-emerald-200/70">
-                  � {formatDaysShort(scheduleMatch.overlapDays)}
+                  - {formatDaysShort(scheduleMatch.overlapDays)}
                 </span>
               )}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/50 px-3 py-1 text-xs text-slate-400">
               {badgeIconFor("clock", "h-4 w-4")}
-              Schedule �
+              Schedule -
             </span>
           )}
 
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/50 px-3 py-1 text-xs text-slate-300">
             {badgeIconFor("route", "h-4 w-4")}
-            Routes: {typeof routeCount === "number" ? routeCount : "�"}
+            Routes: {typeof routeCount === "number" ? routeCount : "-"}
           </span>
         </div>
 
@@ -7399,13 +7717,13 @@ const RetainerWheelExpandedCard: React.FC<{
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/50 px-3 py-1 text-xs text-slate-200">
             {badgeIconFor("cash", "h-4 w-4")}
             <span className="font-semibold">
-              On-time pay: {paymentOnTimePct == null ? "�" : `${paymentOnTimePct}%`}
+              On-time pay: {paymentOnTimePct == null ? "-" : `${paymentOnTimePct}%`}
             </span>
           </span>
           <span className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900/50 px-3 py-1 text-xs text-slate-200">
             {badgeIconFor("check", "h-4 w-4")}
             <span className="font-semibold">
-              Pay accuracy: {paymentAccuracyPct == null ? "�" : `${paymentAccuracyPct}%`}
+              Pay accuracy: {paymentAccuracyPct == null ? "-" : `${paymentAccuracyPct}%`}
             </span>
           </span>
           {scheduleMatch && scheduleMatch.overlapMinutes > 0 && (
@@ -7437,7 +7755,7 @@ const RetainerWheelExpandedCard: React.FC<{
                       {r.title}
                     </div>
                     <div className="text-xs text-slate-400">
-                      {r.city && r.state ? `${r.city}, ${r.state}` : "�"}
+                      {r.city && r.state ? `${r.city}, ${r.state}` : "Location not set"}
                     </div>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-300">
@@ -7481,7 +7799,7 @@ const RetainerWheelExpandedCard: React.FC<{
                     </span>
                   </div>
                   <div className="mt-1 text-xs text-slate-300 whitespace-pre-wrap">
-                    {p.body.length > 180 ? `${p.body.slice(0, 180)}�` : p.body}
+                    {p.body.length > 180 ? `${p.body.slice(0, 180)}...` : p.body}
                   </div>
                 </div>
               ))}
@@ -7514,7 +7832,7 @@ const RetainerWheelExpandedCard: React.FC<{
               {topBadges.map((b) => (
                 <span
                   key={b.badge.id}
-                  title={`${b.badge.title} � Level ${b.maxLevel}\n${b.badge.description}`}
+                  title={`${b.badge.title} - Level ${b.maxLevel}\n${b.badge.description}`}
                   className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-950/40 px-3 py-1.5 text-xs text-slate-100"
                 >
                   {badgeIconFor(b.badge.iconKey, "h-4 w-4")}
@@ -8453,7 +8771,7 @@ const SeekerRoutesView: React.FC<{
                     <div className="text-xs text-slate-400 mt-1">
                       {(route.city || route.state) && (
                         <span>
-                          {route.city ?? "�"}, {route.state ?? "�"} �{" "}
+                          {route.city ?? "-"}, {route.state ?? "-"} -{" "}
                         </span>
                       )}
                       <span>
@@ -8510,7 +8828,7 @@ const SeekerRoutesView: React.FC<{
                         : "bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800",
                     ].join(" ")}
                   >
-                    {interested ? "Interested ?" : "Interested"}
+                    {interested ? "Interested" : "Interested"}
                   </button>
                 </div>
 
@@ -8547,7 +8865,7 @@ const SeekerRoutesView: React.FC<{
                   {(route.payMin != null || route.payMax != null) && (
                     <div>
                       <span className="text-slate-400">Pay:</span>{" "}
-                      {route.payMin ?? "�"}�{route.payMax ?? "�"}{" "}
+                      {route.payMin ?? "-"}-{route.payMax ?? "-"}{" "}
                       {route.payModel ? `(${route.payModel})` : ""}
                     </div>
                   )}

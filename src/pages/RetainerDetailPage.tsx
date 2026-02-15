@@ -44,7 +44,7 @@ function formatUsd(value: number): string {
 }
 
 function paymentTermsLabel(term?: PaymentTerm | null): string {
-  if (!term) return "—";
+  if (!term) return "-";
   return PAYMENT_TERMS.find((opt) => opt.value === term)?.label ?? term;
 }
 
@@ -156,9 +156,9 @@ export default function RetainerDetailPage() {
       : null;
   const backLabel = returnToAction
     ? returnActionTab === "lists"
-      ? "← Back to Sorting Lists"
-      : "← Back to Action Center"
-    : "← Back to Dashboard";
+      ? "<- Back to Sorting Lists"
+      : "<- Back to Action Center"
+    : "<- Back to Dashboard";
 
   const handleBack = () => {
     if (returnToAction) {
@@ -241,13 +241,14 @@ export default function RetainerDetailPage() {
   }
 
   const companyName = retainer.companyName ?? (retainer as any).name ?? "Retainer";
-  const zip = retainer.zip ?? "—";
+  const zip = retainer.zip ?? "-";
 
-  const city = retainer.city ?? "—";
-  const state = retainer.state ?? "—";
-  const email = (retainer as any).email ?? "—";
-  const phone = (retainer as any).phone ?? "—";
-  const ceoName = retainer.ceoName ?? "—";
+  const city = retainer.city ?? "-";
+  const state = retainer.state ?? "-";
+  const email = (retainer as any).email ?? "-";
+  const phone = (retainer as any).phone ?? "-";
+  const ceoName = retainer.ceoName ?? "-";
+  const intro = (retainer as any).intro ?? "";
   const mission = retainer.mission ?? "";
   const paymentTerms = (retainer as any).paymentTerms as PaymentTerm | undefined;
   const payCycleCloseDay = (retainer as any).payCycleCloseDay as DayOfWeek | undefined;
@@ -264,6 +265,16 @@ export default function RetainerDetailPage() {
   const desiredTraits: string[] = Array.isArray((retainer as any).desiredTraits)
     ? (retainer as any).desiredTraits
     : [];
+  const locationLabel = [city, state].filter((value) => value && value !== "-").join(", ");
+  const locationWithZip = locationLabel
+    ? zip && zip !== "-"
+      ? `${locationLabel} - ZIP ${zip}`
+      : locationLabel
+    : zip && zip !== "-"
+    ? `ZIP ${zip}`
+    : "-";
+  const deliveryVerticalPublicLabel =
+    deliveryVerticals.length > 0 ? deliveryVerticals.slice(0, 3).join(", ") : "-";
 
   const retainerPhotoUrl: string | undefined =
     (retainer as any).logoUrl ||
@@ -417,8 +428,8 @@ export default function RetainerDetailPage() {
   const hierarchyOwner = {
     id: retainer.id,
     name: companyName,
-    title: ceoName !== "—" ? ceoName : "Owner",
-    meta: email !== "—" ? email : undefined,
+    title: ceoName !== "-" ? ceoName : "Owner",
+    meta: email !== "-" ? email : undefined,
     photoUrl: retainerPhotoUrl,
   };
 
@@ -597,28 +608,24 @@ export default function RetainerDetailPage() {
                   <>
                     <div className="grid gap-3 md:grid-cols-2">
                       <KeyValue label="Company" value={companyName} />
-                      <KeyValue
-                        label="Location"
-                        value={
-                          city !== "—" || state !== "—"
-                            ? `${city}, ${state} • ZIP ${zip}`
-                            : `ZIP ${zip}`
-                        }
-                      />
+                      <KeyValue label="Location" value={locationWithZip} />
                       <KeyValue label="CEO / Primary Contact" value={ceoName} />
                       <KeyValue label="Email" value={email} />
                       <KeyValue label="Phone" value={phone} />
                       <KeyValue
                         label="Delivery Verticals"
-                        value={
-                          deliveryVerticals.length === 0 ? (
-                            <span className="text-slate-500">—</span>
-                          ) : (
-                            deliveryVerticals.join(", ")
-                          )
-                        }
+                        value={deliveryVerticals.length === 0 ? "-" : deliveryVerticals.join(", ")}
                       />
                     </div>
+
+                    {intro.trim() && (
+                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                        <div className="text-[11px] text-slate-400">Intro</div>
+                        <div className="text-sm text-slate-100 whitespace-pre-wrap">
+                          {intro.trim()}
+                        </div>
+                      </div>
+                    )}
 
                     {mission?.trim() && (
                       <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
@@ -648,10 +655,33 @@ export default function RetainerDetailPage() {
                     )}
                   </>
                 ) : (
-                  <div className="text-slate-300">
-                    This profile is visible, but the full details are{" "}
-                    <span className="text-slate-100 font-medium">linked-only</span>.
-                  </div>
+                  <>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <KeyValue label="Company" value={companyName} />
+                      <KeyValue
+                        label="Primary contact"
+                        value={ceoName !== "-" ? ceoName : "Not listed"}
+                      />
+                      <KeyValue label="Location" value={locationLabel || "-"} />
+                      <KeyValue
+                        label="Delivery verticals"
+                        value={deliveryVerticalPublicLabel}
+                      />
+                      <KeyValue label="Status" value={status} />
+                      <KeyValue
+                        label="Years in business"
+                        value={retainer.yearsInBusiness != null ? retainer.yearsInBusiness : "-"}
+                      />
+                    </div>
+                    {intro.trim() && (
+                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                        <div className="text-[11px] text-slate-400">Intro</div>
+                        <div className="text-sm text-slate-100 whitespace-pre-wrap">
+                          {intro.trim()}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -689,7 +719,7 @@ export default function RetainerDetailPage() {
                             {fee.label}
                           </div>
                           <div className="text-xs text-slate-300">
-                            {formatUsd(fee.amount)} •{" "}
+                            {formatUsd(fee.amount)} -{" "}
                             {RETAINER_FEE_CADENCE_OPTIONS.find(
                               (opt) => opt.value === fee.cadence
                             )?.label ?? fee.cadence}
@@ -770,7 +800,7 @@ export default function RetainerDetailPage() {
                           <div className="mt-2 text-[11px] text-slate-500">
                             {[r.vertical, [r.city, r.state].filter(Boolean).join(", ")]
                               .filter(Boolean)
-                              .join(" • ")}
+                              .join(" - ")}
                           </div>
                         )}
                       </div>

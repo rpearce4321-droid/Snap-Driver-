@@ -1099,7 +1099,7 @@ export default function AdminPage() {
             <section className="surface p-5 hover:border-blue-500/30 transition">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">
-                  Seekers — {panel.split(":")[1]}
+                  Seekers - {panel.split(":")[1]}
                 </h2>
                 <div className="flex gap-2">
                   <button className="btn" onClick={() => setPanel("dashboard")}>
@@ -1160,7 +1160,7 @@ export default function AdminPage() {
             <section className="surface p-5 hover:border-blue-500/30 transition">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">
-                  Retainers — {panel.split(":")[1]}
+                  Retainers - {panel.split(":")[1]}
                 </h2>
                 <div className="flex gap-2">
                   <button className="btn" onClick={() => setPanel("dashboard")}>
@@ -1259,7 +1259,7 @@ const PendingSeekersList: React.FC<{ seekers: any[] }> = ({ seekers }) => (
                 {s.firstName} {s.lastName}
               </div>
               <div className="text-white/60 text-sm">
-                {s.city ?? "—"}, {s.state ?? "—"} • {s.email ?? "—"}
+                {s.city ?? "-"}, {s.state ?? "-"} - {s.email ?? "-"}
               </div>
             </Link>
             <div className="flex items-center gap-2" data-stop>
@@ -1316,7 +1316,7 @@ const PendingRetainersList: React.FC<{
             <Link to={`/retainers/${r.id}`} className="flex-1 pr-3 block">
               <div className="font-medium">{r.companyName}</div>
               <div className="text-white/60 text-sm">
-                {r.city ?? "—"}, {r.state ?? "—"} • {r.email ?? "—"}
+                {r.city ?? "-"}, {r.state ?? "-"} - {r.email ?? "-"}
               </div>
             </Link>
             <div className="flex items-center gap-2" data-stop>
@@ -1392,7 +1392,7 @@ function SD_List({
                   </span>
                   <span className="text-white/60">
                     {" "}
-                    • {it.city ?? "—"}, {it.state ?? "—"}
+                    - {it.city ?? "-"}, {it.state ?? "-"}
                   </span>
                 </>
               ) : (
@@ -1400,7 +1400,7 @@ function SD_List({
                   <span className="font-medium">{it.companyName}</span>
                   <span className="text-white/60">
                     {" "}
-                    • {it.city ?? "—"}, {it.state ?? "—"}
+                    - {it.city ?? "-"}, {it.state ?? "-"}
                   </span>
                 </>
               )}
@@ -1474,7 +1474,7 @@ function SD_DeletedList({
                   </span>
                   <span className="text-white/60">
                     {" "}
-                    • {it.city ?? "—"}, {it.state ?? "—"}
+                    - {it.city ?? "-"}, {it.state ?? "-"}
                   </span>
                 </>
               ) : (
@@ -1482,7 +1482,7 @@ function SD_DeletedList({
                   <span className="font-medium">{it.companyName}</span>
                   <span className="text-white/60">
                     {" "}
-                    • {it.city ?? "—"}, {it.state ?? "—"}
+                    - {it.city ?? "-"}, {it.state ?? "-"}
                   </span>
                 </>
               )}
@@ -1735,8 +1735,8 @@ const AdminMessageRow: React.FC<{
       </div>
       {/* Temporary debug line so we can verify IDs are wired correctly */}
       <div className="text-[11px] text-white/35 mt-1">
-        Conv: {conv.id} · SeekerId: {conv.seekerId || "—"} · RetainerId:{" "}
-        {conv.retainerId || "—"}
+        Conv: {conv.id} - SeekerId: {conv.seekerId || "-"} - RetainerId:{" "}
+        {conv.retainerId || "-"}
       </div>
     </li>
   );

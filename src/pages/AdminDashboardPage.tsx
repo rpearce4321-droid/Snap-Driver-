@@ -1909,7 +1909,7 @@ const AdminBadgeScoringPanel: React.FC = () => {
                     {badge.title}
                   </div>
                   <div className="text-[11px] text-white/60">
-                    {badge.ownerRole} • {badge.kind} • default {defaultWeight}
+                    {badge.ownerRole} - {badge.kind} - default {defaultWeight}
                   </div>
                 </div>
                 <input
@@ -2098,7 +2098,7 @@ const AdminBadgeAuditPanel: React.FC = () => {
                         {badge?.title ?? checkin.badgeId}
                       </div>
                       <div className="text-[11px] text-white/60">
-                        {badge?.ownerRole ?? checkin.targetRole} • {badge?.kind ?? ""}
+                        {badge?.ownerRole ?? checkin.targetRole} - {badge?.kind ?? ""}
                       </div>
                     </div>
                   </div>
@@ -4593,7 +4593,7 @@ const PendingSeekersList: React.FC<{
               <div className="min-w-0">
                 <div className="font-medium truncate">{formatSeekerName(s)}</div>
                 <div className="text-white/60 text-sm truncate">
-                  {s.city ?? "—"}, {s.state ?? "—"}
+                  {s.city ?? "-"}, {s.state ?? "-"}
                 </div>
               </div>
             </Link>
@@ -4628,7 +4628,7 @@ const PendingRetainersList: React.FC<{
               <div className="min-w-0">
                 <div className="font-medium truncate">{formatRetainerName(r)}</div>
                 <div className="text-white/60 text-sm truncate">
-                  {r.city ?? "—"}, {r.state ?? "—"}
+                  {r.city ?? "-"}, {r.state ?? "-"}
                 </div>
               </div>
             </Link>
@@ -4671,7 +4671,7 @@ function SD_List({
                 <div className="min-w-0">
                   <div className="font-medium truncate">{displayName}</div>
                   <div className="text-white/60 text-sm truncate">
-                    {it.city ?? "—"}, {it.state ?? "—"}
+                    {it.city ?? "-"}, {it.state ?? "-"}
                   </div>
                 </div>
               </div>
@@ -4738,7 +4738,7 @@ function SD_DeletedList({
                 <div className="min-w-0">
                   <div className="font-medium truncate">{displayName}</div>
                   <div className="text-white/60 text-sm truncate">
-                    {it.city ?? "—"}, {it.state ?? "—"}
+                    {it.city ?? "-"}, {it.state ?? "-"}
                   </div>
                 </div>
               </div>

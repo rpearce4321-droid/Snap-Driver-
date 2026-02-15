@@ -245,9 +245,9 @@ export default function SeekerDetailPage() {
       : null;
   const backLabel = returnToAction
     ? returnActionTab === "lists"
-      ? "← Back to Sorting Lists"
-      : "← Back to Action Center"
-    : "← Back to Dashboard";
+      ? "<- Back to Sorting Lists"
+      : "<- Back to Action Center"
+    : "<- Back to Dashboard";
 
   const handleBack = () => {
     if (returnToAction) {
@@ -334,13 +334,18 @@ export default function SeekerDetailPage() {
     ((seeker as any).name as string | undefined) ||
     "Seeker";
 
-  const zip = (seeker as any).zip ?? "—";
-  const company = (seeker as any).companyName ?? (seeker as any).company ?? "—";
-  const email = (seeker as any).email ?? "—";
-  const phone = (seeker as any).phone ?? "—";
-  const city = (seeker as any).city ?? "—";
-  const state = (seeker as any).state ?? "—";
-  const insurance = (seeker as any).insuranceType ?? "--";
+  const zip = (seeker as any).zip ?? "-";
+  const company = (seeker as any).companyName ?? (seeker as any).company ?? "-";
+  const email = (seeker as any).email ?? "-";
+  const phone = (seeker as any).phone ?? "-";
+  const city = (seeker as any).city ?? "-";
+  const state = (seeker as any).state ?? "-";
+  const insurance = (seeker as any).insuranceType ?? "-";
+  const intro = (seeker as any).intro ?? "";
+  const deliveryVerticals: string[] = Array.isArray((seeker as any).deliveryVerticals)
+    ? (seeker as any).deliveryVerticals
+    : [];
+  const yearsInBusiness = (seeker as any).yearsInBusiness;
   const vehiclesRaw = (seeker as any).vehicles ?? [];
   const vehicleLines = Array.isArray(vehiclesRaw)
     ? vehiclesRaw
@@ -355,8 +360,21 @@ export default function SeekerDetailPage() {
         .filter((line: string) => line.trim())
     : [];
   const vehicleDisplay =
-    vehicleLines.length > 0 ? vehicleLines.join(", ") : (seeker as any).vehicle ?? "--";
+    vehicleLines.length > 0 ? vehicleLines.join(", ") : (seeker as any).vehicle ?? "-";
+  const primaryVehicle =
+    vehicleLines.length > 0 ? vehicleLines[0] : (seeker as any).vehicle ?? "-";
+  const locationLabel = [city, state].filter((value) => value && value !== "-").join(", ");
+  const locationWithZip = locationLabel
+    ? zip && zip !== "-"
+      ? `${locationLabel} - ZIP ${zip}`
+      : locationLabel
+    : zip && zip !== "-"
+    ? `ZIP ${zip}`
+    : "-";
+  const deliveryVerticalPublicLabel =
+    deliveryVerticals.length > 0 ? deliveryVerticals.slice(0, 3).join(", ") : "-";
   const notes = (seeker as any).notes ?? (seeker as any).about ?? "";
+  const introText = intro.trim() ? intro : notes;
 
   const seekerPhotoUrl: string | undefined =
     (seeker as any).photoUrl ||
@@ -530,8 +548,8 @@ export default function SeekerDetailPage() {
   const hierarchyOwner = {
     id: seeker.id,
     name: fullName,
-    title: company !== "—" ? company : "Master Seeker",
-    meta: email !== "—" ? email : undefined,
+    title: company !== "-" ? company : "Master Seeker",
+    meta: email !== "-" ? email : undefined,
     photoUrl: seekerPhotoUrl,
   };
 
@@ -715,33 +733,55 @@ export default function SeekerDetailPage() {
                   <>
                     <div className="grid gap-3 md:grid-cols-2">
                       <KeyValue label="Company" value={company} />
-                      <KeyValue
-                        label="Location"
-                        value={
-                          city !== "—" || state !== "—"
-                            ? `${city}, ${state} • ZIP ${zip}`
-                            : `ZIP ${zip}`
-                        }
-                      />
+                      <KeyValue label="Location" value={locationWithZip} />
                       <KeyValue label="Email" value={email} />
                       <KeyValue label="Phone" value={phone} />
                       <KeyValue label="Vehicle" value={vehicleDisplay} />
                       <KeyValue label="Insurance" value={insurance} />
                     </div>
-                    {notes?.trim() && (
+                    {introText?.trim() && (
                       <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
-                        <div className="text-[11px] text-slate-400">Bio</div>
+                        <div className="text-[11px] text-slate-400">
+                          {intro.trim() ? "Intro" : "Bio"}
+                        </div>
                         <div className="text-sm text-slate-100 whitespace-pre-wrap">
-                          {notes}
+                          {introText}
                         </div>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="text-slate-300">
-                    This profile is visible, but the full details are{" "}
-                    <span className="text-slate-100 font-medium">linked-only</span>.
-                  </div>
+                  <>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <KeyValue label="Name" value={fullName} />
+                      <KeyValue
+                        label="Company"
+                        value={company !== "-" ? company : "Independent Seeker"}
+                      />
+                      <KeyValue
+                        label="Location"
+                        value={locationLabel || "-"}
+                      />
+                      <KeyValue label="Primary vehicle" value={primaryVehicle} />
+                      <KeyValue
+                        label="Delivery verticals"
+                        value={deliveryVerticalPublicLabel}
+                      />
+                      <KeyValue label="Status" value={status} />
+                      <KeyValue
+                        label="Years in business"
+                        value={yearsInBusiness != null ? yearsInBusiness : "-"}
+                      />
+                    </div>
+                    {intro.trim() && (
+                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                        <div className="text-[11px] text-slate-400">Intro</div>
+                        <div className="text-sm text-slate-100 whitespace-pre-wrap">
+                          {intro.trim()}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

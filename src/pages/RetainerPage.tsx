@@ -66,7 +66,6 @@ import {
 
 } from "../lib/linking";
 
-import { getRetainerRatingSummary } from "../lib/ratings";
 
 import {
 
@@ -140,6 +139,11 @@ import {
 
 import { deliverRetainerBroadcastToLinkedSeekers } from "../lib/broadcastDelivery";
 import { changePassword, logout, resetPassword, syncUpsert } from "../lib/api";
+import {
+  getRetainerEntitlements,
+  setRetainerTier,
+  type RetainerTier,
+} from "../lib/entitlements";
 
 import { getFeedForRetainer, type FeedItem } from "../lib/feed";
 import {
@@ -192,11 +196,15 @@ import {
 
   getActiveBadges,
 
+  getBackgroundBadges,
+
   getBadgeCheckins,
 
   getBadgeDefinition,
 
   getBadgeProgress,
+
+  getMandatoryBackgroundBadges,
 
   getBadgeSummaryForProfile,
 
@@ -204,7 +212,15 @@ import {
 
   getReputationScoreForProfile,
 
+  getSelectableBadges,
+
+  getSelectedBackgroundBadges,
+
   getCurrentPeriodKey,
+
+  setActiveBadges,
+
+  setBackgroundBadges,
 
 } from "../lib/badges";
 
@@ -222,8 +238,6 @@ import {
 import { badgeIconFor } from "../components/badgeIcons";
 
 import { clearPortalContext, clearSession, getSession, setPortalContext, setSession } from "../lib/session";
-
-import { getRetainerEntitlements } from "../lib/entitlements";
 
 import {
   DAYS,
@@ -1249,32 +1263,102 @@ const RetainerPage: React.FC = () => {
     );
   }
 
-  const miniProfileCard = (
-    <button
-      type="button"
-      onClick={() => setActiveTab("dashboard")}
-      className="group flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-900/70 px-3 py-2 text-left hover:bg-slate-900/90 transition"
-      title="Go to dashboard"
-    >
-      <span className="h-10 w-10 rounded-xl overflow-hidden border border-slate-700 bg-slate-950/60 shrink-0">
-        <img
-          src={getStockImageUrl("RETAINER", currentRetainerId ?? undefined)}
-          alt=""
-          className="h-full w-full object-cover"
-        />
-      </span>
-      <span className="min-w-0">
-        <span className="block text-[10px] uppercase tracking-wide text-slate-500">
-          Dashboard
-        </span>
-        <span className="block text-sm font-semibold text-slate-100 truncate">
-          {currentRetainer ? formatRetainerName(currentRetainer) : "Retainer Portal"}
-        </span>
-        <span className="block text-[10px] text-slate-500">
-          Status: {(currentRetainer as any)?.status ?? "Not set"}
-        </span>
-      </span>
-    </button>
+  const navApprovalTotals = useMemo(() => {
+    if (!currentRetainerId) return { yes: 0, no: 0, neutral: 0, total: 0 };
+    const totals = { yes: 0, no: 0, neutral: 0, total: 0 };
+    const checkins = getBadgeCheckins().filter(
+      (c) => c.targetRole === "RETAINER" && c.targetId === currentRetainerId
+    );
+    for (const checkin of checkins) {
+      if (checkin.status === "DISPUTED") {
+        totals.neutral += 1;
+        continue;
+      }
+      const value = checkin.overrideValue ?? checkin.value;
+      if (value === "YES") totals.yes += 1;
+      else if (value === "NO") totals.no += 1;
+      else totals.neutral += 1;
+    }
+    totals.total = totals.yes + totals.no + totals.neutral;
+    return totals;
+  }, [currentRetainerId]);
+
+  const navReputation = useMemo(
+    () =>
+      currentRetainerId
+        ? getReputationScoreForProfile({ ownerRole: "RETAINER", ownerId: currentRetainerId })
+        : null,
+    [currentRetainerId]
+  );
+
+  const navDisplayName = currentRetainer ? formatRetainerName(currentRetainer) : "Retainer";
+  const navCompany = currentRetainer?.companyName || navDisplayName;
+  const navContactName =
+    (currentRetainer as any)?.name || (currentRetainer as any)?.ceoName || navDisplayName;
+
+  const formatMemberSince = (value?: number | string | null) => {
+    if (!value) return "-";
+    const d = typeof value === "number" ? new Date(value) : new Date(value);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  };
+
+  const navProfileCard = (
+    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
+      <div className="flex items-start gap-4">
+        <div className="w-1/3 max-w-[140px] min-w-[96px]">
+          <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
+            <ProfileAvatar
+              role="RETAINER"
+              profile={(currentRetainer ?? { id: currentRetainerId || "retainer" }) as any}
+              name={navCompany}
+              size="lg"
+              className="h-full w-full rounded-xl"
+            />
+          </div>
+        </div>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="text-lg font-semibold text-slate-50 truncate">
+            {currentRetainerId ? navCompany : "Retainer"}
+          </div>
+          <div className="text-sm text-slate-300 truncate">
+            {currentRetainerId ? navContactName : "Select a Retainer profile"}
+          </div>
+          <div className="text-sm text-emerald-200">
+            {navReputation?.score == null ? "Reputation -" : `Reputation ${navReputation.score}`}
+          </div>
+          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className="h-full bg-emerald-400/80"
+              style={{ width: `${navReputation?.scorePercent ?? 0}%` }}
+            />
+          </div>
+          <div className="text-xs text-slate-500">
+            Member since {formatMemberSince(currentRetainer?.createdAt)}
+          </div>
+          <div className="grid grid-cols-3 gap-2 pt-1">
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
+              <div className="text-sm font-semibold text-emerald-50">
+                {navApprovalTotals.yes}/{navApprovalTotals.total || 0}
+              </div>
+            </div>
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
+              <div className="text-sm font-semibold text-rose-50">
+                {navApprovalTotals.no}/{navApprovalTotals.total || 0}
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
+              <div className="text-sm font-semibold text-slate-100">
+                {navApprovalTotals.neutral}/{navApprovalTotals.total || 0}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 
   return (
@@ -1297,67 +1381,24 @@ const RetainerPage: React.FC = () => {
 
         </div>
 
-        {currentRetainer ? (
-          <div className="mb-6 rounded-2xl bg-slate-800/80 px-4 py-3">
-            <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
-              Your Company
-            </div>
-            <div className="font-semibold text-slate-50 truncate">
-              {formatRetainerName(currentRetainer)}
-            </div>
-            <div className="text-xs text-slate-400 mt-1 flex flex-wrap items-center gap-2">
-              <span>
-                Status:{" "}
-                <span className="font-medium text-emerald-400">
-                  {(currentRetainer as any).status}
-                </span>
-              </span>
-              {(() => {
-                const summary = getRetainerRatingSummary((currentRetainer as any).id);
-                if (!summary.count) return null;
-                return (
-                  <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/60 px-2 py-0.5 text-[10px] text-amber-100">
-                    * {summary.avg.toFixed(1)} ({summary.count})
-                  </span>
-                );
-              })()}
-            </div>
-            {currentRetainerId && (
-              <div className="mt-2">
-                <Link
-                  to={`/retainers/${currentRetainerId}`}
-                  className="text-[11px] text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                >
-                  View profile
-                </Link>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="mb-6 rounded-2xl bg-slate-800/80 px-4 py-3">
-            <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
-              Get started
-            </div>
-            <div className="text-sm text-slate-200">
-              You&apos;re not currently acting as any Retainer. Use{" "}
-              <button
-                type="button"
-                onClick={() => {
-                  setActionTab("editProfile");
-                  setActiveTab("action");
-                }}
-                className="font-semibold text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
-              >
-                Edit Profile
-              </button>{" "}
-              to create a company profile.
-            </div>
-          </div>
-        )}
+        <div className="mb-6">{navProfileCard}</div>
 
 <nav className="space-y-1 flex-1 min-h-0 overflow-y-auto pr-1 -mr-1">
 
           <SidebarButton label="Dashboard" active={activeTab === "dashboard"} onClick={() => setActiveTab("dashboard")} />
+
+          <SidebarButton
+            label="My Profile"
+            active={false}
+            disabled={!currentRetainerId}
+            onClick={() => {
+              if (!currentRetainerId) {
+                setToastMessage("Create a Retainer profile first.");
+                return;
+              }
+              navigate(`/retainers/${currentRetainerId}`);
+            }}
+          />
 
           <SidebarButton
             label="Find Seekers"
@@ -1391,14 +1432,11 @@ const RetainerPage: React.FC = () => {
         <div className="lg:hidden border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <div className="space-y-3">
-                {miniProfileCard}
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                    Snap Driver
-                  </div>
-                  <div className="text-lg font-semibold text-slate-50">Retainer Portal</div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                  Snap Driver
                 </div>
+                <div className="text-lg font-semibold text-slate-50">Retainer Portal</div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
@@ -1449,49 +1487,7 @@ const RetainerPage: React.FC = () => {
                   X
                 </button>
               </div>
-              <div className="space-y-4 mb-6">
-                {currentRetainer ? (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-3 space-y-2">
-                    <div className="text-[10px] uppercase tracking-wide text-slate-400">
-                      Your Company
-                    </div>
-                    <div className="font-semibold text-slate-50 truncate">
-                      {formatRetainerName(currentRetainer)}
-                    </div>
-                    <div className="text-xs text-slate-400 flex flex-wrap items-center gap-2">
-                      <span>
-                        Status:{" "}
-                        <span className="font-medium text-emerald-400">
-                          {(currentRetainer as any).status}
-                        </span>
-                      </span>
-                      {(() => {
-                        const summary = getRetainerRatingSummary((currentRetainer as any).id);
-                        if (!summary.count) return null;
-                        return (
-                          <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/60 px-2 py-0.5 text-[10px] text-amber-100">
-                            * {summary.avg.toFixed(1)} ({summary.count})
-                          </span>
-                        );
-                      })()}
-                    </div>
-                    {currentRetainerId && (
-                      <div className="text-xs">
-                        <Link
-                          to={`/retainers/${currentRetainerId}`}
-                          className="text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline"
-                        >
-                          View profile
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-400">
-                    No retainer selected yet.
-                  </div>
-                )}
-              </div>
+              <div className="space-y-4 mb-6">{navProfileCard}</div>
 <nav className="space-y-2">
                 <SidebarButton
                   label="Dashboard"
@@ -1499,6 +1495,19 @@ const RetainerPage: React.FC = () => {
                   onClick={() => {
                     setActiveTab("dashboard");
                     setIsMobileNavOpen(false);
+                  }}
+                />
+                <SidebarButton
+                  label="My Profile"
+                  active={false}
+                  disabled={!currentRetainerId}
+                  onClick={() => {
+                    if (!currentRetainerId) {
+                      setToastMessage("Create a Retainer profile first.");
+                      return;
+                    }
+                    setIsMobileNavOpen(false);
+                    navigate(`/retainers/${currentRetainerId}`);
                   }}
                 />
                 <SidebarButton
@@ -1568,7 +1577,6 @@ const RetainerPage: React.FC = () => {
         <header className="hidden lg:block px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-6">
             <div className="flex items-center gap-4">
-              {miniProfileCard}
               <div>
                 <h2 className="text-2xl font-semibold text-slate-50">
                   {renderHeaderTitle(activeTab)}
@@ -1616,8 +1624,6 @@ const RetainerPage: React.FC = () => {
                 currentRetainer={currentRetainer}
 
                 seekers={seekers}
-
-                isDesktop={isDesktop}
                 onOpenProfile={(s) => navigate(`/seekers/${(s as any).id}`)}
 
                 onMessage={handleMessageSeeker}
@@ -1979,7 +1985,7 @@ const RetainerPage: React.FC = () => {
 
                   <button type="button" onClick={handleBadgesBack} className="btn">
 
-                    ← Back to Profile
+                    {"<- Back to Profile"}
 
                   </button>
 
@@ -3020,7 +3026,9 @@ const SidebarButton: React.FC<{
 
   onClick: () => void;
 
-}> = ({ label, active, onClick }) => {
+  disabled?: boolean;
+
+}> = ({ label, active, onClick, disabled = false }) => {
 
   return (
 
@@ -3029,6 +3037,8 @@ const SidebarButton: React.FC<{
       type="button"
 
       onClick={onClick}
+
+      disabled={disabled}
 
       className={[
 
@@ -3039,6 +3049,8 @@ const SidebarButton: React.FC<{
           ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
 
           : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-50 border border-transparent",
+
+        disabled ? "opacity-60 cursor-not-allowed hover:bg-transparent hover:text-slate-300" : "",
 
       ].join(" ")}
 
@@ -3203,7 +3215,6 @@ const DashboardView: React.FC<{
   currentRetainer?: Retainer;
 
   seekers: Seeker[];
-  isDesktop: boolean;
 
   onOpenProfile: (s: Seeker) => void;
 
@@ -3229,7 +3240,6 @@ const DashboardView: React.FC<{
   currentRetainer,
 
   seekers,
-  isDesktop,
 
   onOpenProfile,
 
@@ -4039,18 +4049,6 @@ const DashboardView: React.FC<{
 
   };
 
-  const formatMemberSince = (value?: number | string | null) => {
-
-    if (!value) return "-";
-
-    const d = typeof value === "number" ? new Date(value) : new Date(value);
-
-    if (Number.isNaN(d.getTime())) return "-";
-
-    return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
-
-  };
-
   const activeBadges = useMemo(() => {
 
     if (!retainerId) return [];
@@ -4066,12 +4064,6 @@ const DashboardView: React.FC<{
       .slice(0, 3);
 
   }, [retainerId]);
-
-  const retainerReputation = retainerId
-
-    ? getReputationScoreForProfile({ ownerRole: "RETAINER", ownerId: retainerId })
-
-    : null;
 
   const [linkTick] = useState(0);
 
@@ -4106,83 +4098,15 @@ const DashboardView: React.FC<{
     [seekers]
 
   );
-
-
-  const retainerDisplayName = currentRetainer ? formatRetainerName(currentRetainer) : "Retainer";
-
-  const retainerCompany = currentRetainer?.companyName || retainerDisplayName;
-
-  const retainerUserName =
-
-    (currentRetainer as any)?.name || (currentRetainer as any)?.ceoName || retainerDisplayName;
-
-  const profileCard = (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
-      <div className="flex items-start gap-4">
-        <div className="w-1/3 max-w-[140px] min-w-[96px]">
-          <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
-            <ProfileAvatar
-              role="RETAINER"
-              profile={(currentRetainer ?? { id: retainerId || "retainer" }) as any}
-              name={retainerCompany}
-              size="lg"
-              className="h-full w-full rounded-xl"
-            />
-          </div>
-        </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="text-lg font-semibold text-slate-50 truncate">
-            {retainerId ? retainerCompany : "Retainer"}
-          </div>
-          <div className="text-sm text-slate-300 truncate">
-            {retainerId ? retainerUserName : "Select a Retainer profile"}
-          </div>
-          <div className="text-sm text-emerald-200">
-            {retainerReputation?.score == null
-              ? "Reputation -"
-              : `Reputation ${retainerReputation.score}`}
-          </div>
-          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-            <div
-              className="h-full bg-emerald-400/80"
-              style={{ width: `${retainerReputation?.scorePercent ?? 0}%` }}
-            />
-          </div>
-          <div className="text-xs text-slate-500">
-            Member since {formatMemberSince(currentRetainer?.createdAt)}
-          </div>
-          <div className="grid grid-cols-3 gap-2 pt-1">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
-              <div className="text-sm font-semibold text-emerald-50">
-                {stats.approvalTotals.yes}/{stats.approvalTotals.total || 0}
-              </div>
-            </div>
-            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
-              <div className="text-sm font-semibold text-rose-50">
-                {stats.approvalTotals.no}/{stats.approvalTotals.total || 0}
-              </div>
-            </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
-              <div className="text-sm font-semibold text-slate-100">
-                {stats.approvalTotals.neutral}/{stats.approvalTotals.total || 0}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const retainerCompany =
+    currentRetainer?.companyName ||
+    (currentRetainer ? formatRetainerName(currentRetainer) : "Retainer");
 
   return (
     <div className="contents">
       <div className="grid grid-cols-1 gap-0 sm:gap-4 lg:gap-6 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 lg:h-full w-full max-w-full">
 
       <div className="flex flex-col gap-6 min-h-0 order-2 lg:order-1 w-full max-w-full">
-        {!isDesktop && profileCard}
-
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
 
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -4852,8 +4776,6 @@ const DashboardView: React.FC<{
       </div>
 
       <aside className="hidden lg:flex lg:order-2 lg:sticky lg:top-6 lg:flex-col lg:gap-5 lg:space-y-0 lg:overflow-hidden min-h-0 lg:h-full w-full max-w-full">
-        {profileCard}
-
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 flex-1 min-h-0 overflow-y-auto">
 
           <div className="text-xs uppercase tracking-wide text-slate-400 mb-3">
@@ -5202,7 +5124,7 @@ const InterviewSchedulingView: React.FC<{
           <div className="text-[11px] text-slate-400">{meeting.status}</div>
         </div>
         <div className="mt-2 text-[11px] text-slate-500">
-          {confirmed}/{total} confirmed{reschedules ? ` · ${reschedules} reschedule` : ""}
+          {confirmed}/{total} confirmed{reschedules ? ` - ${reschedules} reschedule` : ""}
         </div>
       </button>
     );
@@ -5497,7 +5419,7 @@ const InterviewSchedulingView: React.FC<{
                         className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 flex items-center justify-between text-xs text-slate-200"
                       >
                         <div>
-                          {formatMeetingTime(slot.startAt, meetingTimezone)} ·{" "}
+                          {formatMeetingTime(slot.startAt, meetingTimezone)} -{" "}
                           {slot.durationMinutes}m
                         </div>
                         <button
@@ -5687,7 +5609,7 @@ const InterviewSchedulingView: React.FC<{
                   </div>
                   {activeMeeting.startsAt && (
                     <div className="text-sm text-slate-100">
-                      {formatMeetingTime(activeMeeting.startsAt, activeMeeting.timezone)} ·{" "}
+                      {formatMeetingTime(activeMeeting.startsAt, activeMeeting.timezone)} -{" "}
                       {activeMeeting.durationMinutes}m
                     </div>
                   )}
@@ -5735,7 +5657,7 @@ const InterviewSchedulingView: React.FC<{
                                   {formatMeetingTime(p.startAt, activeMeeting.timezone)}
                                 </div>
                                 <div className="text-[11px] text-slate-500">
-                                  {p.durationMinutes}m · {confirmed} confirmed
+                                  {p.durationMinutes}m - {confirmed} confirmed
                                 </div>
                               </div>
                               {isFinal ? (
@@ -5853,7 +5775,7 @@ const InterviewSchedulingView: React.FC<{
                             <div className="text-sm text-slate-100 truncate">{name}</div>
                             <div className="text-[11px] text-slate-500">
                               {a.responseStatus}
-                              {a.rescheduleRequested ? " · Reschedule requested" : ""}
+                              {a.rescheduleRequested ? " - Reschedule requested" : ""}
                             </div>
                           </div>
                           {activeMeeting.status === "FINALIZED" && (
@@ -8000,6 +7922,8 @@ type RetainerProfileEditPageKey =
 
   | "core"
 
+  | "tierBadges"
+
   | "company"
 
   | "preferences"
@@ -8047,6 +7971,8 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     (initial as any)?.employees != null ? String((initial as any).employees) : ""
 
   );
+
+  const [intro, setIntro] = useState((initial as any)?.intro ?? "");
 
   const [mission, setMission] = useState((initial as any)?.mission ?? "");
 
@@ -8117,6 +8043,49 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
   const [introVideoMime, setIntroVideoMime] = useState<string | undefined>(
     (initial as any)?.introVideoMime ?? undefined
   );
+  const initialRetainerTier: RetainerTier = (() => {
+    if (!initial?.id) return "STARTER";
+    return getRetainerEntitlements(initial.id).tier;
+  })();
+  const [selectedTier, setSelectedTier] = useState<RetainerTier>(initialRetainerTier);
+  const mandatoryBackgroundBadges = useMemo(
+    () => getMandatoryBackgroundBadges("RETAINER"),
+    []
+  );
+  const mandatoryBackgroundIds = useMemo(
+    () => mandatoryBackgroundBadges.map((b) => b.id),
+    [mandatoryBackgroundBadges]
+  );
+  const [activeBadgeIds, setActiveBadgeIds] = useState<string[]>(() => {
+    if (!initial?.id) return [];
+    return getActiveBadges("RETAINER", initial.id);
+  });
+  const [backgroundBadgeIds, setBackgroundBadgeIds] = useState<string[]>(() => {
+    if (!initial?.id) return [];
+    const selected = getSelectedBackgroundBadges("RETAINER", initial.id);
+    return selected.filter((id) => !mandatoryBackgroundIds.includes(id));
+  });
+  const selectableBadges = useMemo(() => getSelectableBadges("RETAINER"), []);
+  const backgroundBadges = useMemo(
+    () => getBackgroundBadges("RETAINER").filter((b) => !mandatoryBackgroundIds.includes(b.id)),
+    [mandatoryBackgroundIds]
+  );
+  const tierCaps = useMemo(() => {
+    const base =
+      selectedTier === "ENTERPRISE"
+        ? { active: 4, background: 4 }
+        : selectedTier === "GROWTH"
+          ? { active: 2, background: 2 }
+          : { active: 1, background: 1 };
+    return {
+      active: base.active,
+      background: Math.max(base.background, mandatoryBackgroundIds.length),
+    };
+  }, [selectedTier, mandatoryBackgroundIds.length]);
+  const optionalBackgroundSlots = Math.max(
+    0,
+    tierCaps.background - mandatoryBackgroundIds.length
+  );
 
   const [companyPhotoUrl, setCompanyPhotoUrl] = useState(
 
@@ -8144,6 +8113,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
       next?.yearsInBusiness != null ? String(next.yearsInBusiness) : ""
     );
     setEmployees(next?.employees != null ? String(next.employees) : "");
+    setIntro(next?.intro ?? "");
     setMission(next?.mission ?? "");
     setSelectedVerticals(next?.deliveryVerticals ?? []);
     setSelectedTraits(next?.desiredTraits ?? []);
@@ -8164,19 +8134,38 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     setIntroVideoSizeBytes(next?.introVideoSizeBytes ?? undefined);
     setIntroVideoMime(next?.introVideoMime ?? undefined);
     setCompanyPhotoUrl(next?.companyPhotoUrl ?? next?.imageUrl ?? "");
+    const entTier = next?.id ? getRetainerEntitlements(next.id).tier : "STARTER";
+    setSelectedTier(entTier);
+    if (next?.id) {
+      setActiveBadgeIds(getActiveBadges("RETAINER", next.id));
+      const selectedBackground = getSelectedBackgroundBadges("RETAINER", next.id);
+      setBackgroundBadgeIds(
+        selectedBackground.filter((id) => !mandatoryBackgroundIds.includes(id))
+      );
+    } else {
+      setActiveBadgeIds([]);
+      setBackgroundBadgeIds([]);
+    }
     setError(null);
     setSuccessMsg(null);
   }, [initial?.id, mode]);
+
+  useEffect(() => {
+    setActiveBadgeIds((prev) => prev.slice(0, tierCaps.active));
+    setBackgroundBadgeIds((prev) => prev.slice(0, optionalBackgroundSlots));
+  }, [tierCaps.active, optionalBackgroundSlots]);
 
   const pages: { key: RetainerProfileEditPageKey; label: string }[] = [
 
     { key: "core", label: "Profile 1: Core" },
 
-    { key: "company", label: "Profile 2: Company" },
+    { key: "tierBadges", label: "Profile 2: Tier & Badges" },
 
-    { key: "preferences", label: "Profile 3: Preferences" },
+    { key: "company", label: "Profile 3: Company" },
 
-    { key: "photos", label: "Profile 4: My Media" },
+    { key: "preferences", label: "Profile 4: Preferences" },
+
+    { key: "photos", label: "Profile 5: My Media" },
 
   ];
 
@@ -8239,6 +8228,22 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
     );
 
   };
+
+  const toggleActiveBadge = (id: string) => {
+    setActiveBadgeIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= tierCaps.active) return prev;
+      return [...prev, id];
+    });
+  };
+
+  const toggleBackgroundBadge = (id: string) => {
+    setBackgroundBadgeIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= optionalBackgroundSlots) return prev;
+      return [...prev, id];
+    });
+  };
   const handlePhotoFile = async (
     file: File | null,
     setter: (value: string) => void
@@ -8284,6 +8289,71 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
       setIntroVideoRejectedBy(undefined);
       setIntroVideoRejectedByEmail(undefined);
     }
+
+    if (!isEdit || !initial?.id) return;
+    const nextIntroVideoUrl =
+      "introVideoUrl" in patch ? patch.introVideoUrl ?? "" : introVideoUrl;
+    const nextIntroVideoStatus =
+      "introVideoStatus" in patch ? patch.introVideoStatus : introVideoStatus;
+    const nextIntroVideoSubmittedAt =
+      "introVideoSubmittedAt" in patch
+        ? patch.introVideoSubmittedAt
+        : introVideoSubmittedAt;
+    const nextIntroVideoDurationSec =
+      "introVideoDurationSec" in patch
+        ? patch.introVideoDurationSec
+        : introVideoDurationSec;
+    const nextIntroVideoSizeBytes =
+      "introVideoSizeBytes" in patch ? patch.introVideoSizeBytes : introVideoSizeBytes;
+    const nextIntroVideoMime =
+      "introVideoMime" in patch ? patch.introVideoMime : introVideoMime;
+    const updated: Retainer = {
+      ...initial,
+      introVideoUrl: nextIntroVideoUrl || undefined,
+      introVideoStatus: nextIntroVideoStatus || undefined,
+      introVideoSubmittedAt: nextIntroVideoSubmittedAt || undefined,
+      introVideoDurationSec: nextIntroVideoDurationSec ?? undefined,
+      introVideoSizeBytes: nextIntroVideoSizeBytes ?? undefined,
+      introVideoMime: nextIntroVideoMime || undefined,
+      introVideoApprovedAt:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoApprovedAt || undefined,
+      introVideoApprovedBy:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoApprovedBy || undefined,
+      introVideoApprovedByEmail:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoApprovedByEmail || undefined,
+      introVideoRejectedAt:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoRejectedAt || undefined,
+      introVideoRejectedBy:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoRejectedBy || undefined,
+      introVideoRejectedByEmail:
+        patch.introVideoStatus === "PENDING"
+          ? undefined
+          : introVideoRejectedByEmail || undefined,
+    };
+    updateRetainerInStorage(updated);
+    if (isServerAuthoritative()) {
+      syncUpsert({ retainers: [updated] }).catch((err: any) => {
+        setError(err?.message || "Server save failed. Please try again.");
+      });
+    }
+  };
+
+  const persistTierAndBadges = (ownerId: string, allowOverride: boolean) => {
+    setRetainerTier(ownerId, selectedTier);
+    setActiveBadges("RETAINER", ownerId, activeBadgeIds);
+    setBackgroundBadges("RETAINER", ownerId, backgroundBadgeIds, {
+      allowOverride,
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -8302,6 +8372,25 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
       return;
 
+    }
+    const introText = intro.trim();
+    if ((!isEdit || introText.length > 0) && (introText.length < 140 || introText.length > 500)) {
+      setError("Short intro must be between 140 and 500 characters.");
+      return;
+    }
+    if (!isEdit) {
+      if (activeBadgeIds.length < tierCaps.active) {
+        setError(`Select ${tierCaps.active} foreground badge${tierCaps.active === 1 ? "" : "s"} to continue.`);
+        return;
+      }
+      if (backgroundBadgeIds.length < optionalBackgroundSlots) {
+        setError(
+          `Select ${optionalBackgroundSlots} background badge${
+            optionalBackgroundSlots === 1 ? "" : "s"
+          } to continue.`
+        );
+        return;
+      }
     }
 
     try {
@@ -8327,6 +8416,8 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
         yearsInBusiness: yearsInBusiness ? Number(yearsInBusiness) : undefined,
 
         employees: employees ? Number(employees) : undefined,
+
+        intro: introText || undefined,
 
         mission: mission.trim() || undefined,
 
@@ -8379,6 +8470,8 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
         }
         updateRetainerInStorage(updated);
 
+        persistTierAndBadges(updated.id, false);
+
         setSuccessMsg("Profile updated.");
 
         onSaved(updated.id);
@@ -8395,6 +8488,8 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
           }
         }
         upsertRetainerRecord(created);
+
+        persistTierAndBadges(created.id, true);
 
         setSuccessMsg("Profile created and set to Pending.");
 
@@ -8586,7 +8681,8 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
         {activePage === "core" && (
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
 
             <div className="space-y-1">
 
@@ -8733,9 +8829,204 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
               />
 
             </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-slate-200">
+                Short Intro (140-500 characters)
+              </label>
+              <textarea
+                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 min-h-[120px]"
+                value={intro}
+                onChange={(e) => setIntro(e.target.value)}
+                maxLength={500}
+                placeholder="Share the basics of your operation, route cadence, and the type of drivers you want."
+                disabled={readOnly}
+              />
+              <div className="text-[11px] text-slate-500">
+                {intro.trim().length}/500 characters
+              </div>
+            </div>
 
           </div>
 
+        )}
+
+        {activePage === "tierBadges" && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-100">Select tier</div>
+                <div className="text-xs text-slate-400">
+                  Tier controls how many foreground and background badges you can start with.
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {[
+                  {
+                    value: "STARTER",
+                    label: "Tier 1",
+                    detail: "1 foreground badge + 1 background badge",
+                  },
+                  {
+                    value: "GROWTH",
+                    label: "Tier 2",
+                    detail: "2 foreground badges + 2 background badges",
+                  },
+                  {
+                    value: "ENTERPRISE",
+                    label: "Tier 3",
+                    detail: "4 foreground badges + 4 background badges",
+                  },
+                ].map((tier) => {
+                  const active = selectedTier === (tier.value as RetainerTier);
+                  return (
+                    <button
+                      key={tier.value}
+                      type="button"
+                      onClick={() => setSelectedTier(tier.value as RetainerTier)}
+                      className={[
+                        "rounded-2xl border px-4 py-3 text-left transition",
+                        active
+                          ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-100"
+                          : "border-slate-800 bg-slate-900/60 text-slate-200 hover:bg-slate-900/80",
+                      ].join(" ")}
+                    >
+                      <div className="text-sm font-semibold">{tier.label}</div>
+                      <div className="text-[11px] text-slate-400 mt-1">{tier.detail}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-100">
+                    Foreground badges
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Select {tierCaps.active} badge{tierCaps.active === 1 ? "" : "s"}.
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {activeBadgeIds.length}/{tierCaps.active} selected
+                </div>
+              </div>
+              <div className="grid gap-2 md:grid-cols-2">
+                {selectableBadges.map((badge) => {
+                  const selected = activeBadgeIds.includes(badge.id);
+                  return (
+                    <button
+                      key={badge.id}
+                      type="button"
+                      onClick={() => toggleActiveBadge(badge.id)}
+                      className={[
+                        "rounded-xl border px-3 py-2 text-left transition flex items-start gap-2",
+                        selected
+                          ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-100"
+                          : "border-slate-800 bg-slate-900/60 text-slate-200 hover:bg-slate-900/80",
+                      ].join(" ")}
+                      title={`${badge.title} - ${badge.description}`}
+                    >
+                      <span className="h-8 w-8 rounded-lg border border-slate-700 bg-slate-950/60 flex items-center justify-center text-slate-100">
+                        {badgeIconFor(badge.iconKey, "h-4 w-4")}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold truncate">
+                          {badge.title}
+                        </span>
+                        <span className="block text-[11px] text-slate-400 truncate">
+                          {badge.description}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-100">
+                    Background badges
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Mandatory badges are included automatically.
+                  </div>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {backgroundBadgeIds.length}/{optionalBackgroundSlots} selected
+                </div>
+              </div>
+
+              {mandatoryBackgroundBadges.length > 0 && (
+                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                    Mandatory
+                  </div>
+                  <div className="mt-2 grid gap-2 md:grid-cols-2">
+                    {mandatoryBackgroundBadges.map((badge) => (
+                      <div
+                        key={badge.id}
+                        className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 flex items-start gap-2 text-slate-200"
+                      >
+                        <span className="h-7 w-7 rounded-lg border border-slate-700 bg-slate-950/60 flex items-center justify-center text-slate-100">
+                          {badgeIconFor(badge.iconKey, "h-4 w-4")}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold truncate">
+                            {badge.title}
+                          </span>
+                          <span className="block text-[11px] text-slate-500 truncate">
+                            {badge.description}
+                          </span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {backgroundBadges.length === 0 ? (
+                <div className="text-xs text-slate-400">No optional background badges.</div>
+              ) : (
+                <div className="grid gap-2 md:grid-cols-2">
+                  {backgroundBadges.map((badge) => {
+                    const selected = backgroundBadgeIds.includes(badge.id);
+                    return (
+                      <button
+                        key={badge.id}
+                        type="button"
+                        onClick={() => toggleBackgroundBadge(badge.id)}
+                        className={[
+                          "rounded-xl border px-3 py-2 text-left transition flex items-start gap-2",
+                          selected
+                            ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-100"
+                            : "border-slate-800 bg-slate-900/60 text-slate-200 hover:bg-slate-900/80",
+                        ].join(" ")}
+                        title={`${badge.title} - ${badge.description}`}
+                      >
+                        <span className="h-8 w-8 rounded-lg border border-slate-700 bg-slate-950/60 flex items-center justify-center text-slate-100">
+                          {badgeIconFor(badge.iconKey, "h-4 w-4")}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold truncate">
+                            {badge.title}
+                          </span>
+                          <span className="block text-[11px] text-slate-400 truncate">
+                            {badge.description}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {activePage === "company" && (
