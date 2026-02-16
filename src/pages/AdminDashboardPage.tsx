@@ -1,5 +1,6 @@
 // src/pages/AdminDashboardPage.tsx
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   getRetainers,
@@ -171,6 +172,10 @@ type KPIProps = {
   onClick?: () => void;
 };
 
+const DISPLAY_FONT: CSSProperties = {
+  fontFamily: '"Bebas Neue", "Oswald", "Arial Black", sans-serif',
+};
+
 const FORCE_ADMIN_LOGIN_KEY = "snapdriver_force_admin_login_v1";
 const LOCAL_ADMIN_KEY = "snapdriver_local_admin_v1";
 
@@ -245,9 +250,9 @@ function KPI({ label, value, onClick }: KPIProps) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-2xl p-4 text-left bg-white/5 hover:bg-white/10 border border-white/10 focus:outline-none focus:ring-4 focus:ring-blue-400/40"
+      className="w-full rounded-2xl p-4 text-left bg-white/5 hover:bg-white/10 border border-orange-500/60 focus:outline-none focus:ring-4 focus:ring-orange-400/40"
     >
-      <div className="text-xs uppercase tracking-wide text-white/60">
+      <div className="text-xs uppercase tracking-wide text-white">
         {label}
       </div>
       <div className="text-3xl font-semibold mt-1">{value}</div>
@@ -268,9 +273,9 @@ function NavButton({
     <button
       onClick={onClick}
       className={
-        "w-full rounded-xl px-3 py-2 transition " +
+        "w-full rounded-xl px-3 py-2 transition text-white " +
         (active
-          ? "bg-white/15 border border-white/20"
+          ? "bg-white/15 border border-orange-500/60"
           : "bg-white/5 hover:bg-white/10 border border-transparent")
       }
     >
@@ -297,12 +302,12 @@ function NavSectionHeader({
       className={
         "w-full rounded-xl px-3 py-2 text-left flex items-center justify-between text-xs uppercase tracking-wider transition " +
         (active
-          ? "bg-white/15 border border-white/20 text-white"
-          : "bg-white/5 hover:bg-white/10 border border-transparent text-white/60")
+          ? "bg-white/15 border border-orange-500/60 text-white"
+          : "bg-white/5 hover:bg-white/10 border border-transparent text-white")
       }
     >
       <span>{title}</span>
-      <span className="text-white/40">{open ? "-" : "+"}</span>
+      <span className="text-white/80">{open ? "-" : "+"}</span>
     </button>
   );
 }
@@ -611,24 +616,27 @@ export default function AdminDashboardPage() {
   if (authStatus === "unauth") {
     return (
       <main className="min-h-screen bg-slate-950 text-slate-100 px-6 py-12">
+        <style>
+          {`@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Spline+Sans:wght@300;400;500;600&display=swap');`}
+        </style>
         <div className="max-w-3xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
-            <div className="text-xs uppercase tracking-[0.35em] text-slate-500">SnapDriver</div>
+            <div className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+              Snap Driver
+            </div>
             <Link
               to="/"
-              className="text-xs uppercase tracking-wide text-slate-400 hover:text-slate-200"
+              className="text-xs uppercase tracking-wide text-white/80 hover:text-white"
             >
               Back to landing
             </Link>
           </div>
 
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 space-y-4">
+          <div className="rounded-3xl border border-orange-500 bg-slate-900/70 p-6 space-y-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.3em] text-slate-500">Admin</div>
-              <h1 className="text-2xl font-semibold text-slate-100">Admin Login</h1>
-              <p className="text-sm text-slate-400 mt-2">
-                Sign in with an admin account to access the dashboard.
-              </p>
+              <h1 className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+                Admin Login
+              </h1>
             </div>
             <div className="space-y-3">
               <input
@@ -695,7 +703,7 @@ export default function AdminDashboardPage() {
               )}
             </div>
             {canBootstrapAdmin && (
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-400">
+              <div className="rounded-2xl border border-orange-500 bg-slate-950/60 p-3 text-xs text-slate-400">
                 {requiresBootstrapToken
                   ? "Bootstrap is enabled. Requires a token and only works if no admin exists yet."
                   : "Local bootstrap is enabled. Use this only for staging or development to create the first admin account or enter an offline admin session."}
@@ -805,12 +813,15 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="min-h-screen lg:h-screen bg-gray-950 text-gray-100 flex flex-col lg:flex-row overflow-x-hidden">
-      <aside className="hidden lg:flex w-72 shrink-0 border-r border-white/10 bg-gradient-to-b from-gray-950 to-gray-900/70 flex flex-col min-h-0">
-        <div className="px-4 py-4 border-b border-white/10">
-          <div className="text-xs uppercase tracking-wider text-white/60 mb-2">
-            Admin
+      <style>
+        {`@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Spline+Sans:wght@300;400;500;600&display=swap');`}
+      </style>
+      <aside className="hidden lg:flex w-72 shrink-0 border-r border-orange-500 bg-gradient-to-b from-gray-950 to-gray-900/70 flex flex-col min-h-0">
+        <div className="px-4 py-4 border-b border-orange-500">
+          <div className="text-[44px] font-semibold text-white leading-none text-center" style={DISPLAY_FONT}>
+            Snap Driver
           </div>
-          <div className="flex gap-2">
+          <div className="mt-3 flex gap-2 justify-center">
             <Link className="btn" to="/">
               Home
             </Link>
@@ -830,7 +841,7 @@ export default function AdminDashboardPage() {
             </NavButton>
           </div>
 
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-orange-500/40" />
 
           <section className="space-y-2">
             <NavSectionHeader
@@ -860,7 +871,7 @@ export default function AdminDashboardPage() {
             )}
           </section>
 
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-orange-500/40" />
 
           <section className="space-y-2">
             <NavSectionHeader
@@ -890,7 +901,7 @@ export default function AdminDashboardPage() {
             )}
           </section>
 
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-orange-500/40" />
 
           <section className="space-y-2">
             <NavSectionHeader
@@ -936,7 +947,7 @@ export default function AdminDashboardPage() {
             )}
           </section>
 
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-orange-500/40" />
 
           <section className="space-y-2">
             <NavSectionHeader
@@ -963,7 +974,7 @@ export default function AdminDashboardPage() {
             )}
           </section>
 
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-orange-500/40" />
 
           <section className="space-y-2">
             <NavSectionHeader
@@ -981,7 +992,7 @@ export default function AdminDashboardPage() {
             )}
           </section>
 
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-orange-500/40" />
 
           <section className="space-y-2">
             <NavSectionHeader
@@ -1021,16 +1032,17 @@ export default function AdminDashboardPage() {
       </aside>
 
       <div className="flex-1 flex flex-col">
-        <div className="lg:hidden border-b border-white/10 bg-gray-950/90 backdrop-blur">
+        <div className="lg:hidden border-b border-orange-500 bg-gray-950/90 backdrop-blur">
           <div className="px-4 py-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-white/60">Admin</div>
-                <div className="text-lg font-semibold">Snap Driver</div>
+                <div className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+                  Snap Driver
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wider text-white/60">Panel</div>
+                  <div className="text-[10px] uppercase tracking-wider text-white">Panel</div>
                   <div className="text-sm font-semibold text-white">{panelTitle}</div>
                 </div>
                 <button
@@ -1085,7 +1097,7 @@ export default function AdminDashboardPage() {
 
             <div className="grid gap-4">
               <div className="surface p-3 rounded-2xl">
-                <div className="text-sm text-white/70 mb-2">Seekers</div>
+                <div className="text-sm text-white mb-2">Seekers</div>
                 <div className="grid grid-cols-2 gap-3">
                   <KPI label="Pending" value={seekersPending.length} onClick={() => setPanel("seekers:pending")} />
                   <KPI label="Approved" value={seekersApproved.length} onClick={() => setPanel("seekers:approved")} />
@@ -1094,7 +1106,7 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
               <div className="surface p-3 rounded-2xl">
-                <div className="text-sm text-white/70 mb-2">Retainers</div>
+                <div className="text-sm text-white mb-2">Retainers</div>
                 <div className="grid grid-cols-2 gap-3">
                   <KPI label="Pending" value={retainersPending.length} onClick={() => setPanel("retainers:pending")} />
                   <KPI label="Approved" value={retainersApproved.length} onClick={() => setPanel("retainers:approved")} />
@@ -1114,11 +1126,13 @@ export default function AdminDashboardPage() {
               onClick={() => setIsMobileNavOpen(false)}
               className="absolute inset-0 bg-gray-950/70"
             />
-            <div className="absolute inset-y-0 left-0 w-80 max-w-[85vw] bg-gray-950 border-r border-white/10 p-4 overflow-y-auto">
+            <div className="absolute inset-y-0 left-0 w-80 max-w-[85vw] bg-gray-950 border-r border-orange-500 p-4 overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-white/60">Admin</div>
-                  <div className="text-sm font-semibold text-white">Navigation</div>
+                  <div className="text-[36px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+                    Snap Driver
+                  </div>
+                  <div className="text-xs uppercase tracking-wider text-white mt-1">Navigation</div>
                 </div>
                 <button
                   type="button"
@@ -1172,7 +1186,7 @@ export default function AdminDashboardPage() {
 
                 {panelGroups.map((group) => (
                   <div key={group.label}>
-                    <div className="text-[10px] uppercase tracking-wider text-white/60 mb-2">
+                    <div className="text-[10px] uppercase tracking-wider text-white mb-2">
                       {group.label}
                     </div>
                     <div className="space-y-2">
@@ -1196,13 +1210,12 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        <header className="hidden lg:block shrink-0 px-6 py-4 border-b border-white/10 backdrop-blur supports-[backdrop-filter]:bg-white/5">
+        <header className="hidden lg:block shrink-0 px-6 py-4 border-b border-orange-500 backdrop-blur supports-[backdrop-filter]:bg-white/5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-semibold">{panelTitle}</h1>
-              <p className="text-xs text-white/60 mt-1">
-                Admin management console for Seekers and Retainers.
-              </p>
+              <h1 className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+                {panelTitle}
+              </h1>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1231,7 +1244,7 @@ export default function AdminDashboardPage() {
 
           <div className="grid md:grid-cols-2 gap-4 mt-4">
             <div className="surface p-3 rounded-2xl">
-              <div className="text-sm text-white/70 mb-2">Seekers</div>
+              <div className="text-sm text-white mb-2">Seekers</div>
               <div className="grid grid-cols-2 gap-3">
                 <KPI label="Pending" value={seekersPending.length} onClick={() => setPanel("seekers:pending")} />
                 <KPI label="Approved" value={seekersApproved.length} onClick={() => setPanel("seekers:approved")} />
@@ -1240,7 +1253,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
             <div className="surface p-3 rounded-2xl">
-              <div className="text-sm text-white/70 mb-2">Retainers</div>
+              <div className="text-sm text-white mb-2">Retainers</div>
               <div className="grid grid-cols-2 gap-3">
                 <KPI label="Pending" value={retainersPending.length} onClick={() => setPanel("retainers:pending")} />
                 <KPI label="Approved" value={retainersApproved.length} onClick={() => setPanel("retainers:approved")} />
@@ -1263,8 +1276,8 @@ export default function AdminDashboardPage() {
             <div className="flex flex-col gap-4 h-full min-h-0">
 
               <div className="grid md:grid-cols-2 gap-6 flex-1 min-h-0 overflow-hidden">
-                <section className="surface p-5 hover:border-blue-500/30 transition flex flex-col min-h-0">
-                <h2 className="text-xl font-semibold mb-4">Pending Seekers</h2>
+                <section className="surface p-5 hover:border-orange-400/60 transition flex flex-col min-h-0">
+                <h2 className="text-2xl font-semibold text-white mb-4">Pending Seekers</h2>
                 <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                   <PendingSeekersList
                     seekers={seekersPending}
@@ -1272,8 +1285,8 @@ export default function AdminDashboardPage() {
                   />
                 </div>
               </section>
-              <section className="surface p-5 hover:border-blue-500/30 transition flex flex-col min-h-0">
-                <h2 className="text-xl font-semibold mb-4">Pending Retainers</h2>
+              <section className="surface p-5 hover:border-orange-400/60 transition flex flex-col min-h-0">
+                <h2 className="text-2xl font-semibold text-white mb-4">Pending Retainers</h2>
                 <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                   <PendingRetainersList
                     retainers={retainersPending}
@@ -1324,7 +1337,7 @@ export default function AdminDashboardPage() {
           )}
 
           {panel.startsWith("seekers:") && (
-            <section className="surface p-5 hover:border-blue-500/30 transition">
+            <section className="surface p-5 hover:border-orange-400/60 transition">
               {panel === "seekers:pending" && <SD_List items={seekersPending} role="SEEKER" />}
               {panel === "seekers:approved" && <SD_List items={seekersApproved} role="SEEKER" />}
               {panel === "seekers:rejected" && <SD_List items={seekersRejected} role="SEEKER" />}
@@ -1342,7 +1355,7 @@ export default function AdminDashboardPage() {
           )}
 
           {panel.startsWith("retainers:") && (
-            <section className="surface p-5 hover:border-blue-500/30 transition">
+            <section className="surface p-5 hover:border-orange-400/60 transition">
               {panel === "retainers:pending" && <SD_List items={retainersPending} role="RETAINER" />}
               {panel === "retainers:approved" && <SD_List items={retainersApproved} role="RETAINER" />}
               {panel === "retainers:rejected" && <SD_List items={retainersRejected} role="RETAINER" />}
@@ -1545,9 +1558,9 @@ const AdminBadgeRulesPanel: React.FC = () => {
   };
 
   return (
-    <section className="surface p-5 hover:border-blue-500/30 transition space-y-6">
+    <section className="surface p-5 hover:border-orange-400/60 transition space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Badge Rules</h2>
+        <h2 className="text-2xl font-semibold text-white">Badge Rules</h2>
         <p className="text-sm text-white/60 mt-1">
           Controls how badge levels are earned. Levels use lifetime confirmation percentage
           and total confirmation count. Badge levels can decrease when results change.
@@ -1758,10 +1771,10 @@ const AdminBadgeScoringPanel: React.FC = () => {
   };
 
   return (
-    <section className="surface p-5 hover:border-blue-500/30 transition space-y-6">
+    <section className="surface p-5 hover:border-orange-400/60 transition space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold">Badge Scoring</h2>
+          <h2 className="text-2xl font-semibold text-white">Badge Scoring</h2>
           <p className="text-sm text-white/60">
             Control the reputation score split, badge kind weights, and penalty multipliers.
           </p>
@@ -2035,10 +2048,10 @@ const AdminBadgeAuditPanel: React.FC = () => {
   };
 
   return (
-    <section className="surface p-5 hover:border-blue-500/30 transition space-y-4">
+    <section className="surface p-5 hover:border-orange-400/60 transition space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold">Badge Audit Log</h2>
+          <h2 className="text-2xl font-semibold text-white">Badge Audit Log</h2>
           <p className="text-sm text-white/60">
             Review badge confirmations and apply overrides or disputes.
           </p>
@@ -2656,10 +2669,10 @@ const AdminWorkUnitsPanel: React.FC<{
   };
 
   return (
-    <section className="surface p-5 hover:border-blue-500/30 transition space-y-4">
+    <section className="surface p-5 hover:border-orange-400/60 transition space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold">Work Unit Disputes</h2>
+          <h2 className="text-2xl font-semibold text-white">Work Unit Disputes</h2>
           <p className="text-sm text-white/60">
             Resolve disputed work-unit periods for both parties.
           </p>
@@ -3834,10 +3847,10 @@ const AdminMeetingsPanel: React.FC<{
   };
 
   return (
-    <section className="surface p-5 hover:border-blue-500/30 transition">
+    <section className="surface p-5 hover:border-orange-400/60 transition">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-xl font-semibold">Interview Meetings</h2>
+          <h2 className="text-2xl font-semibold text-white">Interview Meetings</h2>
           <p className="text-sm text-white/60">
             Admin visibility into interview cadence, attendance, and outcomes.
           </p>
@@ -4203,10 +4216,10 @@ const AdminProfileVideosPanel: React.FC<{
   );
 
   return (
-    <section className="surface p-5 hover:border-blue-500/30 transition space-y-4">
+    <section className="surface p-5 hover:border-orange-400/60 transition space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold">Profile Videos</h2>
+          <h2 className="text-2xl font-semibold text-white">Profile Videos</h2>
           <p className="text-sm text-white/60">
             Review pending intro videos for seekers and retainers before they appear in the wheel.
           </p>
@@ -4323,10 +4336,10 @@ const AdminPostsPanel: React.FC<{
   };
 
   return (
-    <section className="surface p-5 hover:border-blue-500/30 transition">
+    <section className="surface p-5 hover:border-orange-400/60 transition">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-xl font-semibold">Posts & Broadcasts</h2>
+          <h2 className="text-2xl font-semibold text-white">Posts & Broadcasts</h2>
           <p className="text-sm text-white/60">
             Moderation view for Retainer feed content. You can archive items to
             remove them from the Seeker feed.
@@ -4483,10 +4496,10 @@ const AdminRoutesPanel: React.FC<{
   );
 
   return (
-    <section className="surface p-5 hover:border-blue-500/30 transition">
+    <section className="surface p-5 hover:border-orange-400/60 transition">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-xl font-semibold">Routes</h2>
+          <h2 className="text-2xl font-semibold text-white">Routes</h2>
           <p className="text-sm text-white/60">
             Global route listing with Interested volume. Admin can pause/close routes.
           </p>

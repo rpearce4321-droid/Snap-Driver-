@@ -1,5 +1,6 @@
-﻿// src/pages/AdminPage.tsx
+// src/pages/AdminPage.tsx
 import React, { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import {
@@ -35,14 +36,18 @@ type KPIProps = {
   onClick?: () => void;
 };
 
+const DISPLAY_FONT: CSSProperties = {
+  fontFamily: '"Bebas Neue", "Oswald", "Arial Black", sans-serif',
+};
+
 function KPI({ label, value, onClick }: KPIProps) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-2xl p-4 text-left bg-white/5 hover:bg-white/10 border border-white/10 focus:outline-none focus:ring-4 focus:ring-blue-400/40"
+      className="w-full rounded-2xl p-4 text-left bg-white/5 hover:bg-white/10 border border-orange-500/60 focus:outline-none focus:ring-4 focus:ring-orange-400/40"
     >
-      <div className="text-xs uppercase tracking-wide text-white/60">
+      <div className="text-xs uppercase tracking-wide text-white">
         {label}
       </div>
       <div className="text-3xl font-semibold mt-1">{value}</div>
@@ -275,13 +280,16 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col lg:flex-row overflow-x-hidden">
+      <style>
+        {`@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Spline+Sans:wght@300;400;500;600&display=swap');`}
+      </style>
       {/* Sidebar */}
-      <aside className="hidden lg:block w-72 shrink-0 border-r border-white/10 bg-gradient-to-b from-gray-950 to-gray-900/70">
-        <div className="px-4 py-4 border-b border-white/10">
-          <div className="text-xs uppercase tracking-wider text-white/60 mb-2">
-            Admin
+      <aside className="hidden lg:block w-72 shrink-0 border-r border-orange-500 bg-gradient-to-b from-gray-950 to-gray-900/70">
+        <div className="px-4 py-4 border-b border-orange-500">
+          <div className="text-[44px] font-semibold text-white leading-none text-center" style={DISPLAY_FONT}>
+            Snap Driver
           </div>
-          <div className="flex gap-2">
+          <div className="mt-3 flex gap-2 justify-center">
             <Link className="btn" to="/seekers">
               Seekers
             </Link>
@@ -298,18 +306,18 @@ export default function AdminPage() {
               className={
                 "w-full rounded-xl px-3 py-2 transition " +
                 (panel === "dashboard"
-                  ? "bg-white/15 border border-white/20"
+                  ? "bg-white/15 border border-orange-500/60"
                   : "bg-white/5 hover:bg-white/10 border border-transparent")
               }
             >
               Dashboard
             </button>
-            <div className="h-px bg-white/10" />
+            <div className="h-px bg-orange-500/40" />
           </div>
 
           {/* SEEKERS */}
           <section>
-            <div className="text-xs uppercase tracking-wider text-white/60 px-1 mb-2">
+            <div className="text-xs uppercase tracking-wider text-white px-1 mb-2">
               Seekers
             </div>
             <div className="space-y-2">
@@ -318,7 +326,7 @@ export default function AdminPage() {
                 className={
                   "w-full rounded-xl px-3 py-2 transition " +
                   (panel === "createSeeker"
-                    ? "bg-white/15 border border-white/20"
+                    ? "bg-white/15 border border-orange-500/60"
                     : "bg-white/5 hover:bg-white/10 border border-transparent")
                 }
               >
@@ -351,11 +359,11 @@ export default function AdminPage() {
             </div>
           </section>
 
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-orange-500/40" />
 
           {/* RETAINERS */}
           <section>
-            <div className="text-xs uppercase tracking-wider text-white/60 px-1 mb-2">
+            <div className="text-xs uppercase tracking-wider text-white px-1 mb-2">
               Retainers
             </div>
             <div className="space-y-2">
@@ -364,7 +372,7 @@ export default function AdminPage() {
                 className={
                   "w-full rounded-xl px-3 py-2 transition " +
                   (panel === "createRetainer"
-                    ? "bg-white/15 border border-white/20"
+                    ? "bg-white/15 border border-orange-500/60"
                     : "bg-white/5 hover:bg-white/10 border border-transparent")
                 }
               >
@@ -397,11 +405,11 @@ export default function AdminPage() {
             </div>
           </section>
 
-          <div className="h-px bg-white/10" />
+          <div className="h-px bg-orange-500/40" />
 
           {/* Messaging */}
           <section>
-            <div className="text-xs uppercase tracking-wider text-white/60 px-1 mb-2">
+            <div className="text-xs uppercase tracking-wider text-white px-1 mb-2">
               Messaging
             </div>
             <div className="space-y-2">
@@ -410,7 +418,7 @@ export default function AdminPage() {
                 className={
                   "w-full rounded-xl px-3 py-2 transition " +
                   (panel === "messageTraffic"
-                    ? "bg-white/15 border border-white/20"
+                    ? "bg-white/15 border border-orange-500/60"
                     : "bg-white/5 hover:bg-white/10 border border-transparent")
                 }
               >
@@ -423,15 +431,16 @@ export default function AdminPage() {
 
       {/* Main column */}
       <div className="flex-1 flex flex-col">
-        <div className="lg:hidden border-b border-white/10 bg-gray-950/80 backdrop-blur">
+        <div className="lg:hidden border-b border-orange-500 bg-gray-950/80 backdrop-blur">
           <div className="px-4 py-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-white/60">Admin</div>
-                <div className="text-lg font-semibold">Snap Driver</div>
+                <div className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+                  Snap Driver
+                </div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-white/60">Panel</div>
+                <div className="text-[10px] uppercase tracking-wider text-white">Panel</div>
                 <div className="text-sm font-semibold text-white">{activePanelLabel}</div>
               </div>
             </div>
@@ -471,7 +480,7 @@ export default function AdminPage() {
             <div className="space-y-3">
               {panelGroups.map((group) => (
                 <div key={group.label}>
-                  <div className="text-[10px] uppercase tracking-wider text-white/60 mb-2">
+                  <div className="text-[10px] uppercase tracking-wider text-white mb-2">
                     {group.label}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -543,17 +552,12 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <header className="hidden lg:block px-6 py-4 border-b border-white/10 backdrop-blur supports-[backdrop-filter]:bg-white/5">
+        <header className="hidden lg:block px-6 py-4 border-b border-orange-500 backdrop-blur supports-[backdrop-filter]:bg-white/5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-2xl font-semibold">Admin</h1>
-              {/* Optional: hint when nothing is in storage */}
-              {seekers.length === 0 && retainers.length === 0 && (
-                <p className="text-xs text-white/60 mt-1">
-                  No data in storage. Click &quot;Reset + Seed Demo Data&quot; to
-                  load sample profiles.
-                </p>
-              )}
+              <h1 className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+                Admin
+              </h1>
             </div>
             <div className="flex items-center gap-2">
               {showSeedButton && (
@@ -589,7 +593,7 @@ export default function AdminPage() {
           {/* KPI strip */}
           <div className="grid md:grid-cols-2 gap-4 mt-4">
             <div className="surface p-3 rounded-2xl">
-              <div className="text-sm text-white/70 mb-2">Seekers</div>
+              <div className="text-sm text-white mb-2">Seekers</div>
               <div className="grid grid-cols-2 gap-3">
                 <KPI
                   label="Pending"
@@ -614,7 +618,7 @@ export default function AdminPage() {
               </div>
             </div>
             <div className="surface p-3 rounded-2xl">
-              <div className="text-sm text-white/70 mb-2">Retainers</div>
+              <div className="text-sm text-white mb-2">Retainers</div>
               <div className="grid grid-cols-2 gap-3">
                 <KPI
                   label="Pending"
@@ -644,12 +648,12 @@ export default function AdminPage() {
         {/* Dashboard pending lists */}
         {panel === "dashboard" && (
           <main className="p-4 lg:p-6 grid md:grid-cols-2 gap-6">
-            <section className="surface p-5 hover:border-blue-500/30 transition">
-              <h2 className="text-xl font-semibold mb-4">Pending Seekers</h2>
+            <section className="surface p-5 hover:border-orange-400/60 transition">
+              <h2 className="text-2xl font-semibold text-white mb-4">Pending Seekers</h2>
               <PendingSeekersList seekers={seekersPending} />
             </section>
-            <section className="surface p-5 hover:border-blue-500/30 transition">
-              <h2 className="text-xl font-semibold mb-4">Pending Retainers</h2>
+            <section className="surface p-5 hover:border-orange-400/60 transition">
+              <h2 className="text-2xl font-semibold text-white mb-4">Pending Retainers</h2>
               <PendingRetainersList retainers={retainersPending} />
             </section>
           </main>
@@ -660,7 +664,7 @@ export default function AdminPage() {
           <main className="p-4 lg:p-6">
             <section className="surface p-5 max-w-4xl">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Create Seeker</h2>
+                <h2 className="text-2xl font-semibold text-white">Create Seeker</h2>
                 <button className="btn" onClick={() => setPanel("dashboard")}>
                   Back to Dashboard
                 </button>
@@ -899,7 +903,7 @@ export default function AdminPage() {
           <main className="p-4 lg:p-6">
             <section className="surface p-5 max-w-4xl">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Create Retainer</h2>
+                <h2 className="text-2xl font-semibold text-white">Create Retainer</h2>
                 <button className="btn" onClick={() => setPanel("dashboard")}>
                   Back to Dashboard
                 </button>
@@ -1096,9 +1100,9 @@ export default function AdminPage() {
         {/* Seekers status views */}
         {panel.startsWith("seekers:") && (
           <main className="p-4 lg:p-6">
-            <section className="surface p-5 hover:border-blue-500/30 transition">
+            <section className="surface p-5 hover:border-orange-400/60 transition">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
+                <h2 className="text-2xl font-semibold text-white">
                   Seekers - {panel.split(":")[1]}
                 </h2>
                 <div className="flex gap-2">
@@ -1157,9 +1161,9 @@ export default function AdminPage() {
         {/* Retainers status views */}
         {panel.startsWith("retainers:") && (
           <main className="p-4 lg:p-6">
-            <section className="surface p-5 hover:border-blue-500/30 transition">
+            <section className="surface p-5 hover:border-orange-400/60 transition">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">
+                <h2 className="text-2xl font-semibold text-white">
                   Retainers - {panel.split(":")[1]}
                 </h2>
                 <div className="flex gap-2">
@@ -1531,7 +1535,7 @@ const MobileTabButton: React.FC<{
       className={[
         "shrink-0 px-3 py-1.5 rounded-full text-xs border transition",
         active
-          ? "bg-blue-400/20 text-blue-200 border-blue-400/40"
+          ? "bg-orange-500/20 text-orange-100 border-orange-400/60"
           : "bg-white/5 text-white/80 border-white/10 hover:text-white",
       ].join(" ")}
     >
@@ -1583,12 +1587,12 @@ const AdminMessageTraffic: React.FC = () => {
   });
 
   return (
-    <section className="surface p-5 hover:border-blue-500/30 transition">
+    <section className="surface p-5 hover:border-orange-400/60 transition">
       <div className="flex items-center justify-between mb-4 gap-3">
         <div>
-          <h2 className="text-xl font-semibold">Message Traffic</h2>
+          <h2 className="text-2xl font-semibold text-white">Message Traffic</h2>
           <p className="text-sm text-white/60">
-            All Seeker ↔ Retainer conversations. Use flags to triage and
+            All Seeker ? Retainer conversations. Use flags to triage and
             moderate issues before they escalate.
           </p>
         </div>
