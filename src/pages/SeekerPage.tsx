@@ -546,9 +546,11 @@ const SeekerPage: React.FC = () => {
           <div className="text-xs text-slate-500">
             Member since {formatMemberSince(currentSeeker?.createdAt)}
           </div>
-          <div className="grid gap-2 pt-2">
+          <div className="grid grid-cols-3 gap-2 pt-2">
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
+              <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
+                Yes
+              </div>
               <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
                 <div className="text-sm font-semibold text-emerald-50">
                   {navApprovalTotals.yes}/{navApprovalTotals.total || 0}
@@ -556,7 +558,9 @@ const SeekerPage: React.FC = () => {
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
+              <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
+                No
+              </div>
               <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
                 <div className="text-sm font-semibold text-rose-50">
                   {navApprovalTotals.no}/{navApprovalTotals.total || 0}
@@ -564,7 +568,9 @@ const SeekerPage: React.FC = () => {
               </div>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
+              <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
+                Neutral
+              </div>
               <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
                 <div className="text-sm font-semibold text-slate-100">
                   {navApprovalTotals.neutral}/{navApprovalTotals.total || 0}
@@ -3079,67 +3085,79 @@ const DashboardView: React.FC<{
           </div>
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
             <div className="space-y-1">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Links</div>
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+                Links
+              </div>
               <button
                 type="button"
                 onClick={onGoToLinking}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.activeLinks}</div>
               </button>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Pending links</div>
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+                Pending links
+              </div>
               <button
                 type="button"
                 onClick={onGoToLinking}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{pendingLinks.length}</div>
               </button>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Unread</div>
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+                Unread
+              </div>
               <button
                 type="button"
                 onClick={onGoToMessages}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.unreadMessages}</div>
               </button>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Scheduled events</div>
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+                Scheduled events
+              </div>
               <button
                 type="button"
                 onClick={onGoToLinking}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.scheduledEvents}</div>
               </button>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Interested</div>
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+                Interested
+              </div>
               <button
                 type="button"
                 onClick={onGoToRoutes}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.interestedRoutes}</div>
               </button>
             </div>
             <div className="space-y-1">
-              <div className="text-[10px] text-slate-500 uppercase tracking-wide">Pending approvals</div>
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+                Pending approvals
+              </div>
               <button
                 type="button"
                 onClick={onGoToBadges}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.badgeApprovals}</div>
               </button>
