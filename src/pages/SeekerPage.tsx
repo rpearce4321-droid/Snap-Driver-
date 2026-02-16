@@ -547,22 +547,28 @@ const SeekerPage: React.FC = () => {
             Member since {formatMemberSince(currentSeeker?.createdAt)}
           </div>
           <div className="grid grid-cols-3 gap-2 pt-1">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
+            <div className="space-y-1">
               <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
-              <div className="text-sm font-semibold text-emerald-50">
-                {navApprovalTotals.yes}/{navApprovalTotals.total || 0}
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
+                <div className="text-sm font-semibold text-emerald-50">
+                  {navApprovalTotals.yes}/{navApprovalTotals.total || 0}
+                </div>
               </div>
             </div>
-            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
+            <div className="space-y-1">
               <div className="text-[10px] uppercase tracking-wide text-rose-200">No</div>
-              <div className="text-sm font-semibold text-rose-50">
-                {navApprovalTotals.no}/{navApprovalTotals.total || 0}
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
+                <div className="text-sm font-semibold text-rose-50">
+                  {navApprovalTotals.no}/{navApprovalTotals.total || 0}
+                </div>
               </div>
             </div>
-            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
+            <div className="space-y-1">
               <div className="text-[10px] uppercase tracking-wide text-slate-300">Neutral</div>
-              <div className="text-sm font-semibold text-slate-100">
-                {navApprovalTotals.neutral}/{navApprovalTotals.total || 0}
+              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
+                <div className="text-sm font-semibold text-slate-100">
+                  {navApprovalTotals.neutral}/{navApprovalTotals.total || 0}
+                </div>
               </div>
             </div>
           </div>
