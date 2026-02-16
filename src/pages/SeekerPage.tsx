@@ -3072,60 +3072,72 @@ const DashboardView: React.FC<{
             </button>
           </div>
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-            <button
-              type="button"
-              onClick={onGoToLinking}
-              disabled={!seekerId}
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Links</div>
-              <div className="text-xl font-semibold text-slate-50">{stats.activeLinks}</div>
-            </button>
-            <button
-              type="button"
-              onClick={onGoToLinking}
-              disabled={!seekerId}
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
+              <button
+                type="button"
+                onClick={onGoToLinking}
+                disabled={!seekerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <div className="text-xl font-semibold text-slate-50">{stats.activeLinks}</div>
+              </button>
+            </div>
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Pending links</div>
-              <div className="text-xl font-semibold text-slate-50">{pendingLinks.length}</div>
-            </button>
-            <button
-              type="button"
-              onClick={onGoToMessages}
-              disabled={!seekerId}
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
+              <button
+                type="button"
+                onClick={onGoToLinking}
+                disabled={!seekerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <div className="text-xl font-semibold text-slate-50">{pendingLinks.length}</div>
+              </button>
+            </div>
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Unread</div>
-              <div className="text-xl font-semibold text-slate-50">{stats.unreadMessages}</div>
-            </button>
-            <button
-              type="button"
-              onClick={onGoToLinking}
-              disabled={!seekerId}
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
+              <button
+                type="button"
+                onClick={onGoToMessages}
+                disabled={!seekerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <div className="text-xl font-semibold text-slate-50">{stats.unreadMessages}</div>
+              </button>
+            </div>
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Scheduled events</div>
-              <div className="text-xl font-semibold text-slate-50">{stats.scheduledEvents}</div>
-            </button>
-            <button
-              type="button"
-              onClick={onGoToRoutes}
-              disabled={!seekerId}
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
+              <button
+                type="button"
+                onClick={onGoToLinking}
+                disabled={!seekerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <div className="text-xl font-semibold text-slate-50">{stats.scheduledEvents}</div>
+              </button>
+            </div>
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Interested</div>
-              <div className="text-xl font-semibold text-slate-50">{stats.interestedRoutes}</div>
-            </button>
-            <button
-              type="button"
-              onClick={onGoToBadges}
-              disabled={!seekerId}
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
+              <button
+                type="button"
+                onClick={onGoToRoutes}
+                disabled={!seekerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <div className="text-xl font-semibold text-slate-50">{stats.interestedRoutes}</div>
+              </button>
+            </div>
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Pending approvals</div>
-              <div className="text-xl font-semibold text-slate-50">{stats.badgeApprovals}</div>
-            </button>
+              <button
+                type="button"
+                onClick={onGoToBadges}
+                disabled={!seekerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <div className="text-xl font-semibold text-slate-50">{stats.badgeApprovals}</div>
+              </button>
+            </div>
           </div>
         </div>
         <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 flex-1">
@@ -5863,16 +5875,29 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
 
   const handlePhotoFile = async (
     file: File | null,
-    setter: (value: string) => void
+    setter: (value: string) => void,
+    field?: "photoUrl" | "vehiclePhoto1" | "vehiclePhoto2" | "vehiclePhoto3"
   ) => {
     if (!file) return;
     try {
       setError(null);
       const url = await uploadImageWithFallback(file, MAX_IMAGE_BYTES);
       setter(url);
+      if (field) {
+        persistMediaPatch({ [field]: url } as Partial<Seeker>);
+      }
     } catch (err: any) {
       setError(err?.message || "Upload failed.");
     }
+  };
+
+  const handleMediaInput = (
+    value: string,
+    setter: (next: string) => void,
+    field: "photoUrl" | "vehiclePhoto1" | "vehiclePhoto2" | "vehiclePhoto3"
+  ) => {
+    setter(value);
+    persistMediaPatch({ [field]: value.trim() } as Partial<Seeker>);
   };
 
   const updateIntroVideo = (patch: {
@@ -5973,6 +5998,81 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     });
   };
 
+  const buildPayload = () => {
+    const normalizedVehicles = vehicles
+      .map((entry) => ({
+        id: entry.id || makeVehicleId(),
+        year:
+          entry.year != null && Number.isFinite(Number(entry.year))
+            ? Number(entry.year)
+            : undefined,
+        make: entry.make?.trim() || undefined,
+        model: entry.model?.trim() || undefined,
+      }))
+      .filter((entry) => entry.year || entry.make || entry.model);
+    const vehicleSummary = normalizedVehicles
+      .map((entry) => [entry.year, entry.make, entry.model].filter(Boolean).join(" "))
+      .filter(Boolean)
+      .join("; ");
+    const introText = intro.trim();
+
+    return {
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      companyName: companyName.trim() || undefined,
+      hasEin,
+      intro: introText || undefined,
+      email: email.trim() || undefined,
+      phone: phone.trim() || undefined,
+      birthday: birthday || undefined,
+      city: city.trim() || undefined,
+      state: stateCode || undefined,
+      zip: zip.trim() || undefined,
+      yearsInBusiness: yearsInBusiness ? Number(yearsInBusiness) : undefined,
+      deliveryVerticals: selectedVerticals.length > 0 ? selectedVerticals : undefined,
+      vehicles: normalizedVehicles.length ? normalizedVehicles : undefined,
+      vehicle: vehicleSummary || undefined,
+      insuranceType: insuranceType || undefined,
+      notes: notes.trim() || undefined,
+      photoUrl: photoUrl.trim() || undefined,
+      introVideoUrl: introVideoUrl.trim() || undefined,
+      introVideoStatus: introVideoStatus || undefined,
+      introVideoSubmittedAt: introVideoSubmittedAt || undefined,
+      introVideoApprovedAt: introVideoApprovedAt || undefined,
+      introVideoApprovedBy: introVideoApprovedBy || undefined,
+      introVideoApprovedByEmail: introVideoApprovedByEmail || undefined,
+      introVideoRejectedAt: introVideoRejectedAt || undefined,
+      introVideoRejectedBy: introVideoRejectedBy || undefined,
+      introVideoRejectedByEmail: introVideoRejectedByEmail || undefined,
+      introVideoDurationSec: introVideoDurationSec ?? undefined,
+      introVideoSizeBytes: introVideoSizeBytes ?? undefined,
+      introVideoMime: introVideoMime || undefined,
+      vehiclePhoto1: vehiclePhoto1.trim() || undefined,
+      vehiclePhoto2: vehiclePhoto2.trim() || undefined,
+      vehiclePhoto3: vehiclePhoto3.trim() || undefined,
+    };
+  };
+
+  const canAutoSaveMedia = () => {
+    const introText = intro.trim();
+    if (!isEdit || !initial?.id) return false;
+    if (!firstName.trim() || !lastName.trim() || !email.trim()) return false;
+    if (introText.length > 0 && (introText.length < 140 || introText.length > 500)) return false;
+    return true;
+  };
+
+  const persistMediaPatch = (patch: Partial<Seeker>) => {
+    if (!canAutoSaveMedia() || !initial) return;
+    const payload = buildPayload();
+    const updated: Seeker = { ...initial, ...payload, ...patch };
+    updateSeekerInStorage(updated);
+    if (isServerAuthoritative()) {
+      syncUpsert({ seekers: [updated] }).catch((err: any) => {
+        setError(err?.message || "Server save failed. Please try again.");
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
@@ -6005,58 +6105,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
     try {
       setSubmitting(true);
 
-      const normalizedVehicles = vehicles
-        .map((entry) => ({
-          id: entry.id || makeVehicleId(),
-          year:
-            entry.year != null && Number.isFinite(Number(entry.year))
-              ? Number(entry.year)
-              : undefined,
-          make: entry.make?.trim() || undefined,
-          model: entry.model?.trim() || undefined,
-        }))
-        .filter((entry) => entry.year || entry.make || entry.model);
-      const vehicleSummary = normalizedVehicles
-        .map((entry) => [entry.year, entry.make, entry.model].filter(Boolean).join(" "))
-        .filter(Boolean)
-        .join("; ");
-
-      const payload = {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        companyName: companyName.trim() || undefined,
-        hasEin,
-        intro: introText || undefined,
-        email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-        birthday: birthday || undefined,
-        city: city.trim() || undefined,
-        state: stateCode || undefined,
-        zip: zip.trim() || undefined,
-        yearsInBusiness: yearsInBusiness ? Number(yearsInBusiness) : undefined,
-        deliveryVerticals:
-          selectedVerticals.length > 0 ? selectedVerticals : undefined,
-        vehicles: normalizedVehicles.length ? normalizedVehicles : undefined,
-        vehicle: vehicleSummary || undefined,
-        insuranceType: insuranceType || undefined,
-        notes: notes.trim() || undefined,
-        photoUrl: photoUrl.trim() || undefined,
-        introVideoUrl: introVideoUrl.trim() || undefined,
-        introVideoStatus: introVideoStatus || undefined,
-        introVideoSubmittedAt: introVideoSubmittedAt || undefined,
-        introVideoApprovedAt: introVideoApprovedAt || undefined,
-        introVideoApprovedBy: introVideoApprovedBy || undefined,
-        introVideoApprovedByEmail: introVideoApprovedByEmail || undefined,
-        introVideoRejectedAt: introVideoRejectedAt || undefined,
-        introVideoRejectedBy: introVideoRejectedBy || undefined,
-        introVideoRejectedByEmail: introVideoRejectedByEmail || undefined,
-        introVideoDurationSec: introVideoDurationSec ?? undefined,
-        introVideoSizeBytes: introVideoSizeBytes ?? undefined,
-        introVideoMime: introVideoMime || undefined,
-        vehiclePhoto1: vehiclePhoto1.trim() || undefined,
-        vehiclePhoto2: vehiclePhoto2.trim() || undefined,
-        vehiclePhoto3: vehiclePhoto3.trim() || undefined,
-      };
+      const payload = buildPayload();
 
       if (isEdit) {
         if (!initial) {
@@ -6694,7 +6743,9 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => handlePhotoFile(e.target.files?.[0] ?? null, setPhotoUrl)}
+                    onChange={(e) =>
+                      handlePhotoFile(e.target.files?.[0] ?? null, setPhotoUrl, "photoUrl")
+                    }
                     className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300 file:mr-3 file:rounded-full file:border-0 file:bg-slate-800 file:px-3 file:py-1 file:text-xs file:text-slate-200 hover:file:bg-slate-700"
                   />
                 </div>
@@ -6703,7 +6754,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
                   <input
                     className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50"
                     value={photoUrl}
-                    onChange={(e) => setPhotoUrl(e.target.value)}
+                    onChange={(e) => handleMediaInput(e.target.value, setPhotoUrl, "photoUrl")}
                     placeholder="https://example.com/photo.jpg"
                   />
                 </div>
@@ -6731,7 +6782,13 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={(e) => handlePhotoFile(e.target.files?.[0] ?? null, slot.set)}
+                      onChange={(e) =>
+                        handlePhotoFile(
+                          e.target.files?.[0] ?? null,
+                          slot.set,
+                          slot.key as "vehiclePhoto1" | "vehiclePhoto2" | "vehiclePhoto3"
+                        )
+                      }
                       className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300 file:mr-3 file:rounded-full file:border-0 file:bg-slate-800 file:px-3 file:py-1 file:text-xs file:text-slate-200 hover:file:bg-slate-700"
                     />
                   </div>
@@ -6740,7 +6797,13 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
                     <input
                       className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-50"
                       value={slot.value}
-                      onChange={(e) => slot.set(e.target.value)}
+                      onChange={(e) =>
+                        handleMediaInput(
+                          e.target.value,
+                          slot.set,
+                          slot.key as "vehiclePhoto1" | "vehiclePhoto2" | "vehiclePhoto3"
+                        )
+                      }
                       placeholder="https://example.com/vehicle.jpg"
                     />
                   </div>

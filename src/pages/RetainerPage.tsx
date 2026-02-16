@@ -4139,101 +4139,71 @@ const DashboardView: React.FC<{
 
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
 
-            <button
-
-              type="button"
-
-              onClick={onGoToLinking}
-
-              disabled={!retainerId}
-
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Links</div>
+              <button
+                type="button"
+                onClick={onGoToLinking}
+                disabled={!retainerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                <div className="text-xl font-semibold text-slate-50">{stats.activeLinks}</div>
+              </button>
+            </div>
 
-              <div className="text-xl font-semibold text-slate-50">{stats.activeLinks}</div>
-
-            </button>
-
-            <button
-
-              type="button"
-
-              onClick={onGoToLinking}
-
-              disabled={!retainerId}
-
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Pending links</div>
+              <button
+                type="button"
+                onClick={onGoToLinking}
+                disabled={!retainerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                <div className="text-xl font-semibold text-slate-50">{pendingLinks.length}</div>
+              </button>
+            </div>
 
-              <div className="text-xl font-semibold text-slate-50">{pendingLinks.length}</div>
-
-            </button>
-
-            <button
-
-              type="button"
-
-              onClick={onGoToMessages}
-
-              disabled={!retainerId}
-
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Unread</div>
+              <button
+                type="button"
+                onClick={onGoToMessages}
+                disabled={!retainerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                <div className="text-xl font-semibold text-slate-50">{stats.unreadMessages}</div>
+              </button>
+            </div>
 
-              <div className="text-xl font-semibold text-slate-50">{stats.unreadMessages}</div>
-
-            </button>
-
-            <button
-
-              type="button"
-
-              onClick={onGoToLinking}
-
-              disabled={!retainerId}
-
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Scheduled events</div>
+              <button
+                type="button"
+                onClick={onGoToLinking}
+                disabled={!retainerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                <div className="text-xl font-semibold text-slate-50">{stats.scheduledEvents}</div>
+              </button>
+            </div>
 
-              <div className="text-xl font-semibold text-slate-50">{stats.scheduledEvents}</div>
-
-            </button>
-
-            <button
-
-              type="button"
-
-              onClick={onGoToRoutes}
-
-              disabled={!retainerId}
-
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Interested</div>
+              <button
+                type="button"
+                onClick={onGoToRoutes}
+                disabled={!retainerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                <div className="text-xl font-semibold text-slate-50">{stats.routeInterests}</div>
+              </button>
+            </div>
 
-              <div className="text-xl font-semibold text-slate-50">{stats.routeInterests}</div>
-
-            </button>
-
-            <button
-
-              type="button"
-
-              onClick={onGoToBadges}
-
-              disabled={!retainerId}
-
-              className="rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
-
+            <div className="space-y-1">
               <div className="text-[10px] text-slate-500 uppercase tracking-wide">Pending approvals</div>
-
-              <div className="text-xl font-semibold text-slate-50">{stats.badgeApprovals}</div>
-
-            </button>
+              <button
+                type="button"
+                onClick={onGoToBadges}
+                disabled={!retainerId}
+                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3 text-left hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                <div className="text-xl font-semibold text-slate-50">{stats.badgeApprovals}</div>
+              </button>
+            </div>
 
           </div>
 
@@ -8244,18 +8214,89 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
       return [...prev, id];
     });
   };
+
+  const buildPayload = () => {
+    const introText = intro.trim();
+    return {
+      companyName: companyName.trim(),
+      ceoName: ceoName.trim() || undefined,
+      email: email.trim() || undefined,
+      phone: phone.trim() || undefined,
+      city: city.trim() || undefined,
+      state: stateCode || undefined,
+      zip: zip.trim() || undefined,
+      yearsInBusiness: yearsInBusiness ? Number(yearsInBusiness) : undefined,
+      employees: employees ? Number(employees) : undefined,
+      intro: introText || undefined,
+      mission: mission.trim() || undefined,
+      deliveryVerticals: selectedVerticals.length ? selectedVerticals : undefined,
+      desiredTraits: selectedTraits.length ? selectedTraits : undefined,
+      paymentTerms: paymentTerms || undefined,
+      payCycleCloseDay: payCycleCloseDay || undefined,
+      payCycleFrequency: payCycleFrequency || undefined,
+      payCycleTimezone: "EST",
+      logoUrl: logoUrl.trim() || undefined,
+      introVideoUrl: introVideoUrl.trim() || undefined,
+      introVideoStatus: introVideoStatus || undefined,
+      introVideoSubmittedAt: introVideoSubmittedAt || undefined,
+      introVideoApprovedAt: introVideoApprovedAt || undefined,
+      introVideoApprovedBy: introVideoApprovedBy || undefined,
+      introVideoApprovedByEmail: introVideoApprovedByEmail || undefined,
+      introVideoRejectedAt: introVideoRejectedAt || undefined,
+      introVideoRejectedBy: introVideoRejectedBy || undefined,
+      introVideoRejectedByEmail: introVideoRejectedByEmail || undefined,
+      introVideoDurationSec: introVideoDurationSec ?? undefined,
+      introVideoSizeBytes: introVideoSizeBytes ?? undefined,
+      introVideoMime: introVideoMime || undefined,
+      companyPhotoUrl: companyPhotoUrl.trim() || undefined,
+    };
+  };
+
+  const canAutoSaveMedia = () => {
+    const introText = intro.trim();
+    if (!isEdit || !initial?.id || readOnly) return false;
+    if (!companyName.trim()) return false;
+    if (introText.length > 0 && (introText.length < 140 || introText.length > 500)) return false;
+    return true;
+  };
+
+  const persistMediaPatch = (patch: Partial<Retainer>) => {
+    if (!canAutoSaveMedia() || !initial) return;
+    const payload = buildPayload();
+    const updated: Retainer = { ...initial, ...payload, ...patch };
+    updateRetainerInStorage(updated);
+    if (isServerAuthoritative()) {
+      syncUpsert({ retainers: [updated] }).catch((err: any) => {
+        setError(err?.message || "Server save failed. Please try again.");
+      });
+    }
+  };
+
   const handlePhotoFile = async (
     file: File | null,
-    setter: (value: string) => void
+    setter: (value: string) => void,
+    field?: "logoUrl" | "companyPhotoUrl"
   ) => {
     if (!file || readOnly) return;
     try {
       setError(null);
       const url = await uploadImageWithFallback(file, MAX_IMAGE_BYTES);
       setter(url);
+      if (field) {
+        persistMediaPatch({ [field]: url } as Partial<Retainer>);
+      }
     } catch (err: any) {
       setError(err?.message || "Upload failed.");
     }
+  };
+
+  const handleMediaInput = (
+    value: string,
+    setter: (next: string) => void,
+    field: "logoUrl" | "companyPhotoUrl"
+  ) => {
+    setter(value);
+    persistMediaPatch({ [field]: value.trim() } as Partial<Retainer>);
   };
 
   const updateIntroVideo = (patch: {
@@ -8397,56 +8438,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
       setSubmitting(true);
 
-      const payload: any = {
-
-        companyName: companyName.trim(),
-
-        ceoName: ceoName.trim() || undefined,
-
-        email: email.trim() || undefined,
-
-        phone: phone.trim() || undefined,
-
-        city: city.trim() || undefined,
-
-        state: stateCode || undefined,
-
-        zip: zip.trim() || undefined,
-
-        yearsInBusiness: yearsInBusiness ? Number(yearsInBusiness) : undefined,
-
-        employees: employees ? Number(employees) : undefined,
-
-        intro: introText || undefined,
-
-        mission: mission.trim() || undefined,
-
-        deliveryVerticals: selectedVerticals.length ? selectedVerticals : undefined,
-
-        desiredTraits: selectedTraits.length ? selectedTraits : undefined,
-
-        paymentTerms: paymentTerms || undefined,
-        payCycleCloseDay: payCycleCloseDay || undefined,
-        payCycleFrequency: payCycleFrequency || undefined,
-        payCycleTimezone: "EST",
-
-        logoUrl: logoUrl.trim() || undefined,
-        introVideoUrl: introVideoUrl.trim() || undefined,
-        introVideoStatus: introVideoStatus || undefined,
-        introVideoSubmittedAt: introVideoSubmittedAt || undefined,
-        introVideoApprovedAt: introVideoApprovedAt || undefined,
-        introVideoApprovedBy: introVideoApprovedBy || undefined,
-        introVideoApprovedByEmail: introVideoApprovedByEmail || undefined,
-        introVideoRejectedAt: introVideoRejectedAt || undefined,
-        introVideoRejectedBy: introVideoRejectedBy || undefined,
-        introVideoRejectedByEmail: introVideoRejectedByEmail || undefined,
-        introVideoDurationSec: introVideoDurationSec ?? undefined,
-        introVideoSizeBytes: introVideoSizeBytes ?? undefined,
-        introVideoMime: introVideoMime || undefined,
-
-        companyPhotoUrl: companyPhotoUrl.trim() || undefined,
-
-      };
+      const payload: any = buildPayload();
 
       if (isEdit) {
 
@@ -9314,7 +9306,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
                 value={logoUrl}
 
-                onChange={(e) => setLogoUrl(e.target.value)}
+                onChange={(e) => handleMediaInput(e.target.value, setLogoUrl, "logoUrl")}
 
                 placeholder="Logo URL"
 
@@ -9330,7 +9322,9 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
                 disabled={readOnly}
 
-                onChange={(e) => handlePhotoFile(e.target.files?.[0] ?? null, setLogoUrl)}
+                onChange={(e) =>
+                  handlePhotoFile(e.target.files?.[0] ?? null, setLogoUrl, "logoUrl")
+                }
 
                 className="text-xs text-slate-300"
 
@@ -9362,7 +9356,9 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
                 value={companyPhotoUrl}
 
-                onChange={(e) => setCompanyPhotoUrl(e.target.value)}
+                onChange={(e) =>
+                  handleMediaInput(e.target.value, setCompanyPhotoUrl, "companyPhotoUrl")
+                }
 
                 placeholder="Company photo URL"
 
@@ -9378,7 +9374,13 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
                 disabled={readOnly}
 
-                onChange={(e) => handlePhotoFile(e.target.files?.[0] ?? null, setCompanyPhotoUrl)}
+                onChange={(e) =>
+                  handlePhotoFile(
+                    e.target.files?.[0] ?? null,
+                    setCompanyPhotoUrl,
+                    "companyPhotoUrl"
+                  )
+                }
 
                 className="text-xs text-slate-300"
 
