@@ -28,6 +28,10 @@ import {
   getConversationsForSeeker,
   setMessageFlag,
 } from "../lib/messages";
+
+const DISPLAY_FONT: CSSProperties = {
+  fontFamily: '"Bebas Neue", "Oswald", "Arial Black", sans-serif',
+};
 import {
   addSubcontractorMessage,
   getSubcontractorMessages,
@@ -514,67 +518,76 @@ const SeekerPage: React.FC = () => {
   };
 
   const navProfileCard = (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
-      <div className="flex items-start gap-4">
-        <div className="w-1/3 max-w-[140px] min-w-[96px]">
-          <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
-            <ProfileAvatar
-              role="SEEKER"
-              profile={(currentSeeker ?? { id: currentSeekerId || "seeker" }) as any}
-              name={navDisplayName}
-              size="lg"
-              className="h-full w-full rounded-xl"
-            />
+    <div className="group relative rounded-2xl bg-slate-900 border border-orange-500 p-6 min-h-[240px] w-full transition-[width] duration-200 lg:hover:w-max lg:hover:min-w-full lg:hover:max-w-[560px] lg:hover:shadow-2xl lg:hover:z-50">
+      <div className="space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="w-1/3 max-w-[140px] min-w-[96px]">
+            <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
+              <ProfileAvatar
+                role="SEEKER"
+                profile={(currentSeeker ?? { id: currentSeekerId || "seeker" }) as any}
+                name={navDisplayName}
+                size="lg"
+                className="h-full w-full rounded-xl"
+              />
+            </div>
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div
+              className="text-lg font-semibold text-slate-50 truncate group-hover:overflow-visible group-hover:text-clip"
+              title={currentSeekerId ? navDisplayName : "Seeker"}
+            >
+              {currentSeekerId ? navDisplayName : "Seeker"}
+            </div>
+            <div
+              className="text-sm text-slate-300 truncate group-hover:overflow-visible group-hover:text-clip"
+              title={currentSeekerId ? navCompany : "Select a Seeker profile"}
+            >
+              {currentSeekerId ? navCompany : "Select a Seeker profile"}
+            </div>
+            <div className="text-sm text-emerald-200 truncate group-hover:overflow-visible group-hover:text-clip">
+              {navReputation?.score == null ? "Reputation -" : `Reputation ${navReputation.score}`}
+            </div>
+            <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full bg-emerald-400/80"
+                style={{ width: `${navReputation?.scorePercent ?? 0}%` }}
+              />
+            </div>
+            <div className="text-xs text-slate-500">
+              Member since {formatMemberSince(currentSeeker?.createdAt)}
+            </div>
           </div>
         </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="text-lg font-semibold text-slate-50 truncate">
-            {currentSeekerId ? navDisplayName : "Seeker"}
-          </div>
-          <div className="text-sm text-slate-300 truncate">
-            {currentSeekerId ? navCompany : "Select a Seeker profile"}
-          </div>
-          <div className="text-sm text-emerald-200">
-            {navReputation?.score == null ? "Reputation -" : `Reputation ${navReputation.score}`}
-          </div>
-          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-            <div
-              className="h-full bg-emerald-400/80"
-              style={{ width: `${navReputation?.scorePercent ?? 0}%` }}
-            />
-          </div>
-          <div className="text-xs text-slate-500">
-            Member since {formatMemberSince(currentSeeker?.createdAt)}
-          </div>
-          <div className="flex items-start justify-between gap-3 pt-2">
-            <div className="space-y-1 flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
-                Yes
-              </div>
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
-                <div className="text-sm font-semibold text-emerald-50 whitespace-nowrap">
-                  {navApprovalTotals.yes}/{navApprovalTotals.total || 0}
-                </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
+              Yes
+            </div>
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
+              <div className="text-sm font-semibold text-emerald-50 whitespace-nowrap">
+                {navApprovalTotals.yes}/{navApprovalTotals.total || 0}
               </div>
             </div>
-            <div className="space-y-1 flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
-                No
-              </div>
-              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
-                <div className="text-sm font-semibold text-rose-50 whitespace-nowrap">
-                  {navApprovalTotals.no}/{navApprovalTotals.total || 0}
-                </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
+              No
+            </div>
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
+              <div className="text-sm font-semibold text-rose-50 whitespace-nowrap">
+                {navApprovalTotals.no}/{navApprovalTotals.total || 0}
               </div>
             </div>
-            <div className="space-y-1 flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
-                Neutral
-              </div>
-              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
-                <div className="text-sm font-semibold text-slate-100 whitespace-nowrap">
-                  {navApprovalTotals.neutral}/{navApprovalTotals.total || 0}
-                </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
+              Neutral
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
+              <div className="text-sm font-semibold text-slate-100 whitespace-nowrap">
+                {navApprovalTotals.neutral}/{navApprovalTotals.total || 0}
               </div>
             </div>
           </div>
@@ -1000,15 +1013,17 @@ const SeekerPage: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-hidden"
+      className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-x-visible lg:overflow-y-hidden"
     >
+      <style>
+        {`@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Spline+Sans:wght@300;400;500;600&display=swap');`}
+      </style>
       {/* Left sidebar */}
-      <aside className="hidden lg:flex w-72 shrink-0 border-r border-slate-800 bg-slate-900/70 backdrop-blur-sm p-4 flex flex-col min-h-0">
-        <div className="mb-6">
-          <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
+      <aside className="hidden lg:flex w-72 shrink-0 border-r border-orange-500 bg-slate-900/70 backdrop-blur-sm p-4 flex flex-col min-h-0 relative z-40 lg:overflow-visible">
+        <div className="mb-6 text-center">
+          <div className="text-[50px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
             Snap Driver
           </div>
-          <h1 className="text-xl font-semibold text-slate-50">Seeker Portal</h1>
         </div>
 
         <div className="mb-6">{navProfileCard}</div>
@@ -1094,25 +1109,25 @@ const SeekerPage: React.FC = () => {
 
       {/* Main content */}
 
-      <main className="flex-1 min-h-0 flex flex-col relative">
+      <main className="flex-1 min-h-0 flex flex-col relative z-0">
         <div className="lg:hidden border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-3">
                   <div>
-                    <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                    <div className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
                       Snap Driver
                     </div>
-                  <div className="text-lg font-semibold text-slate-50">Seeker Portal</div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                  <div className="text-[10px] uppercase tracking-wide text-white">
                     Section
                   </div>
-                  <div className="text-sm font-semibold text-slate-200">{headerTitle}</div>
-                  <div className="text-[11px] text-slate-500">{headerSubtitle}</div>
+                  <div className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+                    {headerTitle}
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1138,11 +1153,12 @@ const SeekerPage: React.FC = () => {
               onClick={() => setIsMobileNavOpen(false)}
               className="absolute inset-0 bg-slate-950/70"
             />
-            <div className="absolute inset-y-0 left-0 w-72 bg-slate-950 border-r border-slate-800 p-4 overflow-y-auto">
+            <div className="absolute inset-y-0 left-0 w-72 bg-slate-950 border-r border-orange-500 p-4 overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Snap Driver</div>
-                  <div className="text-sm font-semibold text-slate-100">Seeker Menu</div>
+                <div className="text-center">
+                  <div className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+                    Snap Driver
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1273,10 +1289,15 @@ const SeekerPage: React.FC = () => {
 
         <header className="hidden lg:block px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-slate-50">{headerTitle}</h2>
-                <p className="text-sm text-slate-400 mt-1">{headerSubtitle}</p>
+            <div className="flex items-center gap-4 w-full justify-center text-center">
+              <div className="w-full">
+                <h2
+                  className="text-[50px] font-semibold text-white leading-none"
+                  style={DISPLAY_FONT}
+                  aria-label={headerSubtitle ? `${headerTitle} - ${headerSubtitle}` : headerTitle}
+                >
+                  {headerTitle}
+                </h2>
               </div>
             </div>
           </div>
@@ -1433,7 +1454,7 @@ const SeekerPage: React.FC = () => {
                     ? Back to Profile
                   </button>
                 )}
-                <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading badges?</div>}>
+                <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-400">Loading badges?</div>}>
                   <LazyBadgesCenter
                     role="SEEKER"
                     ownerId={currentSeekerId}
@@ -1458,7 +1479,7 @@ const SeekerPage: React.FC = () => {
               ) : (
                 <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-4">
                   <div className="flex-1 min-h-0">
-                    <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading messages?</div>}>
+                    <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-400">Loading messages?</div>}>
                       <LazySeekerMessagingCenter
                         currentSeeker={currentSeeker}
                         retainers={retainers}
@@ -1567,14 +1588,14 @@ const SidebarButton: React.FC<{
       className={[
         "w-full flex items-start justify-between gap-2 px-3 py-2 rounded-xl text-sm transition min-w-0",
         active
-          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
-          : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-50 border border-transparent",
-        disabled ? "opacity-60 cursor-not-allowed hover:bg-transparent hover:text-slate-300" : "",
+          ? "bg-emerald-500/20 text-white border border-emerald-500/40 shadow-sm"
+          : "text-white/80 hover:bg-slate-800/80 hover:text-white border border-transparent",
+        disabled ? "opacity-60 cursor-not-allowed hover:bg-transparent hover:text-white/60" : "",
       ].join(" ")}
     >
       <span className="min-w-0 text-left leading-snug whitespace-normal">{label}</span>
       {active && (
-        <span className="text-[10px] uppercase tracking-wide text-emerald-300">
+        <span className="text-[10px] uppercase tracking-wide text-white/70">
           Active
         </span>
       )}
@@ -1644,7 +1665,7 @@ const ChangePasswordPanel: React.FC<{ email?: string | null }> = ({ email }) => 
   };
 
   return (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+    <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
       <div>
         <div className="text-xs uppercase tracking-wide text-slate-400">Password</div>
         <div className="text-sm text-slate-300">Change your password or generate a reset link.</div>
@@ -2227,7 +2248,7 @@ const SeekerFeedPanel: React.FC<SeekerFeedPanelProps> = ({
   };
 
   const panelClassName = [
-    "rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full",
+    "rounded-2xl bg-slate-900/80 border-2 border-orange-600/80 p-4 flex flex-col min-h-0 w-full",
     className,
   ]
     .filter(Boolean)
@@ -3065,14 +3086,11 @@ const DashboardView: React.FC<{
   return (
     <div className="grid grid-cols-1 gap-0 sm:gap-4 lg:gap-6 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 lg:h-full w-full max-w-full">
       <div className="flex flex-col gap-6 min-h-0 order-2 lg:order-1 w-full max-w-full">
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-xs uppercase tracking-wide text-slate-400">
+              <div className="text-[15px] uppercase tracking-wide text-white">
                 Now
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Quick links and live activity for this profile.
               </div>
             </div>
             <button
@@ -3083,95 +3101,92 @@ const DashboardView: React.FC<{
               Open inbox
             </button>
           </div>
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
-            <div className="space-y-1">
-              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="flex flex-col gap-1 h-full">
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center min-h-[24px]">
                 Links
               </div>
               <button
                 type="button"
                 onClick={onGoToLinking}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-full rounded-xl border border-slate-800 bg-slate-950/60 px-2.5 py-2 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.activeLinks}</div>
               </button>
             </div>
-            <div className="space-y-1">
-              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+            <div className="flex flex-col gap-1 h-full">
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center min-h-[24px]">
                 Pending links
               </div>
               <button
                 type="button"
                 onClick={onGoToLinking}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-full rounded-xl border border-slate-800 bg-slate-950/60 px-2.5 py-2 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{pendingLinks.length}</div>
               </button>
             </div>
-            <div className="space-y-1">
-              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+            <div className="flex flex-col gap-1 h-full">
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center min-h-[24px]">
                 Unread
               </div>
               <button
                 type="button"
                 onClick={onGoToMessages}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-full rounded-xl border border-slate-800 bg-slate-950/60 px-2.5 py-2 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.unreadMessages}</div>
               </button>
             </div>
-            <div className="space-y-1">
-              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+            <div className="flex flex-col gap-1 h-full">
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center min-h-[24px]">
                 Scheduled events
               </div>
               <button
                 type="button"
                 onClick={onGoToLinking}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-full rounded-xl border border-slate-800 bg-slate-950/60 px-2.5 py-2 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.scheduledEvents}</div>
               </button>
             </div>
-            <div className="space-y-1">
-              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+            <div className="flex flex-col gap-1 h-full">
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center min-h-[24px]">
                 Interested
               </div>
               <button
                 type="button"
                 onClick={onGoToRoutes}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-full rounded-xl border border-slate-800 bg-slate-950/60 px-2.5 py-2 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.interestedRoutes}</div>
               </button>
             </div>
-            <div className="space-y-1">
-              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center">
+            <div className="flex flex-col gap-1 h-full">
+              <div className="text-[10px] text-slate-100 uppercase tracking-wide text-center min-h-[24px]">
                 Pending approvals
               </div>
               <button
                 type="button"
                 onClick={onGoToBadges}
                 disabled={!seekerId}
-                className="w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-3 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-full rounded-xl border border-slate-800 bg-slate-950/60 px-2.5 py-2 text-center hover:bg-slate-900/70 transition disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <div className="text-xl font-semibold text-slate-50">{stats.badgeApprovals}</div>
               </button>
             </div>
           </div>
         </div>
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 flex-1">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col min-h-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-xs uppercase tracking-wide text-slate-400">
+              <div className="text-[15px] uppercase tracking-wide text-white">
                 Feed
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                Posts, broadcasts, routes, and messages from Retainers.
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -3415,12 +3430,9 @@ const DashboardView: React.FC<{
 
       {/* Right rail */}
       <aside className="hidden lg:flex lg:order-2 lg:sticky lg:top-6 lg:flex-col lg:gap-5 lg:space-y-0 lg:overflow-hidden min-h-0 lg:h-full w-full max-w-full">
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 flex-1 min-h-0 overflow-y-auto">
-          <div className="text-xs uppercase tracking-wide text-slate-400 mb-3">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 flex-1 min-h-0 overflow-y-auto">
+          <div className="text-[15px] uppercase tracking-wide text-white mb-3">
             Badge progress
-          </div>
-          <div className="text-[11px] text-slate-500 mb-3">
-            {seekerId ? "Active badges for this profile." : "Select a Seeker profile to track progress."}
           </div>
 
           {!seekerId ? (
@@ -3665,7 +3677,7 @@ const ActionView: React.FC<{
 
         {actionTab === "lists" && (
           <div className="flex flex-col gap-6 min-h-0 flex-1 overflow-hidden">
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
               <h3 className="text-lg font-semibold text-slate-50 mb-1">
                 Your Retainer lists
               </h3>
@@ -3675,7 +3687,7 @@ const ActionView: React.FC<{
               </p>
             </div>
 
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="text-sm font-semibold text-slate-100">Bulk actions</div>
                 <span className="text-xs text-slate-400">{selectedCount} selected</span>
@@ -3898,7 +3910,7 @@ const RetainerBucketPanel: React.FC<{
   };
 
   return (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col">
+    <div className="rounded-2xl bg-slate-900/80 border border-orange-500 flex flex-col">
       <div className="px-4 pt-3 pb-2 border-b border-slate-800 flex items-center justify-between">
         <div>
           <div className={`text-xs uppercase tracking-wide ${c.label} font-semibold`}>
@@ -4226,7 +4238,7 @@ const ViewRetainersView: React.FC<{
     const city = (r as any).city ?? "-";
     const state = (r as any).state ?? "-";
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 px-4 py-3">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
           <ProfileAvatar role="RETAINER" profile={r} name={name} size="sm" />
           <div className="min-w-0">
@@ -4266,7 +4278,7 @@ const ViewRetainersView: React.FC<{
   };
 
   return (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 md:p-6">
+    <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 md:p-6">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
         <div>
           <h3 className="text-lg font-semibold text-slate-50">Approved Retainers</h3>
@@ -5010,7 +5022,7 @@ const SubcontractorAdminView: React.FC<{
 
   if (!seeker) {
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
         Select or create a Seeker profile first.
       </div>
     );
@@ -5057,7 +5069,7 @@ const SubcontractorAdminView: React.FC<{
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
         <h3 className="text-lg font-semibold text-slate-50 mb-1">Subcontractors</h3>
         <p className="text-sm text-slate-300">
           Add contract drivers who work under your master Seeker profile.
@@ -5070,7 +5082,7 @@ const SubcontractorAdminView: React.FC<{
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+        <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
           <h4 className="text-sm font-semibold text-slate-100">Create subcontractor</h4>
           {error && (
             <div className="rounded-xl border border-rose-500/60 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-100">
@@ -5186,7 +5198,7 @@ const SubcontractorAdminView: React.FC<{
           </form>
         </section>
 
-        <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+        <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
           <h4 className="text-sm font-semibold text-slate-100">Current subcontractors</h4>
           {subcontractors.length === 0 ? (
             <p className="text-xs text-slate-400">No subcontractors yet.</p>
@@ -5247,14 +5259,14 @@ const SubcontractorProfileView: React.FC<{ subcontractor?: Subcontractor }> = ({
 }) => {
   if (!subcontractor) {
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
         Select a subcontractor to view their profile.
       </div>
     );
   }
 
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-4">
         <div>
           <h3 className="text-lg font-semibold text-slate-50">Subcontractor Profile</h3>
           <p className="text-sm text-slate-400">
@@ -5320,7 +5332,7 @@ const SubcontractorMessagingView: React.FC<{
 
   if (!masterSeeker || !subcontractor) {
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
         Select a subcontractor profile first.
       </div>
     );
@@ -5351,7 +5363,7 @@ const SubcontractorMessagingView: React.FC<{
   };
 
   return (
-    <div className="h-full min-h-0 rounded-2xl bg-slate-900/80 border border-slate-800 p-5 flex flex-col gap-4">
+    <div className="h-full min-h-0 rounded-2xl bg-slate-900/80 border border-orange-500 p-5 flex flex-col gap-4">
       <div>
         <h3 className="text-lg font-semibold text-slate-50">Message Master Contractor</h3>
         <p className="text-sm text-slate-400">
@@ -5414,7 +5426,7 @@ const SeekerHierarchyView: React.FC<{
 }> = ({ seeker, subcontractors, readOnly = false, onUpdateNodes }) => {
   if (!seeker) {
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
         Select or create a Seeker profile first.
       </div>
     );
@@ -5439,7 +5451,7 @@ const SeekerHierarchyView: React.FC<{
   }));
 
   return (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
+    <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-4">
       <div>
         <h3 className="text-lg font-semibold text-slate-50">Subcontractor Hierarchy</h3>
         <p className="text-sm text-slate-400">
@@ -5448,7 +5460,7 @@ const SeekerHierarchyView: React.FC<{
       </div>
       <Suspense
         fallback={
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">
+          <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-400">
             Loading hierarchy?
           </div>
         }
@@ -6179,7 +6191,7 @@ export const SeekerProfileForm: React.FC<SeekerProfileFormProps> = ({
 
   return (
     <div
-      className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4"
+      className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-4"
       onWheel={handleWheel}
     >
       <div className="flex items-start justify-between gap-4">
@@ -7218,7 +7230,7 @@ const SeekerScheduleView: React.FC<{
 
   if (!seeker) {
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
         Select or create a Seeker profile first.
       </div>
     );
@@ -7296,7 +7308,7 @@ const SeekerScheduleView: React.FC<{
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-slate-50 mb-1">Interview meetings</h3>
@@ -7496,7 +7508,7 @@ const SeekerScheduleView: React.FC<{
         )}
       </div>
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
         <h3 className="text-lg font-semibold text-slate-50 mb-1">Availability</h3>
         <p className="text-sm text-slate-300">
           This availability is used to calculate schedule match badges on Retainer and Route cards.
@@ -7506,7 +7518,7 @@ const SeekerScheduleView: React.FC<{
         </div>
       </div>
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="text-xs uppercase tracking-wide text-slate-400">Presets</div>
@@ -8026,7 +8038,7 @@ const SeekerLinkingView: React.FC<{
 
   if (!seekerId) {
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
         Select or create a Seeker profile first.
       </div>
     );
@@ -8094,7 +8106,7 @@ const SeekerLinkingView: React.FC<{
     return (
       <div
         key={r.id}
-        className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3"
+        className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3"
       >
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
@@ -8319,7 +8331,7 @@ const SeekerLinkingView: React.FC<{
 
   return (
     <div className="flex flex-col gap-4 min-h-0 flex-1">
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
         <h3 className="text-lg font-semibold text-slate-50 mb-1">Linking</h3>
         <p className="text-sm text-slate-300">
           A link becomes active only after both sides confirm the video call and
@@ -8336,7 +8348,7 @@ const SeekerLinkingView: React.FC<{
         </div>
       )}
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
         <div className="text-sm text-slate-300">
           {retainers.length} approved Retainers available
         </div>
@@ -8358,12 +8370,12 @@ const SeekerLinkingView: React.FC<{
       </div>
 
       {filteredRetainers.length === 0 ? (
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
           No retainers match your search.
         </div>
       ) : (
         <div className="grid gap-3 md:gap-4 md:grid-cols-2 min-h-0 flex-1 w-full">
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full">
+          <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col min-h-0 w-full">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -8383,7 +8395,7 @@ const SeekerLinkingView: React.FC<{
               </div>
             )}
           </div>
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
+          <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col min-h-0">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -8583,7 +8595,7 @@ const SeekerRoutesView: React.FC<{
 
   if (!seekerId) {
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
         Select or create a Seeker profile first.
       </div>
     );
@@ -8591,7 +8603,7 @@ const SeekerRoutesView: React.FC<{
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
         <h3 className="text-lg font-semibold text-slate-50 mb-1">Routes</h3>
         <p className="text-sm text-slate-300">
           Routes are visible based on audience rules. Linked-only routes appear
@@ -8599,7 +8611,7 @@ const SeekerRoutesView: React.FC<{
         </p>
       </div>
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-100">
@@ -8799,7 +8811,7 @@ const SeekerRoutesView: React.FC<{
         )}
       </section>
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="text-sm text-slate-300">
           {sortedRoutes.length} routes available
         </div>
@@ -8821,7 +8833,7 @@ const SeekerRoutesView: React.FC<{
       </div>
 
       {sortedRoutes.length === 0 ? (
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
           No routes are visible yet.
         </div>
       ) : (
@@ -8845,7 +8857,7 @@ const SeekerRoutesView: React.FC<{
             return (
               <div
                 key={route.id}
-                className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4"
+                className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>

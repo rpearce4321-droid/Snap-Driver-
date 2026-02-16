@@ -275,7 +275,7 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
 
   if (!retainerId) {
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
         Select or create a Retainer profile first.
       </div>
     );
@@ -283,7 +283,7 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
 
   if (conversations.length === 0) {
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
         No conversations yet. Start one from a Seeker card using the <span className="font-semibold text-emerald-300">Message</span> action.
       </div>
     );
@@ -357,8 +357,8 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
   };
 
   return (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden">
-      <div className="px-5 py-4 border-b border-slate-800 bg-slate-950/50">
+    <div className="rounded-2xl bg-slate-900/80 border border-orange-500 overflow-hidden">
+      <div className="px-5 py-4 border-b border-orange-500 bg-slate-950/50">
         <h3 className="text-lg font-semibold text-slate-50">Messaging Center</h3>
         <p className="text-sm text-slate-300 mt-1">
           Left rail = Seekers. Middle rail = subjects. Right panel = message thread.
@@ -367,8 +367,8 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
 
       <div className="grid grid-cols-12 min-h-0 h-full lg:min-h-[560px]">
         {/* Seekers rail */}
-        <div className="col-span-12 md:col-span-4 lg:col-span-3 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/30">
-          <div className="px-4 py-3 border-b border-slate-800 space-y-2">
+        <div className="col-span-12 md:col-span-4 lg:col-span-3 border-b md:border-b-0 md:border-r border-orange-500 bg-slate-950/30">
+          <div className="px-4 py-3 border-b border-orange-500 space-y-2">
             <div>
               <div className="text-xs uppercase tracking-wide text-slate-400">Seekers</div>
               <div className="text-[11px] text-slate-500">{seekerIdsFiltered.length} shown</div>
@@ -409,7 +409,7 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
                       "w-full text-left rounded-2xl border px-3 py-2.5 transition flex items-center justify-between gap-3",
                       isActive
                         ? "bg-emerald-500/10 border-emerald-500/40"
-                        : "bg-slate-950/40 border-slate-800 hover:bg-slate-900/60",
+                        : "bg-slate-950/40 border-orange-500 hover:bg-slate-900/60",
                     ].join(" ")}
                   >
                     <div className="min-w-0">
@@ -433,8 +433,8 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
         </div>
 
         {/* Subjects rail */}
-        <div className="col-span-12 md:col-span-4 lg:col-span-4 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/20">
-          <div className="px-4 py-3 border-b border-slate-800 space-y-2">
+        <div className="col-span-12 md:col-span-4 lg:col-span-4 border-b md:border-b-0 md:border-r border-orange-500 bg-slate-950/20">
+          <div className="px-4 py-3 border-b border-orange-500 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Subjects</div>
@@ -481,7 +481,7 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
                       "w-full text-left rounded-2xl border px-3 py-2.5 transition flex items-center justify-between gap-3",
                       isActive
                         ? "bg-emerald-500/10 border-emerald-500/40"
-                        : "bg-slate-950/40 border-slate-800 hover:bg-slate-900/60",
+                        : "bg-slate-950/40 border-orange-500 hover:bg-slate-900/60",
                     ].join(" ")}
                   >
                     <div className="min-w-0">
@@ -506,7 +506,7 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
 
         {/* Thread */}
         <div className="col-span-12 md:col-span-4 lg:col-span-5 bg-slate-950/10 flex flex-col min-h-0">
-          <div className="px-4 py-3 border-b border-slate-800">
+          <div className="px-4 py-3 border-b border-orange-500">
             <div className="text-xs uppercase tracking-wide text-slate-400">Thread</div>
             <div className="text-sm font-semibold text-slate-50 truncate">{activeConv?.subject || "Select a subject"}</div>
           </div>
@@ -553,7 +553,7 @@ const RetainerMessagingCenter: React.FC<Props> = ({ currentRetainer, seekers }) 
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="border-t border-slate-800 p-3 md:p-4 space-y-2">
+              <div className="border-t border-orange-500 p-3 md:p-4 space-y-2">
                 <label className="text-[11px] font-medium text-slate-200">
                   Reply in &ldquo;{activeConv.subject || "Untitled"}&rdquo;
                 </label>
@@ -617,8 +617,8 @@ const NewSubjectModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm px-4">
-      <div className="w-full max-w-lg rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+      <div className="w-full max-w-lg rounded-2xl bg-slate-950 border border-orange-500 shadow-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-orange-500 flex items-center justify-between">
           <div>
             <div className="text-xs uppercase tracking-wide text-slate-400">New subject with</div>
             <div className="text-sm font-semibold text-slate-50">{seeker ? formatSeekerName(seeker) : "Selected Seeker"}</div>

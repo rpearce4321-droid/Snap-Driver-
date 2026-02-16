@@ -509,7 +509,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
               return (
                 <div
                   key={b.id}
-                  className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3 flex gap-3"
+                  className="rounded-2xl border border-orange-500 bg-slate-950/40 p-3 flex gap-3"
                 >
                   <button
                     type="button"
@@ -912,7 +912,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-slate-50">Badges</h3>
@@ -980,13 +980,13 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
       </div>
 
       {!ownerId ? (
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
           Select a profile first to view badges.
         </div>
       ) : (
         <div className="space-y-6">
         {tab === "home" && (
-          <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
+          <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-4">
             <div>
               <div className="text-xs uppercase tracking-wide text-slate-400">Badge Home</div>
               <div className="text-sm text-slate-200 mt-1">
@@ -994,7 +994,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+            <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4">
               <div className="text-xs uppercase tracking-wide text-slate-400">
                 Professional Reputation Score
               </div>
@@ -1023,7 +1023,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                     return (
                       <div
                         key={b.id}
-                        className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
+                        className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -1081,7 +1081,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                     return (
                       <div
                         key={b.id}
-                        className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
+                        className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3">
@@ -1141,7 +1141,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
             )}
 
             <div className="grid md:grid-cols-2 gap-4 min-w-0">
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4 min-w-0">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-4 min-w-0">
                 {backgroundOptions.length > 0 && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
@@ -1182,7 +1182,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                             return (
                               <div
                                 key={b.id}
-                                className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
+                                className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4"
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="flex items-start gap-3">
@@ -1251,7 +1251,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                                   "w-full text-left rounded-2xl border p-3 transition",
                                   selected
                                     ? "border-emerald-500/60 bg-emerald-500/10"
-                                    : "border-slate-800 bg-slate-950/40 hover:bg-slate-900/60",
+                                    : "border-orange-500 bg-slate-950/40 hover:bg-slate-900/60",
                                   !canEditBackground || full || isMandatory
                                     ? "opacity-60 cursor-not-allowed"
                                     : "",
@@ -1321,7 +1321,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                 )}
               </div>
 
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4 min-w-0">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-4 min-w-0">
                 <div className="text-xs uppercase tracking-wide text-slate-400">
                   Foreground Badges
                 </div>
@@ -1353,7 +1353,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                         return (
                           <div
                             key={b.id}
-                            className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
+                            className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4"
                           >
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex items-start gap-3">
@@ -1432,7 +1432,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                         return (
                           <div
                             key={b.id}
-                            className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-2 min-w-0"
+                            className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 rounded-xl border border-orange-500 bg-slate-950/40 px-3 py-2 min-w-0"
                           >
                             <div className="flex items-start gap-3 min-w-0">
                               <button
@@ -1482,7 +1482,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
 
         {tab === "actions" && (
           <div className="grid gap-4 lg:grid-cols-2">
-            <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-4 max-h-[70vh] overflow-y-auto pr-2">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">
                   Approvals Queue
@@ -1523,7 +1523,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                     return (
                       <div
                         key={`${item.linkId}:${item.badgeId}:${item.periodKey}`}
-                        className="rounded-xl border border-slate-800 bg-slate-950/40 px-3 py-3 flex items-start justify-between gap-3"
+                        className="rounded-xl border border-orange-500 bg-slate-950/40 px-3 py-3 flex items-start justify-between gap-3"
                       >
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
@@ -1602,7 +1602,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                 </div>
               )}
             </section>
-            <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+            <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-4 max-h-[70vh] overflow-y-auto pr-2">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">
                   Check-ins by Link
@@ -1658,7 +1658,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                     return (
                       <div
                         key={link.id}
-                        className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3"
+                        className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4 space-y-3"
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -1725,7 +1725,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                               return (
                                 <div
                                   key={b.id}
-                                  className="rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-2 flex items-start justify-between gap-3"
+                                  className="rounded-xl border border-orange-500 bg-slate-900/50 px-3 py-2 flex items-start justify-between gap-3"
                                 >
                                   <div className="min-w-0">
                                     <div className="flex items-center gap-2">
@@ -1786,7 +1786,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
 
           {tab === "catalog" && (
             <div className="space-y-4">
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-3">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-3">
                 <div className="text-xs uppercase tracking-wide text-slate-400">Badge Catalog</div>
                 <div className="text-sm text-slate-200 mt-1">
                   Why: show reputation fast with linked-only check-ins. How: choose expectations, keep check-ins current, and let optional badges highlight strengths.
@@ -1796,7 +1796,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+                <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
                   <div className="text-xs uppercase tracking-wide text-slate-400">
                     For the Math Nerds
                   </div>
@@ -1811,7 +1811,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                   </ul>
                 </div>
 
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+                <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
                   <div className="text-xs uppercase tracking-wide text-slate-400">
                     For the Readers
                   </div>
@@ -1823,7 +1823,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                   </div>
                 </div>
 
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+                <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
                   <div className="text-xs uppercase tracking-wide text-slate-400">
                     For the Doers
                   </div>
@@ -1836,7 +1836,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                 </div>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+                <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
                   <div className="text-xs uppercase tracking-wide text-slate-400">Selection Process</div>
                   <ul className="mt-2 text-[11px] text-slate-400 space-y-1">
                     <li>Select up to {badgeCaps.active} foreground badges at a time.</li>
@@ -1844,7 +1844,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                     <li>Check-ins are weekly or monthly based on badge cadence.</li>
                   </ul>
                 </div>
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+                <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
                   <div className="text-xs uppercase tracking-wide text-slate-400">Weight Breakdown</div>
                   <div className="text-sm text-slate-200 mt-2">
                     Expectations {Math.round(scoreSnapshot.expectationsWeight * 100)}% / Growth {Math.round(scoreSnapshot.growthWeight * 100)}%
@@ -1868,7 +1868,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
 
           {tab === "history" && (
             <div className="space-y-4">
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-3">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-xs uppercase tracking-wide text-slate-400">Score History</div>
@@ -1882,12 +1882,12 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
                 {scoreHistorySorted.length === 0 ? (
                   <div className="text-sm text-slate-400">No score history yet.</div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-3">
+                    <div className="rounded-2xl border border-orange-500 bg-slate-950/50 p-3">
                       <div className="grid grid-cols-[52px_1fr] gap-3 items-stretch">
                         <div className="relative h-44 text-[11px] text-slate-500">
                           {scoreHistoryLayout && (
@@ -2046,7 +2046,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+                <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="text-xs uppercase tracking-wide text-slate-400">Repair Planner</div>
                     <div className="text-[11px] text-slate-500">Estimator</div>
@@ -2072,7 +2072,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                       <label className="text-xs text-slate-400">
                         Assumed badge level
                         <select
-                          className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-sm text-slate-100"
+                          className="mt-2 w-full rounded-xl border border-orange-500 bg-slate-950/50 px-3 py-2 text-sm text-slate-100"
                           value={plannerLevel}
                           onChange={(e) => setPlannerLevel(Number(e.target.value))}
                         >
@@ -2124,12 +2124,12 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                             step={1}
                             value={plannerYesRate}
                             onChange={(e) => setPlannerYesRate(Number(e.target.value))}
-                            className="w-20 rounded-xl border border-slate-800 bg-slate-950/50 px-2 py-1 text-sm text-slate-100"
+                            className="w-20 rounded-xl border border-orange-500 bg-slate-950/50 px-2 py-1 text-sm text-slate-100"
                           />
                           <span className="text-xs text-slate-500">%</span>
                         </div>
                       </div>
-                      <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-3">
+                      <div className="rounded-2xl border border-orange-500 bg-slate-950/50 p-3">
                         <div className="text-xs uppercase tracking-wide text-slate-400">
                           Projected PRS
                         </div>
@@ -2154,7 +2154,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                     </div>
                   </div>
                 </div>
-                <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+                <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
                   <div className="text-xs uppercase tracking-wide text-slate-400">Notes</div>
                   <ul className="mt-2 text-[11px] text-slate-400 space-y-1">
                     <li>Planner blends your current score with the target score based on the window size.</li>
@@ -2169,7 +2169,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
 
           {tab === "record" && (
             <div className="space-y-4 h-full min-h-0 flex flex-col">
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-2">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-2">
                 <div className="text-xs uppercase tracking-wide text-slate-400">Record Hall</div>
                 <div className="text-sm text-slate-200">
                   Audit trail of badge confirmations for this profile.
@@ -2179,7 +2179,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex-1 min-h-0 flex flex-col">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex-1 min-h-0 flex flex-col">
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="text-xs text-slate-400">
                     Search date
@@ -2187,7 +2187,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                       type="date"
                       value={recordQueryDate}
                       onChange={(e) => setRecordQueryDate(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                      className="mt-1 w-full rounded-xl border border-orange-500 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                     />
                   </label>
                   <label className="text-xs text-slate-400">
@@ -2195,7 +2195,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                     <select
                       value={recordWindowDays}
                       onChange={(e) => setRecordWindowDays(Number(e.target.value))}
-                      className="mt-1 w-full rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
+                      className="mt-1 w-full rounded-xl border border-orange-500 bg-slate-950/60 px-3 py-2 text-sm text-slate-100"
                     >
                       <option value={0}>All</option>
                       <option value={30}>Last 30 days</option>
@@ -2212,7 +2212,7 @@ export default function BadgesCenter({ role, ownerId, readOnly = false }: Props)
                       {filteredRecordHallItems.map((item) => (
                         <div
                           key={item.checkin.id}
-                          className="grid grid-cols-[140px_1fr_140px_90px] gap-3 items-center text-xs text-slate-300 border-b border-slate-800/60 pb-2"
+                          className="grid grid-cols-[140px_1fr_140px_90px] gap-3 items-center text-xs text-slate-300 border-b border-orange-500/60 pb-2"
                         >
                           <div>{new Date(item.checkin.createdAt).toLocaleDateString()}</div>
                           <div>

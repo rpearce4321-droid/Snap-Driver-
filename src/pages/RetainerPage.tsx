@@ -6,6 +6,10 @@ import type { CSSProperties } from "react";
 
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
+const DISPLAY_FONT: CSSProperties = {
+  fontFamily: '"Bebas Neue", "Oswald", "Arial Black", sans-serif',
+};
+
 import {
 
   US_STATES,
@@ -1304,67 +1308,76 @@ const RetainerPage: React.FC = () => {
   };
 
   const navProfileCard = (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 min-h-[240px]">
-      <div className="flex items-start gap-4">
-        <div className="w-1/3 max-w-[140px] min-w-[96px]">
-          <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
-            <ProfileAvatar
-              role="RETAINER"
-              profile={(currentRetainer ?? { id: currentRetainerId || "retainer" }) as any}
-              name={navCompany}
-              size="lg"
-              className="h-full w-full rounded-xl"
-            />
+    <div className="group relative rounded-2xl bg-slate-900 border border-orange-500 p-6 min-h-[240px] w-full transition-[width] duration-200 lg:hover:w-max lg:hover:min-w-full lg:hover:max-w-[560px] lg:hover:shadow-2xl lg:hover:z-50">
+      <div className="space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="w-1/3 max-w-[140px] min-w-[96px]">
+            <div className="aspect-square rounded-2xl border border-slate-800 bg-slate-950/60 p-1.5">
+              <ProfileAvatar
+                role="RETAINER"
+                profile={(currentRetainer ?? { id: currentRetainerId || "retainer" }) as any}
+                name={navCompany}
+                size="lg"
+                className="h-full w-full rounded-xl"
+              />
+            </div>
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <div
+              className="text-lg font-semibold text-slate-50 truncate group-hover:overflow-visible group-hover:text-clip"
+              title={currentRetainerId ? navCompany : "Retainer"}
+            >
+              {currentRetainerId ? navCompany : "Retainer"}
+            </div>
+            <div
+              className="text-sm text-slate-300 truncate group-hover:overflow-visible group-hover:text-clip"
+              title={currentRetainerId ? navContactName : "Select a Retainer profile"}
+            >
+              {currentRetainerId ? navContactName : "Select a Retainer profile"}
+            </div>
+            <div className="text-sm text-emerald-200 truncate group-hover:overflow-visible group-hover:text-clip">
+              {navReputation?.score == null ? "Reputation -" : `Reputation ${navReputation.score}`}
+            </div>
+            <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+              <div
+                className="h-full bg-emerald-400/80"
+                style={{ width: `${navReputation?.scorePercent ?? 0}%` }}
+              />
+            </div>
+            <div className="text-xs text-slate-500">
+              Member since {formatMemberSince(currentRetainer?.createdAt)}
+            </div>
           </div>
         </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="text-lg font-semibold text-slate-50 truncate">
-            {currentRetainerId ? navCompany : "Retainer"}
-          </div>
-          <div className="text-sm text-slate-300 truncate">
-            {currentRetainerId ? navContactName : "Select a Retainer profile"}
-          </div>
-          <div className="text-sm text-emerald-200">
-            {navReputation?.score == null ? "Reputation -" : `Reputation ${navReputation.score}`}
-          </div>
-          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-            <div
-              className="h-full bg-emerald-400/80"
-              style={{ width: `${navReputation?.scorePercent ?? 0}%` }}
-            />
-          </div>
-          <div className="text-xs text-slate-500">
-            Member since {formatMemberSince(currentRetainer?.createdAt)}
-          </div>
-          <div className="flex items-start justify-between gap-3 pt-2">
-            <div className="space-y-1 flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
-                Yes
-              </div>
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
-                <div className="text-sm font-semibold text-emerald-50 whitespace-nowrap">
-                  {navApprovalTotals.yes}/{navApprovalTotals.total || 0}
-                </div>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
+              Yes
+            </div>
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
+              <div className="text-sm font-semibold text-emerald-50 whitespace-nowrap">
+                {navApprovalTotals.yes}/{navApprovalTotals.total || 0}
               </div>
             </div>
-            <div className="space-y-1 flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
-                No
-              </div>
-              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
-                <div className="text-sm font-semibold text-rose-50 whitespace-nowrap">
-                  {navApprovalTotals.no}/{navApprovalTotals.total || 0}
-                </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
+              No
+            </div>
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-center">
+              <div className="text-sm font-semibold text-rose-50 whitespace-nowrap">
+                {navApprovalTotals.no}/{navApprovalTotals.total || 0}
               </div>
             </div>
-            <div className="space-y-1 flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
-                Neutral
-              </div>
-              <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
-                <div className="text-sm font-semibold text-slate-100 whitespace-nowrap">
-                  {navApprovalTotals.neutral}/{navApprovalTotals.total || 0}
-                </div>
+          </div>
+          <div className="space-y-1">
+            <div className="text-[10px] uppercase tracking-wide text-slate-100 text-center">
+              Neutral
+            </div>
+            <div className="rounded-lg border border-slate-700 bg-slate-900/60 px-2 py-2 text-center">
+              <div className="text-sm font-semibold text-slate-100 whitespace-nowrap">
+                {navApprovalTotals.neutral}/{navApprovalTotals.total || 0}
               </div>
             </div>
           </div>
@@ -1375,22 +1388,19 @@ const RetainerPage: React.FC = () => {
 
   return (
 
-    <div className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-hidden">
+    <div className="min-h-screen lg:h-screen bg-slate-950 text-slate-50 flex flex-col lg:flex-row overflow-x-hidden lg:overflow-x-visible lg:overflow-y-hidden">
+      <style>
+        {`@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Spline+Sans:wght@300;400;500;600&display=swap');`}
+      </style>
 
       {/* Left sidebar */}
 
-      <aside className="hidden lg:flex w-72 shrink-0 border-r border-slate-800 bg-slate-900/70 backdrop-blur-sm p-4 flex flex-col min-h-0">
+      <aside className="hidden lg:flex w-72 shrink-0 border-r border-orange-500 bg-slate-900/70 backdrop-blur-sm p-4 flex flex-col min-h-0 relative z-40 lg:overflow-visible">
 
-        <div className="mb-6">
-
-          <div className="text-xs uppercase tracking-wide text-slate-400 mb-1">
-
+        <div className="mb-6 text-center">
+          <div className="text-[50px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
             Snap Driver
-
           </div>
-
-          <h1 className="text-xl font-semibold text-slate-50">Retainer Portal</h1>
-
         </div>
 
         <div className="mb-6">{navProfileCard}</div>
@@ -1440,22 +1450,21 @@ const RetainerPage: React.FC = () => {
 
       {/* Main content */}
 
-      <main className="flex-1 min-h-0 flex flex-col relative">
+      <main className="flex-1 min-h-0 flex flex-col relative z-0">
         <div className="lg:hidden border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto px-4 py-4 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-slate-400">
+                <div className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
                   Snap Driver
                 </div>
-                <div className="text-lg font-semibold text-slate-50">Retainer Portal</div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                  <div className="text-[10px] uppercase tracking-wide text-white">
                     Section
                   </div>
-                  <div className="text-sm font-semibold text-slate-200">
+                  <div className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
                     {renderHeaderTitle(activeTab)}
                   </div>
                 </div>
@@ -1484,11 +1493,12 @@ const RetainerPage: React.FC = () => {
               onClick={() => setIsMobileNavOpen(false)}
               className="absolute inset-0 bg-slate-950/70"
             />
-            <div className="absolute inset-y-0 left-0 w-72 bg-slate-950 border-r border-slate-800 p-4 overflow-y-auto">
+            <div className="absolute inset-y-0 left-0 w-72 bg-slate-950 border-r border-orange-500 p-4 overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Snap Driver</div>
-                  <div className="text-sm font-semibold text-slate-100">Retainer Menu</div>
+                <div className="text-center">
+                  <div className="text-[44px] font-semibold text-white leading-none" style={DISPLAY_FONT}>
+                    Snap Driver
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1588,14 +1598,15 @@ const RetainerPage: React.FC = () => {
 
         <header className="hidden lg:block px-6 py-4 border-b border-slate-800 bg-slate-950/80 backdrop-blur-sm">
           <div className="max-w-screen-2xl mx-auto flex items-center justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-slate-50">
+            <div className="flex items-center gap-4 w-full justify-center text-center">
+              <div className="w-full">
+                <h2
+                  className="text-[50px] font-semibold text-white leading-none"
+                  style={DISPLAY_FONT}
+                  aria-label={renderHeaderTitle(activeTab)}
+                >
                   {renderHeaderTitle(activeTab)}
                 </h2>
-                <p className="text-sm text-slate-400 mt-1">
-                  {renderHeaderSubtitle(activeTab)}
-                </p>
               </div>
             </div>
           </div>
@@ -2003,7 +2014,7 @@ const RetainerPage: React.FC = () => {
 
                 )}
 
-                <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading badges?</div>}>
+                <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-400">Loading badges?</div>}>
                   <LazyBadgesCenter
                     role="RETAINER"
                     ownerId={currentRetainerId}
@@ -2679,7 +2690,7 @@ const RetainerFeedPanel: React.FC<RetainerFeedPanelProps> = ({
   };
 
   const panelClassName = [
-    "rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full",
+    "rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col min-h-0 w-full",
     className,
   ]
     .filter(Boolean)
@@ -3058,11 +3069,11 @@ const SidebarButton: React.FC<{
 
         active
 
-          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm"
+          ? "bg-emerald-500/20 text-white border border-emerald-500/40 shadow-sm"
 
-          : "text-slate-300 hover:bg-slate-800/80 hover:text-slate-50 border border-transparent",
+          : "text-white/80 hover:bg-slate-800/80 hover:text-white border border-transparent",
 
-        disabled ? "opacity-60 cursor-not-allowed hover:bg-transparent hover:text-slate-300" : "",
+        disabled ? "opacity-60 cursor-not-allowed hover:bg-transparent hover:text-white/60" : "",
 
       ].join(" ")}
 
@@ -3072,7 +3083,7 @@ const SidebarButton: React.FC<{
 
       {active && (
 
-        <span className="text-[10px] uppercase tracking-wide text-emerald-300">Active</span>
+        <span className="text-[10px] uppercase tracking-wide text-white/70">Active</span>
 
       )}
 
@@ -3144,7 +3155,7 @@ const ChangePasswordPanel: React.FC<{ email?: string | null }> = ({ email }) => 
   };
 
   return (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+    <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
       <div>
         <div className="text-xs uppercase tracking-wide text-slate-400">Password</div>
         <div className="text-sm text-slate-300">Change your password or generate a reset link.</div>
@@ -4119,7 +4130,7 @@ const DashboardView: React.FC<{
       <div className="grid grid-cols-1 gap-0 sm:gap-4 lg:gap-6 lg:grid-rows-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_420px] lg:items-stretch flex-1 min-h-0 lg:h-full w-full max-w-full">
 
       <div className="flex flex-col gap-6 min-h-0 order-2 lg:order-1 w-full max-w-full">
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
 
           <div className="flex flex-wrap items-center justify-between gap-3">
 
@@ -4233,7 +4244,7 @@ const DashboardView: React.FC<{
 
         </div>
 
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 flex-1">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col min-h-0 flex-1">
 
           <div className="flex flex-wrap items-start justify-between gap-3">
 
@@ -4770,7 +4781,7 @@ const DashboardView: React.FC<{
       </div>
 
       <aside className="hidden lg:flex lg:order-2 lg:sticky lg:top-6 lg:flex-col lg:gap-5 lg:space-y-0 lg:overflow-hidden min-h-0 lg:h-full w-full max-w-full">
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 flex-1 min-h-0 overflow-y-auto">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 flex-1 min-h-0 overflow-y-auto">
 
           <div className="text-xs uppercase tracking-wide text-slate-400 mb-3">
 
@@ -5162,7 +5173,7 @@ const InterviewSchedulingView: React.FC<{
   return (
     <div className="contents">
       <div className="space-y-4">
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -5220,12 +5231,12 @@ const InterviewSchedulingView: React.FC<{
         </div>
 
         {!retainerId ? (
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+          <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
             Select or create a Retainer profile first.
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -5495,7 +5506,7 @@ const InterviewSchedulingView: React.FC<{
             </div>
 
             <div className="grid gap-3 md:gap-4 md:grid-cols-2 min-h-0 flex-1 w-full">
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0 w-full">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col min-h-0 w-full">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -5518,7 +5529,7 @@ const InterviewSchedulingView: React.FC<{
                 )}
               </div>
 
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col min-h-0">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs uppercase tracking-wide text-slate-400">
@@ -5543,7 +5554,7 @@ const InterviewSchedulingView: React.FC<{
             </div>
 
             {canceledMeetings.length > 0 && (
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
                 <div className="text-xs uppercase tracking-wide text-slate-400">
                   Canceled
                 </div>
@@ -6104,14 +6115,14 @@ const ActionView: React.FC<{
 
         {actionTab === "lists" && (
           <div className="flex flex-col gap-6 min-h-0 flex-1 overflow-hidden">
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
               <h3 className="text-lg font-semibold text-slate-50 mb-1">Your Seeker lists</h3>
               <p className="text-sm text-slate-300">
                 Save approved Seekers into Excellent, Possible, or Not now. Drag cards between lists and message directly.
               </p>
             </div>
 
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <div className="text-sm font-semibold text-slate-100">Bulk actions</div>
                 <span className="text-xs text-slate-400">{selectedCount} selected</span>
@@ -6231,7 +6242,7 @@ const ActionView: React.FC<{
         )}
 
         {actionTab === "schedule" && (
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 space-y-3 text-sm text-slate-300">
+          <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 space-y-3 text-sm text-slate-300">
             <div className="text-xs uppercase tracking-wide text-slate-400">Scheduling</div>
             <div>
               Route schedules are managed per route. Update the schedule on each route to influence matching.
@@ -6260,7 +6271,7 @@ const ActionView: React.FC<{
 
         {actionTab === "addUsers" && (
           <div className="space-y-4">
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
               <h3 className="text-lg font-semibold text-slate-50 mb-1">User access</h3>
               <p className="text-sm text-slate-300">
                 Add team members and manage their permission levels.
@@ -6278,7 +6289,7 @@ const ActionView: React.FC<{
               )}
             </div>
 
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
               <div className="text-xs uppercase tracking-wide text-slate-400">Level labels</div>
               <div className="grid gap-3 md:grid-cols-3">
                 <label className="space-y-1 text-xs text-slate-300">
@@ -6328,7 +6339,7 @@ const ActionView: React.FC<{
               </button>
             </div>
 
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
               <div className="text-xs uppercase tracking-wide text-slate-400">Add user</div>
               <div className="grid gap-3 md:grid-cols-2">
                 <input
@@ -6404,7 +6415,7 @@ const ActionView: React.FC<{
               </button>
             </div>
 
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
               <div className="text-xs uppercase tracking-wide text-slate-400 mb-3">
                 Current users
               </div>
@@ -6445,12 +6456,12 @@ const ActionView: React.FC<{
 
         {actionTab === "hierarchy" && (
           !currentRetainer ? (
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+            <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
               Select or create a Retainer profile first.
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
                 <h3 className="text-lg font-semibold text-slate-50 mb-1">Hierarchy</h3>
                 <p className="text-sm text-slate-300">
                   Map reporting lines and responsibilities for your team.
@@ -6462,10 +6473,10 @@ const ActionView: React.FC<{
                 )}
               </div>
 
-              <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 min-h-[520px]">
+              <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 min-h-[520px]">
                 <Suspense
                   fallback={
-                    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">
+                    <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-400">
                       Loading hierarchy?
                     </div>
                   }
@@ -6632,7 +6643,7 @@ const SeekerBucketPanel: React.FC<{
 
   return (
 
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 flex flex-col min-h-0 h-full">
+    <div className="rounded-2xl bg-slate-900/80 border border-orange-500 flex flex-col min-h-0 h-full">
 
       <div className="px-4 pt-3 pb-2 border-b border-slate-800 flex items-center justify-between">
 
@@ -6978,7 +6989,7 @@ const ViewSeekersView: React.FC<{
     const city = (s as any).city ?? "-";
     const state = (s as any).state ?? "-";
     return (
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 px-4 py-3">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 px-4 py-3">
         <div className="flex items-center gap-3 min-w-0">
           <ProfileAvatar role="SEEKER" profile={s} name={name} size="sm" />
           <div className="min-w-0">
@@ -7018,7 +7029,7 @@ const ViewSeekersView: React.FC<{
   };
 
   return (
-    <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 md:p-6">
+    <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 md:p-6">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
         <div>
           <h3 className="text-lg font-semibold text-slate-50">Approved Seekers</h3>
@@ -7884,7 +7895,7 @@ const MessagingCenterView: React.FC<{
 
   return (
 
-    <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-400">Loading messages?</div>}>
+    <Suspense fallback={<div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-400">Loading messages?</div>}>
       <LazyRetainerMessagingCenter currentRetainer={currentRetainer} seekers={seekers} />
     </Suspense>
 
@@ -8531,7 +8542,7 @@ const RetainerProfileForm: React.FC<RetainerProfileFormProps> = ({
 
     <div
 
-      className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4"
+      className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 space-y-4"
 
       onWheel={handleWheel}
 
@@ -9665,45 +9676,7 @@ function renderHeaderTitle(tab: TabKey): string {
 
 }
 
-function renderHeaderSubtitle(tab: TabKey): string {
-
-  switch (tab) {
-
-    case "dashboard":
-
-      return "High-level overview of your Retainer account and sorted Seeker lists.";
-
-    case "action":
-
-      return "Manage routes, schedules, and profile actions.";
-
-    case "find":
-
-      return "Spin the wheel and sort Seekers into your working lists.";
-
-    case "linking":
-
-      return "Confirm video calls and approve links with Seekers to enable linked-only content.";
-
-    case "posts":
-
-      return "Create linked-only posts and broadcasts for your connected Seekers.";
-
-    case "messages":
-
-      return "View and continue message chains organized by Seeker and subject.";
-
-    case "badges":
-
-      return "Select up to 4 badges and confirm weekly progress with linked Seekers.";
-
-    default:
-
-      return "";
-
-  }
-
-}
+// renderHeaderSubtitle removed (unused)
 
 /* ------------------------------------------------------------------ */
 
@@ -9761,7 +9734,7 @@ const RetainerLinkingView: React.FC<{
 
     return (
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
 
         Select or create a Retainer profile first.
 
@@ -9873,7 +9846,7 @@ const RetainerLinkingView: React.FC<{
 
         key={s.id}
 
-        className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3"
+        className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3"
 
       >
 
@@ -10252,7 +10225,7 @@ const RetainerLinkingView: React.FC<{
 
     <div className="flex flex-col gap-4 min-h-0 flex-1">
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
 
         <h3 className="text-lg font-semibold text-slate-50 mb-1">Linking</h3>
 
@@ -10276,7 +10249,7 @@ const RetainerLinkingView: React.FC<{
 
       </div>
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
 
         <div className="text-sm text-slate-300">
 
@@ -10318,7 +10291,7 @@ const RetainerLinkingView: React.FC<{
 
       {filteredSeekers.length === 0 ? (
 
-        <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+        <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
 
           No seekers match your search.
 
@@ -10328,7 +10301,7 @@ const RetainerLinkingView: React.FC<{
 
         <div className="grid gap-4 lg:grid-cols-2 min-h-0 flex-1">
 
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
+          <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col min-h-0">
 
             <div className="flex items-start justify-between gap-3">
 
@@ -10368,7 +10341,7 @@ const RetainerLinkingView: React.FC<{
 
           </div>
 
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 flex flex-col min-h-0">
+          <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 flex flex-col min-h-0">
 
             <div className="flex items-start justify-between gap-3">
 
@@ -11100,7 +11073,7 @@ const RetainerPostsView: React.FC<{
 
     return (
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
 
         Select or create a Retainer profile first.
 
@@ -11203,7 +11176,7 @@ const RetainerPostsView: React.FC<{
 
     <div className="space-y-5">
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
 
         <h3 className="text-lg font-semibold text-slate-50 mb-1">
 
@@ -11294,7 +11267,7 @@ const RetainerPostsView: React.FC<{
 
       </div>
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-4">
 
         <div className="flex items-center justify-between gap-3">
 
@@ -11389,7 +11362,7 @@ const RetainerPostsView: React.FC<{
 
       </section>
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-4">
 
         <h4 className="text-sm font-semibold text-slate-100">
 
@@ -11521,7 +11494,7 @@ const RetainerPostsView: React.FC<{
 
       </section>
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-4">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-4">
 
         <h4 className="text-sm font-semibold text-slate-100">
 
@@ -11906,7 +11879,7 @@ const RetainerRoutesView: React.FC<{
 
     return (
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-6 text-sm text-slate-300">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-6 text-sm text-slate-300">
 
         Select or create a Retainer profile first.
 
@@ -12036,7 +12009,7 @@ const RetainerRoutesView: React.FC<{
 
     <div className="space-y-5">
 
-      <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4">
+      <div className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4">
 
         <h3 className="text-lg font-semibold text-slate-50 mb-1">Routes</h3>
 
@@ -12064,7 +12037,7 @@ const RetainerRoutesView: React.FC<{
 
       </div>
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
 
         <div className="flex items-center justify-between gap-3">
 
@@ -12678,7 +12651,7 @@ const RetainerRoutesView: React.FC<{
 
       
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
 
         <div className="flex items-center justify-between">
 
@@ -12980,7 +12953,7 @@ const RetainerRoutesView: React.FC<{
 
       </section>
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-4 space-y-3">
 
         <div className="flex items-center justify-between">
 

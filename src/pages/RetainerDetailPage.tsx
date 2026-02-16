@@ -475,7 +475,7 @@ export default function RetainerDetailPage() {
         </div>
       </div>
 
-      <section className="rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shrink-0">
+      <section className="rounded-3xl overflow-hidden border border-orange-500 bg-slate-950 shrink-0">
         <div className="h-28 bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800" />
         <div className="px-6 pb-6 -mt-10">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -577,8 +577,8 @@ export default function RetainerDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 flex-1 min-h-0 flex flex-col">
-        <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 flex-1 min-h-0 flex flex-col">
+        <div className="flex flex-wrap gap-2 border-b border-orange-500 pb-3">
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -599,7 +599,7 @@ export default function RetainerDetailPage() {
 
         {activeTab === "overview" && (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+            <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4">
               <div className="text-xs uppercase tracking-wide text-slate-400">
                 Snapshot
               </div>
@@ -619,7 +619,7 @@ export default function RetainerDetailPage() {
                     </div>
 
                     {intro.trim() && (
-                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                      <div className="mt-4 rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2">
                         <div className="text-[11px] text-slate-400">Intro</div>
                         <div className="text-sm text-slate-100 whitespace-pre-wrap">
                           {intro.trim()}
@@ -628,7 +628,7 @@ export default function RetainerDetailPage() {
                     )}
 
                     {mission?.trim() && (
-                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                      <div className="mt-4 rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2">
                         <div className="text-[11px] text-slate-400">Mission</div>
                         <div className="text-sm text-slate-100 whitespace-pre-wrap">
                           {mission}
@@ -637,7 +637,7 @@ export default function RetainerDetailPage() {
                     )}
 
                     {desiredTraits.length > 0 && (
-                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                      <div className="mt-4 rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2">
                         <div className="text-[11px] text-slate-400">
                           Desired Driver Traits
                         </div>
@@ -674,7 +674,7 @@ export default function RetainerDetailPage() {
                       />
                     </div>
                     {intro.trim() && (
-                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                      <div className="mt-4 rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2">
                         <div className="text-[11px] text-slate-400">Intro</div>
                         <div className="text-sm text-slate-100 whitespace-pre-wrap">
                           {intro.trim()}
@@ -687,7 +687,7 @@ export default function RetainerDetailPage() {
             </div>
 
             {role === "SEEKER" && canSeeLinkedOnly && (paymentTerms || feeSchedule.length > 0 || hasPayCycle) && (
-              <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-3">
+              <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4 space-y-3">
                 <div className="text-xs uppercase tracking-wide text-slate-400">
                   Payment Terms & Fees
                 </div>
@@ -712,7 +712,7 @@ export default function RetainerDetailPage() {
                     {feeSchedule.map((fee) => (
                       <div
                         key={fee.id}
-                        className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
+                        className="rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="text-sm font-semibold text-slate-100">
@@ -772,7 +772,7 @@ export default function RetainerDetailPage() {
             ) : (
               <div className="space-y-2">
                 {routes.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 text-sm text-slate-400">
+                  <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4 text-sm text-slate-400">
                     No routes have been published yet.
                   </div>
                 ) : (
@@ -783,7 +783,7 @@ export default function RetainerDetailPage() {
                     .map((r) => (
                       <div
                         key={r.id}
-                        className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4"
+                        className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4"
                       >
                         <div className="flex items-baseline justify-between gap-3">
                           <div className="text-sm font-semibold text-slate-100">
@@ -861,7 +861,7 @@ export default function RetainerDetailPage() {
             ) : (
               <Suspense
                 fallback={
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-6 text-sm text-slate-400">
+                  <div className="rounded-2xl border border-orange-500 bg-slate-950/50 p-6 text-sm text-slate-400">
                     Loading hierarchy…
                   </div>
                 }
@@ -919,7 +919,7 @@ function Avatar({ url, name }: { url?: string; name: string }) {
 
 function KeyValue({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+    <div className="rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2">
       <div className="text-[11px] text-slate-400">{label}</div>
       <div className="text-sm text-slate-100">{value}</div>
     </div>
@@ -955,13 +955,13 @@ function LockedPanel(props: {
 
 function ImageCard({ title, url }: { title: string; url?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-2">
+    <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4 space-y-2">
       <div className="text-xs font-medium text-slate-200">{title}</div>
       {url ? (
         <img
           src={url}
           alt={title}
-          className="w-full max-h-72 rounded-xl object-contain bg-slate-900/60 border border-slate-800"
+          className="w-full max-h-72 rounded-xl object-contain bg-slate-900/60 border border-orange-500"
         />
       ) : (
         <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center text-sm text-slate-400">

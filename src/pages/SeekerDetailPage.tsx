@@ -588,7 +588,7 @@ export default function SeekerDetailPage() {
         </div>
       </div>
 
-      <section className="rounded-3xl overflow-hidden border border-slate-800 bg-slate-950 shrink-0">
+      <section className="rounded-3xl overflow-hidden border border-orange-500 bg-slate-950 shrink-0">
         <div className="h-28 bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800" />
         <div className="px-6 pb-6 -mt-10">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -702,8 +702,8 @@ export default function SeekerDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 flex-1 min-h-0 flex flex-col">
-        <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-3">
+      <section className="rounded-2xl bg-slate-900/80 border border-orange-500 p-5 flex-1 min-h-0 flex flex-col">
+        <div className="flex flex-wrap gap-2 border-b border-orange-500 pb-3">
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -724,7 +724,7 @@ export default function SeekerDetailPage() {
 
         {activeTab === "overview" && (
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+            <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4">
               <div className="text-xs uppercase tracking-wide text-slate-400">
                 Snapshot
               </div>
@@ -740,7 +740,7 @@ export default function SeekerDetailPage() {
                       <KeyValue label="Insurance" value={insurance} />
                     </div>
                     {introText?.trim() && (
-                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                      <div className="mt-4 rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2">
                         <div className="text-[11px] text-slate-400">
                           {intro.trim() ? "Intro" : "Bio"}
                         </div>
@@ -774,7 +774,7 @@ export default function SeekerDetailPage() {
                       />
                     </div>
                     {intro.trim() && (
-                      <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+                      <div className="mt-4 rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2">
                         <div className="text-[11px] text-slate-400">Intro</div>
                         <div className="text-sm text-slate-100 whitespace-pre-wrap">
                           {intro.trim()}
@@ -823,7 +823,7 @@ export default function SeekerDetailPage() {
             ) : (
               <div className="space-y-4">
                 <div className="grid gap-3 md:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                  <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4">
                     <div className="text-[11px] uppercase tracking-wide text-slate-400">
                       Work Units Issued
                     </div>
@@ -847,7 +847,7 @@ export default function SeekerDetailPage() {
                       {workHistoryTotals.missedUnits}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                  <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4">
                     <div className="text-[11px] uppercase tracking-wide text-slate-400">
                       Possible Score Increase
                     </div>
@@ -869,7 +869,7 @@ export default function SeekerDetailPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+                <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4">
                   <div className="text-xs uppercase tracking-wide text-slate-400">
                     Work History
                   </div>
@@ -881,7 +881,7 @@ export default function SeekerDetailPage() {
                     <div className="mt-3 overflow-x-auto">
                       <table className="w-full text-sm text-slate-200">
                         <thead className="text-[11px] uppercase text-slate-500">
-                          <tr className="border-b border-slate-800">
+                          <tr className="border-b border-orange-500">
                             <th className="py-2 text-left">Retainer</th>
                             <th className="py-2 text-left">Route</th>
                             <th className="py-2 text-left">Start</th>
@@ -1011,7 +1011,7 @@ export default function SeekerDetailPage() {
             ) : (
               <Suspense
                 fallback={
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-6 text-sm text-slate-400">
+                  <div className="rounded-2xl border border-orange-500 bg-slate-950/50 p-6 text-sm text-slate-400">
                     Loading hierarchy…
                   </div>
                 }
@@ -1069,7 +1069,7 @@ function Avatar({ url, name }: { url?: string; name: string }) {
 
 function KeyValue({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2">
+    <div className="rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2">
       <div className="text-[11px] text-slate-400">{label}</div>
       <div className="text-sm text-slate-100">{value}</div>
     </div>
@@ -1105,13 +1105,13 @@ function LockedPanel(props: {
 
 function ImageCard({ title, url }: { title: string; url?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4 space-y-2">
+    <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4 space-y-2">
       <div className="text-xs font-medium text-slate-200">{title}</div>
       {url ? (
         <img
           src={url}
           alt={title}
-          className="w-full max-h-72 rounded-xl object-contain bg-slate-900/60 border border-slate-800"
+          className="w-full max-h-72 rounded-xl object-contain bg-slate-900/60 border border-orange-500"
         />
       ) : (
         <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-6 text-center text-sm text-slate-400">
@@ -1124,7 +1124,7 @@ function ImageCard({ title, url }: { title: string; url?: string }) {
 
 function AvailabilityCard({ availability }: { availability: WeeklyAvailability | null }) {
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+    <div className="rounded-2xl border border-orange-500 bg-slate-950/40 p-4">
       <div className="text-xs uppercase tracking-wide text-slate-400">
         Weekly Availability
       </div>
@@ -1134,7 +1134,7 @@ function AvailabilityCard({ availability }: { availability: WeeklyAvailability |
           return (
             <div
               key={d.key}
-              className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-2"
+              className="rounded-xl border border-orange-500 bg-slate-900/60 px-3 py-2"
             >
               <div className="text-[11px] text-slate-400">{d.label}</div>
               <div className="text-sm text-slate-100 mt-0.5">

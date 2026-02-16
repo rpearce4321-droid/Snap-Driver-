@@ -457,8 +457,8 @@ const SeekerMessagingCenter: React.FC<Props> = ({
     (effectiveSeeker as any).status === "DELETED"
   ) {
     return (
-      <div className="h-full min-h-0 rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden flex flex-col">
-        <div className="px-5 py-4 border-b border-slate-800 bg-slate-950/50">
+      <div className="h-full min-h-0 rounded-2xl bg-slate-900/80 border border-orange-500 overflow-hidden flex flex-col">
+        <div className="px-5 py-4 border-b border-orange-500 bg-slate-950/50">
           <h3 className="text-lg font-semibold text-slate-50">
             Messaging Center
           </h3>
@@ -471,8 +471,8 @@ const SeekerMessagingCenter: React.FC<Props> = ({
   }
 
   return (
-    <div className="h-full min-h-0 rounded-2xl bg-slate-900/80 border border-slate-800 overflow-hidden flex flex-col">
-      <div className="px-5 py-4 border-b border-slate-800 bg-slate-950/50">
+    <div className="h-full min-h-0 rounded-2xl bg-slate-900/80 border border-orange-500 overflow-hidden flex flex-col">
+      <div className="px-5 py-4 border-b border-orange-500 bg-slate-950/50">
         <h3 className="text-lg font-semibold text-slate-50">Messaging Center</h3>
         <p className="text-sm text-slate-300 mt-1">
           Left rail = Retainers. Middle rail = subjects. Right panel = message thread.
@@ -514,8 +514,8 @@ const SeekerMessagingCenter: React.FC<Props> = ({
         ) : (
           <div className="flex-1 min-h-0 grid grid-cols-12 h-full lg:min-h-[560px]">
             {/* Retainers rail */}
-            <div className="col-span-12 md:col-span-4 lg:col-span-3 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/30 flex flex-col min-h-0">
-              <div className="px-4 py-3 border-b border-slate-800 space-y-2">
+            <div className="col-span-12 md:col-span-4 lg:col-span-3 border-b md:border-b-0 md:border-r border-orange-500 bg-slate-950/30 flex flex-col min-h-0">
+              <div className="px-4 py-3 border-b border-orange-500 space-y-2">
                 <div>
                   <div className="text-xs uppercase tracking-wide text-slate-400">Retainers</div>
                   <div className="text-[11px] text-slate-500">{retainerIdsFiltered.length} shown</div>
@@ -556,7 +556,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
                           "w-full text-left rounded-2xl border px-3 py-2.5 transition flex items-center justify-between gap-3",
                           isActive
                             ? "bg-emerald-500/10 border-emerald-500/40"
-                            : "bg-slate-950/40 border-slate-800 hover:bg-slate-900/60",
+                            : "bg-slate-950/40 border-orange-500 hover:bg-slate-900/60",
                         ].join(" ")}
                       >
                         <div className="min-w-0">
@@ -582,8 +582,8 @@ const SeekerMessagingCenter: React.FC<Props> = ({
             </div>
 
             {/* Subjects rail */}
-            <div className="col-span-12 md:col-span-4 lg:col-span-4 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/20 flex flex-col min-h-0">
-              <div className="px-4 py-3 border-b border-slate-800 space-y-2">
+            <div className="col-span-12 md:col-span-4 lg:col-span-4 border-b md:border-b-0 md:border-r border-orange-500 bg-slate-950/20 flex flex-col min-h-0">
+              <div className="px-4 py-3 border-b border-orange-500 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <div className="text-xs uppercase tracking-wide text-slate-400">Subjects</div>
@@ -631,7 +631,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
                           "w-full text-left rounded-2xl border px-3 py-2.5 transition flex items-center justify-between gap-3",
                           isActive
                             ? "bg-emerald-500/10 border-emerald-500/40"
-                            : "bg-slate-950/40 border-slate-800 hover:bg-slate-900/60",
+                            : "bg-slate-950/40 border-orange-500 hover:bg-slate-900/60",
                         ].join(" ")}
                       >
                         <div className="min-w-0">
@@ -665,7 +665,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
 
             {/* Thread */}
             <div className="col-span-12 md:col-span-4 lg:col-span-5 bg-slate-950/10 flex flex-col min-h-0">
-              <div className="px-4 py-3 border-b border-slate-800">
+              <div className="px-4 py-3 border-b border-orange-500">
                 <div className="text-xs uppercase tracking-wide text-slate-400">Thread</div>
                 <div className="text-sm font-semibold text-slate-50 truncate">{activeConv?.subject || "Select a subject"}</div>
               </div>
@@ -720,7 +720,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
                     <div ref={messagesEndRef} />
                   </div>
 
-                  <div className="shrink-0 border-t border-slate-800 p-3 md:p-4 space-y-2">
+                  <div className="shrink-0 border-t border-orange-500 p-3 md:p-4 space-y-2">
                     <label className="text-[11px] font-medium text-slate-200">
                       Reply in &ldquo;{activeConv.subject || "Untitled"}&rdquo;
                     </label>
@@ -748,8 +748,8 @@ const SeekerMessagingCenter: React.FC<Props> = ({
         )
       ) : (
         <div className="flex-1 min-h-0 grid grid-cols-12 h-full lg:min-h-[560px]">
-          <div className="col-span-12 md:col-span-4 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-950/30 flex flex-col min-h-0">
-            <div className="px-4 py-3 border-b border-slate-800 space-y-2">
+          <div className="col-span-12 md:col-span-4 border-b md:border-b-0 md:border-r border-orange-500 bg-slate-950/30 flex flex-col min-h-0">
+            <div className="px-4 py-3 border-b border-orange-500 space-y-2">
               <div>
                 <div className="text-xs uppercase tracking-wide text-slate-400">Subcontractors</div>
                 <div className="text-[11px] text-slate-500">{filteredSubs.length} shown</div>
@@ -779,7 +779,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
                         "w-full text-left rounded-2xl border px-3 py-2.5 transition",
                         isActive
                           ? "bg-sky-500/10 border-sky-500/40"
-                          : "bg-slate-950/40 border-slate-800 hover:bg-slate-900/60",
+                          : "bg-slate-950/40 border-orange-500 hover:bg-slate-900/60",
                       ].join(" ")}
                     >
                       <div className="min-w-0">
@@ -798,7 +798,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
           </div>
 
           <div className="col-span-12 md:col-span-8 bg-slate-950/10 flex flex-col min-h-0">
-            <div className="px-4 py-3 border-b border-slate-800">
+            <div className="px-4 py-3 border-b border-orange-500">
               <div className="text-xs uppercase tracking-wide text-slate-400">Internal Thread</div>
               <div className="text-sm font-semibold text-slate-50 truncate">
                 {activeSub
@@ -841,7 +841,7 @@ const SeekerMessagingCenter: React.FC<Props> = ({
                   <div ref={subMessagesEndRef} />
                 </div>
 
-                <div className="shrink-0 border-t border-slate-800 p-3 md:p-4 space-y-2">
+                <div className="shrink-0 border-t border-orange-500 p-3 md:p-4 space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <label className="text-[11px] font-medium text-slate-200">
                       Message {activeSub.firstName} {activeSub.lastName}
@@ -905,8 +905,8 @@ const NewSubjectModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm px-4">
-      <div className="w-full max-w-lg rounded-2xl bg-slate-950 border border-slate-800 shadow-2xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+      <div className="w-full max-w-lg rounded-2xl bg-slate-950 border border-orange-500 shadow-2xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-orange-500 flex items-center justify-between">
           <div>
             <div className="text-xs uppercase tracking-wide text-slate-400">New subject with</div>
             <div className="text-sm font-semibold text-slate-50">{retainer ? formatRetainerName(retainer) : "Selected Retainer"}</div>
