@@ -546,7 +546,7 @@ const SeekerPage: React.FC = () => {
           <div className="text-xs text-slate-500">
             Member since {formatMemberSince(currentSeeker?.createdAt)}
           </div>
-          <div className="grid grid-cols-3 gap-2 pt-1">
+          <div className="grid gap-2 pt-2">
             <div className="space-y-1">
               <div className="text-[10px] uppercase tracking-wide text-emerald-200">Yes</div>
               <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-2 text-center">
